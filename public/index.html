@@ -718,7 +718,7 @@ function renderMonth(key) {
   const m = S.months[key], c = calc(m), keys = sortedKeys();
   const i = keys.indexOf(key), prev = keys[i-1], next = keys[i+1];
   app.innerHTML = `
-  <a class="btn ghost sm back" href="#/">${ICON.left} All months</a>
+  <a class="btn ghost sm back" href="#/">${ICON.left} Charts</a>
   <div class="mhead">
     <div class="nav">
       ${prev ? `<a class="icon" href="#/m/${prev}" title="${esc(monthLabel(prev))}">${ICON.left}</a>` : `<span class="icon" style="opacity:.3">${ICON.left}</span>`}
