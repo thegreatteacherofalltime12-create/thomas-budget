@@ -1,7 +1,7 @@
 // Thomas Budget service worker: makes the site installable, keeps the app shell available offline,
 // and lets the page offer an "Update" button when a new version is deployed.
 // VERSION is stamped by deploy.js on every deploy so browsers notice the change.
-const VERSION = '20260920T2039';
+const VERSION = '20260920T2041';
 const CACHE = 'thomas-budget-' + VERSION;
 const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png'];
 

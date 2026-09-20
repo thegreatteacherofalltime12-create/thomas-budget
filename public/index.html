@@ -150,8 +150,9 @@ h3{font-size:16px;font-weight:700}
 .mhead{margin-top:22px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .mhead .nav{display:flex;align-items:center;gap:4px;min-width:0;max-width:100%}
 .mhead h1{font-size:30px}
-.mhead .upd{display:flex;align-items:center;gap:8px;color:var(--ink-2);font-size:13px;margin-left:8px}
-.mhead .upd input{border:1px solid var(--line-2);background:var(--surface);border-radius:6px;padding:4px 7px;font-size:13px}
+.mhead .upd{color:var(--ink-3);font-size:12.5px;margin-left:8px;white-space:nowrap}
+.back{margin-top:16px;padding-left:6px}
+.back svg{width:14px;height:14px}
 .mhead .acts{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
 .perf{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;justify-content:flex-start}
 .perf .p{padding:7px 12px;display:flex;flex-direction:column;gap:1px;cursor:pointer;min-width:0;text-align:left;color:var(--ink)}
@@ -351,7 +352,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   .tabs{padding:8px 12px 0;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
   .tab{white-space:nowrap}
   .kcard .big{font-size:22px}
-  .mhead .upd{margin-left:0}
+  .mhead .upd{margin-left:0;flex:1}
   .wrap{padding-inline:16px}
   .top{position:static;backdrop-filter:none;background:var(--bg)}
 }
@@ -359,9 +360,8 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
 </style>
 
 <header class="top"><div class="wrap">
-  <a class="brand" href="#/"><span class="mark">TB</span><span class="name">Thomas Budget</span></a>
+  <span class="brand"><span class="mark">TB</span><span class="name">Thomas Budget</span></span>
   <nav>
-    <a class="btn ghost sm hide-s" href="#/">Home</a>
     <span class="pill local" id="sync"><span class="dot"></span><span id="sync-t">Connecting…</span></span>
     <button id="upd" class="btn primary sm" hidden title="A new version is ready">Update</button>
     <span id="who"></span>
@@ -543,7 +543,7 @@ const Store = {
     S.ready = true;
   },
   saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
-  markDirty(key) { dirty[key] = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
+  markDirty(key) { dirty[key] = true; const mm = S.months[key]; if (mm) { mm.updatedOn = today(); $$('[data-updated]').forEach(el => { el.textContent = 'Updated ' + fmtDate(mm.updatedOn); }); } setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
   write(fn, what) { // fire-and-forget: the SDK queues the write locally; report only failures
     Promise.resolve().then(fn).then(() => { if (!Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced'); })
       .catch(e => { const code = e && e.code || 'unknown'; if (code === 'permission-denied') { S.denied = true; this.wipeCache(); render(); } setSync('bad', 'Not saved'); toast(`Could not save ${what}: ${code}`); });
@@ -718,13 +718,14 @@ function renderMonth(key) {
   const m = S.months[key], c = calc(m), keys = sortedKeys();
   const i = keys.indexOf(key), prev = keys[i-1], next = keys[i+1];
   app.innerHTML = `
+  <a class="btn ghost sm back" href="#/">${ICON.left} All months</a>
   <div class="mhead">
     <div class="nav">
       ${prev ? `<a class="icon" href="#/m/${prev}" title="${esc(monthLabel(prev))}">${ICON.left}</a>` : `<span class="icon" style="opacity:.3">${ICON.left}</span>`}
       <h1 class="vh">${esc(monthLabel(key))}</h1>${monthSelect(key, 'month-pick', true)}
       ${next ? `<a class="icon" href="#/m/${next}" title="${esc(monthLabel(next))}">${ICON.right}</a>` : `<button class="icon" data-act="new-month" data-from="${key}" title="Start the next month">${ICON.plus}</button>`}
     </div>
-    <label class="upd">updated on <input type="date" id="f-updated" data-f="updatedOn" value="${esc(m.updatedOn||'')}"></label>
+    <span class="upd" data-updated>Updated ${esc(fmtDate(m.updatedOn))}</span>
     <div class="acts">
       <button class="btn sm ghost" data-act="delete-month" data-key="${key}" title="Delete this month">${ICON.x}</button>
     </div>
@@ -743,7 +744,7 @@ function renderMonth(key) {
   </section>
 
   <section class="notes"><div class="eyebrow" style="margin-bottom:6px">Notes</div><textarea id="f-notes" data-f="notes" placeholder="Anything worth remembering about this month…">${esc(m.notes||'')}</textarea></section>
-  <footer class="foot"><a href="#/">← All months</a><span class="sp"></span><span>${S.mode==='firebase'?'Changes save automatically and sync to both of you':'Changes save automatically in this browser'}</span></footer>`;
+  <footer class="foot"><span class="sp"></span><span>${S.mode==='firebase'?'Changes save automatically and sync to both of you':'Changes save automatically in this browser'}</span></footer>`;
 }
 
 const SECTIONS = [
@@ -904,8 +905,7 @@ function updateTotals(key) {
 function onInput(e) {
   const el = e.target, f = el.dataset.f, key = viewKey() || dialogCtx.key; if (!f || !key) return;
   const m = S.months[key]; if (!m) return;
-  if (f === 'updatedOn') m.updatedOn = el.value || null;
-  else if (f === 'notes') m.notes = el.value;
+  if (f === 'notes') m.notes = el.value;
   else if (f === 'label' || f === 'amount') { const row = el.closest('[data-line]'); const l = findLine(key, row.dataset.col, row.dataset.line); if (!l) return; if (f==='label') l.label = el.value; else l.amount = amtOr(el.value, l.amount); }
   else if (f === 'ilabel' || f === 'iamount') { const wrap = el.closest('[data-items]'), row = el.closest('[data-item]'); const col = el.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) return; const it = l.items.find(x=>x.id===row.dataset.item); if (!it) return; if (f==='ilabel') it.label = el.value; else it.amount = amtOr(el.value, it.amount); }
   else if (f === 'bud-label' || f === 'bud-limit') { const row = el.closest('[data-bud]'); const b = (m.budgets||[]).find(x => x.id === row.dataset.bud); if (!b) return;
