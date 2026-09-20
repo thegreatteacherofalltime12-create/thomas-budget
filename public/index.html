@@ -181,8 +181,7 @@ h3{font-size:16px;font-weight:700}
 .sw.none{background:var(--line-2)}
 .col-body{padding:6px 0 4px;display:flex;flex-direction:column;gap:2px}
 .dlg-body.editor{padding:8px 10px 10px}
-.bal-group{padding:6px 0 10px;border-bottom:1px solid var(--line)} .bal-group:last-child{border-bottom:0}
-.bal-head{display:flex;align-items:center;justify-content:space-between;padding:6px 8px 2px} .bal-head h3{font-size:14px} .bal-head span{font-weight:600}
+.dlg-body .list .lrow{padding:14px 10px}
 .kcard.click{text-align:left;color:var(--ink)}
 .calcbar{display:flex;gap:6px;flex-wrap:wrap;padding:6px 6px 10px;align-items:center}
 .calcbar button{min-width:44px;height:42px;padding:0 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);color:var(--ink);font-size:20px;font-weight:500}
@@ -740,7 +739,7 @@ function renderMonth(key) {
   ${(() => { const o = outlook(key); return `<button class="card outlook" data-act="outlook"><span class="lab">End-of-month outlook</span><span class="v num ${signCls(o.projected)}" data-outlook>${fmt(o.projected)}</span><span class="sub">${o.carried ? 'includes last month’s leftover listed under income' : o.prevKey ? `starts with ${fmt(o.leftover)} left over from ${esc(shortMonth(o.prevKey))}` : 'no earlier month to start from'} · tap for the breakdown</span></button>`; })()}
 
   <section class="section">
-    <div class="card list">${SECTIONS.filter(s => s.kind !== 'bal').map(s => `<button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${s.kind==='budgets' ? (budgetStats(m).count ? `${budgetStats(m).count} budget${budgetStats(m).count===1?'':'s'}${budgetStats(m).over?` · ${budgetStats(m).over} over`:''}${standardExpenses(key).size?` · ${standardExpenses(key).size} standard`:''}` : standardExpenses(key).size ? `${standardExpenses(key).size} standard expense${standardExpenses(key).size===1?'':'s'}` : 'set spending limits') : `${(m[s.key]||[]).length} ${s.kind==='lines'?'line':'entr'}${(m[s.key]||[]).length===1?(s.kind==='lines'?'':'y'):(s.kind==='lines'?'s':'ies')}`}</span></span><span class="v num" data-total="${s.key}">${s.key==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, s.key))}</span>${ICON.chev}</button>`).join('')}</div>
+    <div class="card list">${SECTIONS.filter(s => s.kind !== 'bal' && s.key !== 'wealth').map(s => `<button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${s.kind==='budgets' ? (budgetStats(m).count ? `${budgetStats(m).count} budget${budgetStats(m).count===1?'':'s'}${budgetStats(m).over?` · ${budgetStats(m).over} over`:''}${standardExpenses(key).size?` · ${standardExpenses(key).size} standard`:''}` : standardExpenses(key).size ? `${standardExpenses(key).size} standard expense${standardExpenses(key).size===1?'':'s'}` : 'set spending limits') : `${(m[s.key]||[]).length} ${s.kind==='lines'?'line':'entr'}${(m[s.key]||[]).length===1?(s.kind==='lines'?'':'y'):(s.kind==='lines'?'s':'ies')}`}</span></span><span class="v num" data-total="${s.key}">${s.key==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, s.key))}</span>${ICON.chev}</button>`).join('')}</div>
   </section>
 
   <section class="notes"><div class="eyebrow" style="margin-bottom:6px">Notes</div><textarea id="f-notes" data-f="notes" placeholder="Anything worth remembering about this month…">${esc(m.notes||'')}</textarea></section>
@@ -836,27 +835,34 @@ function openOutlook(key) {
     <div class="dlg-foot"><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
   dlg.style.maxWidth = '600px';
 }
+const BAL_GROUPS = [
+  { key: 'cards',    title: 'Credit card balances',       sw: 'debt',   sub: m => `${(m.cards||[]).filter(x=>x.amount).length} with a balance` },
+  { key: 'savings',  title: 'Savings in cash',            sw: 'income', sub: m => `${(m.savings||[]).length} account${(m.savings||[]).length===1?'':'s'}` },
+  { key: 'wealth',   title: 'Wealth building this month', sw: 'wealth', sub: m => `${(m.wealth||[]).length} line${(m.wealth||[]).length===1?'':'s'}` },
+  { key: 'accounts', title: 'Other balances',             sw: 'none',   sub: m => (m.accounts||[]).map(a => a.label).filter(Boolean).join(', ') || 'e.g. 401K, mortgage' },
+];
 function balancesBody(key) {
   const m = S.months[key], keys = sortedKeys(), i = keys.indexOf(key), prev = i > 0 ? keys[i - 1] : null;
   const empty = !((m.cards||[]).length || (m.savings||[]).length || (m.accounts||[]).length);
   const prevHas = prev && ((S.months[prev].cards||[]).length || (S.months[prev].savings||[]).length || (S.months[prev].accounts||[]).length);
-  return (empty && prevHas ? `<div class="bud-form" style="grid-template-columns:1fr auto;align-items:center"><span class="muted" style="font-size:13px">Start from ${esc(monthLabel(prev))}’s balances?</span><button class="btn sm" data-act="copy-bal" data-from="${prev}">Copy them</button></div>` : '') +
-    BALS.map(b => `<div class="bal-group"><div class="bal-head"><h3>${b.title}</h3>${b.key==='savings' ? '' : ''}${b.key!=='accounts' ? `<span class="num" data-total="${b.key}">${fmt(secTotal(m, b.key))}</span>` : ''}</div>${editorBody(key, b.key)}<button class="btn ghost sm" data-act="add-bal" data-bal="${b.key}">${ICON.plus} Add ${b.key==='cards'?'card':b.key==='savings'?'account':'balance'}</button></div>` + (b.key==='savings' ? `<div class="bal-group"><div class="bal-head"><h3><span class="sw wealth" style="margin-right:6px"></span>Wealth building this month</h3><span class="num" data-total="wealth">${fmt(secTotal(m, 'wealth'))}</span></div>${editorBody(key, 'wealth')}<button class="btn ghost sm" data-act="add-line" data-col="wealth">${ICON.plus} Add line</button></div>` : '')).join('');
+  return (empty && prevHas ? `<div class="bud-form" style="grid-template-columns:1fr auto;align-items:center;margin:8px"><span class="muted" style="font-size:13px">Start from ${esc(monthLabel(prev))}’s balances?</span><button class="btn sm" data-act="copy-bal" data-from="${prev}">Copy them</button></div>` : '') +
+    `<div class="list" style="margin:0">${BAL_GROUPS.map(g => `<button class="lrow" data-act="edit" data-sec="${g.key}"><span class="sw ${g.sw}"></span><span class="t">${g.title}<span class="n">${esc(g.sub(m))}</span></span><span class="v num" data-total="${g.key}">${fmt(secTotal(m, g.key))}</span>${ICON.chev}</button>`).join('')}</div>`;
 }
 function openBalances(key) {
   if (!S.months[key]) return; dialogCtx = { key, sec: 'balances' };
   openOverlay(`<div class="dlg-head"><div class="ttl"><h2>Balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · where things stand at month end</span></div><button class="icon x" data-dact="close" title="Done">${ICON.x}</button></div>
     <div class="dlg-body editor">${balancesBody(key)}</div>
-    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
+    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="savings" data-key="${key}">${ICON.chart} Savings</button><span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
   dlg.style.maxWidth = '640px';
 }
 function openEditor(key, sec) {
   const m = S.months[key], s = SECTIONS.find(x => x.key === sec); if (!m || !s) return;
-  dialogCtx = { key, sec };
+  const fromBalances = dialogCtx.sec === 'balances' || dialogCtx.from === 'balances';
+  dialogCtx = { key, sec, from: fromBalances ? 'balances' : null };
   const chart = s.kind === 'lines' ? sec : (sec === 'cards' ? 'debt' : null);
   openOverlay(`<div class="dlg-head"><div class="ttl"><h2 style="display:flex;align-items:center;gap:8px">${s.sw?`<span class="sw ${s.sw}"></span>`:''}${s.title}</h2><span class="muted num" style="font-size:13px">${esc(monthLabel(key))} · <b data-total="${sec}">${sec==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, sec))}</b></span></div><button class="icon x" data-dact="close" title="Done">${ICON.x}</button></div>
     <div class="dlg-body editor">${editorBody(key, sec)}</div>
-    <div class="dlg-foot">${s.kind==='budgets' ? `<button class="btn sm" data-act="bud-new" title="New budget">${ICON.plus} Budget</button>` : s.kind==='lines' ? `<button class="btn sm" data-act="add-line" data-col="${sec}">${ICON.plus} Add line</button>` : `<button class="btn sm" data-act="add-bal" data-bal="${sec}">${ICON.plus} Add</button>`}${chart?`<button class="chartbtn" data-act="chart" data-chart="${chart}" data-key="${key}">${ICON.chart} Chart</button>`:''}<span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
+    <div class="dlg-foot">${fromBalances ? `<button class="btn sm ghost" data-act="balances" data-key="${key}">${ICON.left} Balances</button>` : ''}${s.kind==='budgets' ? `<button class="btn sm" data-act="bud-new" title="New budget">${ICON.plus} Budget</button>` : s.kind==='lines' ? `<button class="btn sm" data-act="add-line" data-col="${sec}">${ICON.plus} Add line</button>` : `<button class="btn sm" data-act="add-bal" data-bal="${sec}">${ICON.plus} Add</button>`}${chart?`<button class="chartbtn" data-act="chart" data-chart="${chart}" data-key="${key}">${ICON.chart} Chart</button>`:''}<span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
   dlg.style.maxWidth = '640px';
 }
 function refreshEditor() {
