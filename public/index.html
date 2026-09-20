@@ -181,7 +181,7 @@ h3{font-size:16px;font-weight:700}
 .chrow input[type=date]{font-size:13px;padding:5px 4px}
 .chrow .paid{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);white-space:nowrap} .chrow .paid input{width:16px;height:16px;margin:0}
 .kcard.church{text-align:left;color:var(--ink)}
-@media (max-width:620px){ .chrow{grid-template-columns:minmax(0,1fr) 96px 36px;grid-template-areas:"label amt del" "date paid paid"} .chrow input[type=date]{grid-area:date} .chrow input[data-f=ch-label]{grid-area:label} .chrow .amt{grid-area:amt} .chrow .paid{grid-area:paid;justify-content:flex-end} .chrow .icon{grid-area:del} }
+@media (max-width:620px){ .chrow{grid-template-columns:minmax(0,1fr) 96px 36px;grid-template-areas:"label amt del" "date paid paid"} .chrow input[type=date]{grid-area:date} .chrow input[data-f=ch-label]{grid-area:label} .chrow .amtw{grid-area:amt} .chrow .paid{grid-area:paid;justify-content:flex-end} .chrow .icon{grid-area:del} }
 .yrow{display:flex;align-items:stretch;border-bottom:1px solid var(--line)} .yrow:last-child{border-bottom:0} .yrow .lrow{border-bottom:0;flex:1;min-width:0}
 .yrow .del{width:44px;height:auto;border-radius:0;color:var(--ink-3)} .yrow .del:hover{color:var(--bad);background:var(--bad-soft)}
 .kcard.click{text-align:left;color:var(--ink)}
@@ -210,6 +210,9 @@ h3{font-size:16px;font-weight:700}
 .row input:hover{background:var(--surface)}
 .row input:focus{background:var(--surface);outline:1px solid var(--accent-line);box-shadow:none}
 .row input.amt{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+.amtw{position:relative;display:flex;min-width:0} .amtw .amt{width:100%} .amtw:has(.undo:not([hidden])) .amt{padding-right:28px}
+.amtw .undo{position:absolute;right:2px;top:50%;transform:translateY(-50%);width:24px;height:24px;display:inline-grid;place-items:center;border:0;border-radius:6px;background:transparent;color:var(--accent);padding:0;cursor:pointer}
+.amtw .undo:hover{background:var(--accent-soft)} .amtw .undo svg{width:15px;height:15px}
 .row .calc{text-align:right;font-variant-numeric:tabular-nums;font-weight:500;padding:5px 6px;color:var(--ink-2);cursor:pointer}
 .row .calc:hover{text-decoration:underline dotted}
 .row .icon{width:22px;height:22px}
@@ -468,6 +471,7 @@ function toast(msg, ms=2200) { const t=$('#toast'); t.textContent=msg; t.classLi
 function setSync(state, text) { const p=$('#sync'); p.className='pill '+state; $('#sync-t').textContent=text; }
 const ICON = {
   chart: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 13h12M4 10V7M8 10V4M12 10V6"/></svg>',
+  undo: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L2.5 7 6 10.5"/><path d="M2.5 7h7a3.5 3.5 0 0 1 0 7H8"/></svg>',
   x: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
   plus: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
   chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l5 5-5 5"/></svg>',
@@ -806,12 +810,12 @@ function editorBody(key, sec) {
   const rows = m[sec] || [];
   if (s.kind === 'budgets') return `<div class="col-body" data-budgets>
     <div class="bud-form" id="bud-form" hidden><select id="bud-name" class="sel" aria-label="Category">${(() => { const std = standardExpenses(key), taken = new Set((m.budgets||[]).map(b => norm(b.label))); const opts = (m.expenses||[]).filter(l => l.label.trim() && !taken.has(norm(l.label)) && !std.has(norm(l.label))); return `<option value="">Choose a category…</option>${opts.map(l => `<option value="${esc(l.label)}">${esc(l.label)}</option>`).join('')}<option value="__new__">Other — type a new one…</option>`; })()}</select><input type="text" id="bud-name-new" placeholder="New category name" autocomplete="off" hidden><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="bud-limit" placeholder="Don’t go over"><button class="btn primary sm" data-act="bud-add">Add</button></div>
-    ${rows.filter(b => !isStandard(m, b.label)).map(b => `<div class="bud" data-bud="${b.id}"><div class="row bud-row"><input type="text" id="f-${b.id}-label" data-f="bud-label" value="${esc(b.label)}" placeholder="Name" autocomplete="off"><span class="faint" style="font-size:12px;white-space:nowrap">limit</span><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${b.id}-limit" data-f="bud-limit" value="${fmtIn(b.limit)}" aria-label="Limit" autocomplete="off"><button class="icon" data-act="del-bud" title="Remove budget">${ICON.x}</button></div>${meterHTML(b, m)}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Tap + to add one.</div>`}
+    ${rows.filter(b => !isStandard(m, b.label)).map(b => `<div class="bud" data-bud="${b.id}"><div class="row bud-row"><input type="text" id="f-${b.id}-label" data-f="bud-label" value="${esc(b.label)}" placeholder="Name" autocomplete="off"><span class="faint" style="font-size:12px;white-space:nowrap">limit</span><span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${b.id}-limit" data-f="bud-limit" value="${fmtIn(b.limit)}" aria-label="Limit" autocomplete="off">${undoBtn(`f-${b.id}-limit`)}</span><button class="icon" data-act="del-bud" title="Remove budget">${ICON.x}</button></div>${meterHTML(b, m)}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Tap + to add one.</div>`}
     ${(() => { const std = [...standardExpenses(key).values()]; if (!std.length) return ''; return `<div class="std"><div class="eyebrow">Standard monthly expenses</div><div class="faint" style="font-size:12px;margin:2px 0 6px">Same amount three months running — tracked here instead of as budgets.</div>${std.map(x => `<div class="std-row num"><span>${esc(x.label)}</span><span>${fmt(x.amount)}</span></div>`).join('')}</div>`; })()}</div>`;
   if (s.kind === 'lines') return `<div class="col-body" data-col="${sec}">${rows.map(l => lineHTML(key, sec, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Add a line below.</div>`}</div>`;
   return `<div class="col-body bal" data-bal="${sec}">${rows.map(r => `<div class="row" data-brow="${r.id}" data-bal="${sec}">
       <input type="text" id="f-${r.id}-label" data-f="blabel" value="${esc(r.label)}" placeholder="${sec==='cards'?'Card name':sec==='savings'?'Account':'e.g. 401K balance'}" enterkeyhint="next" autocomplete="off">
-      <input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${r.id}-amount" data-f="bamount" value="${fmtIn(r.amount)}" aria-label="Balance" enterkeyhint="next" autocomplete="off">
+      <span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${r.id}-amount" data-f="bamount" value="${fmtIn(r.amount)}" aria-label="Balance" enterkeyhint="next" autocomplete="off">${undoBtn(`f-${r.id}-amount`)}</span>
       <button class="icon" data-act="del-bal" title="Remove">${ICON.x}</button></div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}.</div>`}</div>`;
 }
 /* End-of-month outlook. Start from what last month left over; assume every income, expense and
@@ -859,7 +863,7 @@ function churchBody() {
     <div class="col-body" data-church-rows>${rows.map(r => `<div class="row chrow" data-ch="${r.id}">
       <input type="date" data-f="ch-date" value="${esc(r.date)}" aria-label="Date">
       <input type="text" id="f-${r.id}-label" data-f="ch-label" value="${esc(r.label)}" placeholder="What was it for" autocomplete="off">
-      <input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${r.id}-amount" data-f="ch-amount" value="${fmtIn(r.amount)}" aria-label="Amount" autocomplete="off">
+      <span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${r.id}-amount" data-f="ch-amount" value="${fmtIn(r.amount)}" aria-label="Amount" autocomplete="off">${undoBtn(`f-${r.id}-amount`)}</span>
       <label class="paid" title="Reimbursed"><input type="checkbox" data-f="ch-paid" ${r.paid ? 'checked' : ''}> paid</label>
       <button class="icon" data-act="ch-del" title="Remove">${ICON.x}</button></div>`).join('') || '<div class="faint" style="padding:10px 8px;font-size:12.5px">Nothing recorded yet. Tap + Add expense.</div>'}</div>`;
 }
@@ -936,7 +940,7 @@ function lineHTML(key, colKey, l) {
   return `<div class="row" data-line="${l.id}" data-col="${colKey}">
     <input type="text" id="f-${l.id}-label" data-f="label" value="${esc(l.label)}" placeholder="Label" aria-label="Line label" enterkeyhint="next" autocomplete="off">
     ${hasItems ? `<span class="calc num" data-line-amt="${l.id}" data-act="toggle-items" title="Sum of ${l.items.length} items — click to see them">${fmt(lineAmt(l))}</span>`
-               : `<input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${l.id}-amount" data-f="amount" value="${fmtIn(l.amount)}" aria-label="Amount" enterkeyhint="next" autocomplete="off">`}
+               : `<span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${l.id}-amount" data-f="amount" value="${fmtIn(l.amount)}" aria-label="Amount" enterkeyhint="next" autocomplete="off">${undoBtn(`f-${l.id}-amount`)}</span>`}
     <button class="icon ${open||hasItems?'on':''}" data-act="toggle-items" title="${hasItems?'Breakdown items':'Break this line into items'}">${ICON.list}</button>
     <button class="icon" data-act="del-line" title="Remove line">${ICON.x}</button>
   </div>
@@ -946,7 +950,7 @@ function itemsHTML(colKey, l) {
   return `<div class="items" data-items="${l.id}">
     ${(l.items||[]).map(it => `<div class="row" data-item="${it.id}">
       <input type="text" id="f-${it.id}-label" data-f="ilabel" value="${esc(it.label||'')}" placeholder="e.g. paycheck, Walmart 9/14">
-      <input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${it.id}-amount" data-f="iamount" value="${fmtIn(it.amount)}" aria-label="Item amount">
+      <span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${it.id}-amount" data-f="iamount" value="${fmtIn(it.amount)}" aria-label="Item amount">${undoBtn(`f-${it.id}-amount`)}</span>
       <button class="icon" data-act="del-item" title="Remove item">${ICON.x}</button>
     </div>${it.note?`<div class="note">${esc(it.note)}</div>`:''}`).join('')}
     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm add" data-act="add-item">${ICON.plus} Add item</button><button class="btn ghost sm" data-act="toggle-items" data-line="${l.id}" data-col="${colKey}">Hide</button></div>
@@ -1008,7 +1012,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del','undo'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && act !== 'chart') return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': if (dlg.open) closeOverlay(); location.hash = '#/m/' + t.dataset.key; break;
@@ -1016,6 +1020,7 @@ async function onAction(e) {
     case 'outlook': openOutlook(key); break;
     case 'balances': openBalances(t.dataset.key || key); break;
     case 'church': openChurch(); break;
+    case 'undo': undoAmount(t.dataset.for); break;
     case 'ch-add': { S.church = S.church || []; const r = { id: uid(), date: today(), label: '', amount: 0, paid: false }; S.church.push(r); Store.markChurch(); refreshEditor(); const inp = $('#f-' + r.id + '-label'); if (inp) inp.focus(); break; }
     case 'ch-del': { const row = t.closest('[data-ch]'); const r = (S.church || []).find(x => x.id === row.dataset.ch); if (!r) break; if ((r.amount || r.label) && !(await ask(`Remove “${r.label || 'this expense'}” (${fmt(r.amount)})?`, 'Remove'))) break; S.church = S.church.filter(x => x.id !== r.id); Store.markChurch(); refreshEditor(); break; }
     case 'copy-bal': { const src = S.months[t.dataset.from]; if (!src) break; for (const b of BALS) m[b.key] = (src[b.key]||[]).map(r => ({ id: uid(), label: r.label, amount: r.amount })); Store.markDirty(key); render(); break; }
@@ -1308,6 +1313,23 @@ function confirmDelete(key) {
 async function doDeleteMonth(key) { const lab = monthLabel(key); dlg.style.maxWidth=''; closeOverlay(); await Store.deleteMonth(key); location.hash = '#/'; toast(lab + ' deleted'); render(); }
 
 
+/* ---------- undo for amount boxes: each box remembers what it held before every edit ---------- */
+const UNDO = new Map(); let amtStart = null;
+const undoDepth = id => (UNDO.get(id) || []).length;
+function undoBtn(id) { return `<button type="button" class="undo" data-act="undo" data-for="${id}" title="Undo the last change" aria-label="Undo the last change" ${undoDepth(id) ? '' : 'hidden'}>${ICON.undo}</button>`; }
+function showUndo(id) { const b = $(`.undo[data-for="${id}"]`); if (b) b.hidden = !undoDepth(id); }
+function recordUndo(inp) { // called when an amount box loses focus
+  const was = amtStart; amtStart = null; if (was === null || !inp.id) return;
+  const now = fmtIn(parseNum(inp.value)); if (now === was) return;
+  UNDO.set(inp.id, [...(UNDO.get(inp.id) || []), was].slice(-30)); showUndo(inp.id);
+}
+function undoAmount(id) {
+  const st = UNDO.get(id) || [], inp = document.getElementById(id); if (!st.length || !inp) return;
+  const prev = st.pop(); amtStart = null; inp.value = prev;
+  inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true }));
+  showUndo(id); toast(`Back to ${fmt(parseNum(prev))}`);
+}
+
 /* ---------- operator strip for amount boxes (phones: the decimal keypad has no + − × ÷) ---------- */
 const isTouch = () => matchMedia('(pointer:coarse)').matches || navigator.maxTouchPoints > 0;
 let calcbar = null;
@@ -1328,8 +1350,8 @@ function showCalcbar(inp) {
   if (host.classList.contains('bud-form')) { calcbar.style.gridColumn = '1 / -1'; host.appendChild(calcbar); } else host.insertAdjacentElement('afterend', calcbar);
 }
 function hideCalcbar() { if (calcbar) { calcbar.remove(); calcbar = null; } }
-document.addEventListener('focusin', e => { const t = e.target; if (!t.matches || !t.matches('input.amt')) return; if (parseNum(t.value) === 0) t.value = ''; else setTimeout(() => { try { t.select(); } catch (err) {} }, 0); if (isTouch()) showCalcbar(t); });
-document.addEventListener('focusout', e => { const t = e.target; if (t.matches && t.matches('input.amt') && t.value.trim() === '') { t.value = '0'; } });
+document.addEventListener('focusin', e => { const t = e.target; if (!t.matches || !t.matches('input.amt')) return; amtStart = t.id ? fmtIn(parseNum(t.value)) : null; if (parseNum(t.value) === 0) t.value = ''; else setTimeout(() => { try { t.select(); } catch (err) {} }, 0); if (isTouch()) showCalcbar(t); });
+document.addEventListener('focusout', e => { const t = e.target; if (!t.matches || !t.matches('input.amt')) return; if (t.value.trim() === '') t.value = '0'; recordUndo(t); });
 document.addEventListener('click', e => { if (isTouch() && e.target.matches && e.target.matches('input.amt') && !(calcbar && calcbar.previousElementSibling && calcbar.previousElementSibling.contains(e.target))) showCalcbar(e.target); });
 document.addEventListener('focusout', e => { if (e.target.matches && e.target.matches('input.amt')) setTimeout(() => { if (!document.activeElement || !document.activeElement.matches('input.amt')) hideCalcbar(); }, 80); });
 
