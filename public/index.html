@@ -136,17 +136,12 @@ h3{font-size:16px;font-weight:700}
 .hero-side .hint{font-size:12px;color:var(--accent);font-weight:600;display:flex;align-items:center;gap:6px}
 
 /* ---- months table ---- */
-.mtable{width:100%;border-collapse:collapse}
-.mtable th{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600;text-align:right;padding:8px 12px;border-bottom:1px solid var(--line)}
-.mtable th:first-child{text-align:left}
-.mtable td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-.mtable td:first-child{text-align:left;font-weight:600;font-family:var(--display);font-size:15px}
-.mtable tr:last-child td{border-bottom:0}
-.mtable tbody tr{cursor:pointer}
-.mtable tbody tr:hover td{background:var(--surface-2)}
-.mtable .sub{display:block;font-size:11.5px;color:var(--ink-3);font-family:var(--body);font-weight:400}
-.mtable .cur{display:inline-block;margin-left:8px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;background:var(--accent-soft);color:var(--accent);padding:2px 6px;border-radius:4px;vertical-align:middle;font-family:var(--body)}
-.tscroll{overflow-x:auto}
+.pick{padding:14px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.pick label{color:var(--ink-2);font-size:13px;font-weight:500}
+.sel{border:1px solid var(--line-2);background:var(--surface);color:var(--ink);border-radius:var(--r-s);padding:9px 12px;font-size:15px;min-height:40px;max-width:100%;font-family:var(--body)}
+.mhead .sel{font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:-.02em;border-color:transparent;background:transparent;padding:4px 28px 4px 6px;appearance:auto}
+.mhead .sel:hover{background:var(--surface-2)}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* ---- cards grid (trend / debt / balances) ---- */
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
@@ -203,26 +198,6 @@ h3{font-size:16px;font-weight:700}
 .notes textarea{width:100%;min-height:72px;resize:vertical;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:10px 12px}
 
 /* ---- transactions ---- */
-.tx-empty{padding:22px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
-.tx-empty p{margin:0;max-width:60ch;color:var(--ink-2)}
-.txg{border-bottom:1px solid var(--line)}
-.txg:last-child{border-bottom:0}
-.txg-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 14px;cursor:pointer}
-.txg-head:hover{background:var(--surface-2)}
-.txg-head .n{font-size:12px;color:var(--ink-3)}
-.txg-head .t{font-weight:600;white-space:nowrap}
-.txg-head .chev{width:18px;height:18px;color:var(--ink-3);transition:transform .15s}
-.txg.open .chev{transform:rotate(90deg)}
-.txg-body{display:none;padding:2px 8px 10px 14px}
-.txg.open .txg-body{display:block}
-.txt{width:100%;border-collapse:collapse;font-size:13px}
-.txt td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
-.txt tr:last-child td{border-bottom:0}
-.txt td.d{white-space:nowrap;color:var(--ink-2);font-family:var(--mono);font-size:12px}
-.txt td.a{text-align:right;white-space:nowrap;font-weight:500}
-.txt td.desc{max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.txt select,.rev select{max-width:200px;border:1px solid var(--line-2);border-radius:6px;padding:3px 6px;background:var(--surface);font-size:12.5px}
-.txg-acts{display:flex;gap:8px;padding:8px 6px 0;flex-wrap:wrap}
 
 /* ---- overlay (charts / dialogs) ---- */
 dialog{border:0;padding:0;background:transparent;max-width:min(96vw,980px);width:100%;margin:auto;color:var(--ink)}
@@ -289,23 +264,6 @@ dialog::backdrop{background:rgba(10,14,10,.55);backdrop-filter:blur(6px)}
 .lgnd span{display:inline-flex;align-items:center;gap:6px}
 .lgnd i{width:14px;height:3px;border-radius:2px;display:inline-block}
 
-/* import review */
-.rev .drop{border:1.5px dashed var(--line-2);border-radius:var(--r);padding:20px;display:flex;flex-direction:column;gap:10px;align-items:flex-start;background:var(--surface-2)}
-.rev textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:12px;border:1px solid var(--line-2);border-radius:var(--r-s);padding:8px 10px;background:var(--surface)}
-.rev .steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;font-size:12.5px;color:var(--ink-2);margin-bottom:12px}
-.rev .steps div{padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-s)}
-.rev .steps b{display:block;color:var(--ink);margin-bottom:3px}
-.rev .sum{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);margin:6px 0 10px}
-.rev .sum b{color:var(--ink)}
-.rev table{width:100%;border-collapse:collapse;font-size:13px}
-.rev th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:6px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface)}
-.rev td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
-.rev td.a{text-align:right;white-space:nowrap;font-weight:500}
-.rev td.d{white-space:nowrap;font-family:var(--mono);font-size:12px;color:var(--ink-2)}
-.rev td.desc{max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rev tr.off td{opacity:.45}
-.rev tr.oom td.d{color:var(--warn)}
-.rev .tscroll{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:var(--r-s)}
 
 /* forms */
 .form{display:flex;flex-direction:column;gap:14px}
@@ -339,7 +297,6 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   .mhead h1{font-size:24px}
   .mhead .acts{margin-left:0;width:100%}
   .donut-lg{grid-template-columns:1fr}
-  .rev .steps{grid-template-columns:1fr}
   .hb{grid-template-columns:minmax(70px,110px) minmax(0,1fr) 80px}
   .top .wrap{gap:10px}
   .top nav .hide-s{display:none}
@@ -356,14 +313,12 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   .btn{padding:11px 16px;min-height:44px} .btn.sm{padding:9px 13px;min-height:40px}
   .chartbtn{padding:7px 12px 7px 10px;min-height:36px}
   .tab{padding:9px 13px;min-height:38px}
-  .txt select,.rev select,.form input,.form select,.mhead .upd input,.rev textarea,.notes textarea{font-size:16px}
-  .txg-head{padding:14px}
+  .form input,.form select,.mhead .upd input,.notes textarea{font-size:16px}
   .tile{padding:14px 12px}
 }
 @media (max-width:620px){
-  .mtable .hide-m{display:none}
-  .mtable td,.mtable th{padding:10px 10px}
-  .mtable td:first-child{font-size:14px}
+  .pick{flex-direction:column;align-items:stretch}
+  .mhead .sel{font-size:18px}
   dialog{max-width:100vw;width:100vw;height:100dvh;max-height:100dvh;margin:0}
   .dlg{border-radius:0;border:0;max-height:none;height:100dvh;min-height:100vh}
   .dlg-head{padding-top:calc(14px + env(safe-area-inset-top,0px))}
@@ -371,10 +326,6 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   .dlg-body{padding:14px 16px 18px}
   .tabs{padding:8px 12px 0;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
   .tab{white-space:nowrap}
-  .txt select,.rev select{max-width:132px}
-  .rev .tscroll{max-height:none;border:0}
-  .txg-head{grid-template-columns:auto minmax(0,1fr) auto}
-  .txg-head .n:last-of-type{display:none}
   .hero-main .figure{font-size:clamp(36px,11vw,44px)}
   .kcard .big{font-size:22px}
   .mhead .upd{margin-left:0}
@@ -389,6 +340,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   <nav>
     <a class="btn ghost sm hide-s" href="#/">Home</a>
     <span class="pill local" id="sync"><span class="dot"></span><span id="sync-t">Connecting…</span></span>
+    <button id="upd" class="btn primary sm" hidden title="A new version is ready">Update</button>
     <span id="who"></span>
   </nav>
 </div></header>
@@ -437,7 +389,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, tx:{}, rules:{}, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -511,7 +463,7 @@ const Store = {
       S.user = user ? { uid: user.uid, email: user.email || '', name: user.displayName || '', photo: user.photoURL || '' } : null;
       S.denied = false;
       if (user) { S.ready = false; this.subscribe(); setSync('busy', 'Loading…'); }
-      else { this.unsubscribe(); S.months = {}; S.tx = {}; S.rules = {}; S.ready = true; setSync('local', 'Signed out'); }
+      else { this.unsubscribe(); S.months = {}; S.ready = true; setSync('local', 'Signed out'); }
       renderNav(); render();
     });
   },
@@ -540,11 +492,6 @@ const Store = {
       if (!Object.values(dirty).some(Boolean)) setSync('ok', snap.metadata.fromCache ? 'Offline · saved on device' : 'Shared · synced');
       requestRender();
     }, err => this.onError(err)));
-    this._unsubs.push(F.onSnapshot(F.collection(db, 'transactions'), snap => {
-      const next = {}; snap.docs.forEach(d => { const data = d.data(); if (data) next[d.id] = clone(data.rows || []); });
-      S.tx = next; requestRender();
-    }, err => this.onError(err)));
-    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'rules'), snap => { S.rules = snap.exists() ? clone(snap.data().rules || {}) : {}; }, err => this.onError(err)));
   },
   onError(err) {
     const code = err && err.code || 'unknown';
@@ -552,10 +499,10 @@ const Store = {
     else { setSync('bad', 'Sync problem'); toast('Sync problem: ' + code); S.ready = true; requestRender(); }
   },
   loadLocal() {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.tx = d.tx || {}; S.rules = d.rules || {}; } } catch (e) {}
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; } } catch (e) {}
     S.ready = true;
   },
-  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, tx: S.tx, rules: S.rules })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
+  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
   markDirty(key) { dirty[key] = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
   write(fn, what) { // fire-and-forget: the SDK queues the write locally; report only failures
     Promise.resolve().then(fn).then(() => { if (!Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced'); })
@@ -578,24 +525,16 @@ const Store = {
   async flushAll() { for (const k of Object.keys(dirty)) if (dirty[k]) await this.flush(k); },
   async saveMonthNow(key) { dirty[key] = true; await this.flush(key); },
   async deleteMonth(key) {
-    delete S.months[key]; delete S.tx[key]; dirty[key] = false; clearTimeout(timers[key]);
-    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => Promise.all([F.deleteDoc(F.doc(db, 'months', key)), F.deleteDoc(F.doc(db, 'transactions', key))]), 'the deletion'); }
-    else this.saveLocal();
-  },
-  async saveTx(key) {
-    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'transactions', key), { rows: S.tx[key] || [] }), 'transactions'); }
-    else this.saveLocal();
-  },
-  async saveRules() {
-    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'rules'), { rules: S.rules }), 'merchant rules'); }
+    delete S.months[key]; dirty[key] = false; clearTimeout(timers[key]);
+    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.deleteDoc(F.doc(db, 'months', key)), 'the deletion'); }
     else this.saveLocal();
   },
   /* ---- backup & restore (JSON) ---- */
-  backupJSON() { return JSON.stringify({ app: 'thomas-budget', version: 1, exportedAt: new Date().toISOString(), months: S.months, tx: S.tx, rules: S.rules }, null, 1); },
+  backupJSON() { return JSON.stringify({ app: 'thomas-budget', version: 1, exportedAt: new Date().toISOString(), months: S.months }, null, 1); },
   parseBackup(text) {
     let d; try { d = JSON.parse(text); } catch (e) { throw new Error('That file is not valid JSON'); }
     const safeId = id => (typeof id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(id)) ? id : uid();
-    const months = {}; let tx = {}, rules = {};
+    const months = {};
     const monthList = Array.isArray(d) ? d : (d && d.months ? (Array.isArray(d.months) ? d.months : Object.values(d.months)) : null);
     if (!monthList) throw new Error('No months found in that file');
     for (const m of monthList) {
@@ -605,25 +544,13 @@ const Store = {
       for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount) }));
       months[m.key] = doc;
     }
-    if (d && !Array.isArray(d)) {
-      if (d.tx && typeof d.tx === 'object') for (const [k, rows] of Object.entries(d.tx)) {
-        if (!/^\d{4}-\d{2}$/.test(k) || !Array.isArray(rows)) continue;
-        tx[k] = rows.filter(t => t && typeof t === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(String(t.date || ''))).map(t => ({ id: safeId(t.id), date: String(t.date), desc: String(t.desc || '').slice(0, 200), amount: r2(t.amount), cat: String(t.cat || '').slice(0, 60), line: /^(income|expenses|abnormal|wealth):[A-Za-z0-9_-]{1,40}$|^skip$/.test(String(t.line || '')) ? String(t.line) : '' }));
-      }
-      if (d.rules && typeof d.rules === 'object') for (const [k, v] of Object.entries(d.rules)) {
-        if (typeof k !== 'string' || k.length > 60 || !v || typeof v !== 'object') continue;
-        if (v.skip === true) rules[k] = { skip: true }; else if (COLS.some(c => c.key === v.col) && typeof v.label === 'string') rules[k] = { col: v.col, label: v.label.slice(0, 80) };
-      }
-    }
     if (!Object.keys(months).length) throw new Error('No months found in that file');
-    return { months, tx, rules };
+    return { months };
   },
   async restore(data) {
     setSync('busy', 'Restoring…');
     let n = 0;
     for (const key of Object.keys(data.months).sort()) { S.months[key] = data.months[key]; this.saveMonthNow(key); n++; }
-    for (const key of Object.keys(data.tx || {})) { if (Array.isArray(data.tx[key])) { S.tx[key] = data.tx[key]; this.saveTx(key); } }
-    if (data.rules && Object.keys(data.rules).length) { S.rules = { ...S.rules, ...data.rules }; this.saveRules(); }
     S.dbEmpty = false; toast(`Restored ${n} month${n === 1 ? '' : 's'}`); render();
   }
 };
@@ -669,6 +596,11 @@ function render() {
   else renderHome();
 }
 
+function monthSelect(selected, id) {
+  const keys = [...sortedKeys()].reverse();
+  return `<select id="${id}" class="sel" data-f="monthpick" aria-label="Choose a month">${keys.map(k => { const r = calc(S.months[k]).retained; return `<option value="${k}" ${k===selected?'selected':''}>${esc(monthLabel(k))}${k===todayKey()?' · now':''} — ${r>=0?'kept':'overspent'} ${esc(fmt(Math.abs(r),{cents:false}))}</option>`; }).join('')}</select>`;
+}
+
 /* ----- home / landing ----- */
 function renderHome() {
   const keys = sortedKeys();
@@ -710,7 +642,6 @@ function renderHome() {
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px">
         <a class="btn primary" href="#/m/${cur}">Open ${esc(monthLabel(cur))}</a>
         <button class="btn" data-act="new-month">${ICON.plus} New month</button>
-        <button class="btn" data-act="import" data-key="${cur}">${ICON.upload} Import Chase CSV</button>
       </div>
     </div>
     <div class="card click hero-side" data-act="chart" data-chart="where" data-key="${cur}" role="button" tabindex="0">
@@ -721,15 +652,8 @@ function renderHome() {
   </section>
 
   <section class="section">
-    <div class="sec-head"><h2>Months</h2><span class="muted">${keys.length} on record · click one to open it</span><span class="sp"></span><button class="btn sm" data-act="new-month">${ICON.plus} New month</button></div>
-    <div class="card tscroll"><table class="mtable num">
-      <thead><tr><th>Month</th><th>Net Income</th><th>Expenses</th><th class="hide-m">Abnormal</th><th class="hide-m">Wealth Building</th><th>Income Retained</th><th class="hide-m"></th></tr></thead>
-      <tbody>${[...keys].reverse().map(k => { const mm=S.months[k], cc=calc(mm); return `<tr data-act="open" data-key="${k}" tabindex="0">
-        <td>${esc(monthLabel(k))}${k===todayKey()?'<span class="cur">now</span>':''}<span class="sub">updated ${esc(fmtDate(mm.updatedOn))}</span></td>
-        <td>${fmt(cc.net)}</td><td>${fmt(cc.exp)}</td><td class="hide-m">${cc.abn?fmt(cc.abn):'<span class="faint">—</span>'}</td><td class="hide-m">${fmt(cc.wealth)}</td>
-        <td class="${signCls(cc.retained)}" style="font-weight:600">${fmt(cc.retained)}</td>
-        <td class="hide-m"><span class="pill ${cc.retained>=0?'good':'bad'}">${cc.retained>=0?'kept':'overspent'}</span></td></tr>`; }).join('')}</tbody>
-    </table></div>
+    <div class="sec-head"><h2>Months</h2><span class="muted">${keys.length} on record</span><span class="sp"></span><button class="btn sm" data-act="new-month">${ICON.plus} New month</button></div>
+    <div class="card pick"><label for="month-pick">Open a month</label>${monthSelect(cur, 'month-pick')}<a class="btn primary" href="#/m/${cur}">Open ${esc(shortMonth(cur))} ${cur.slice(0,4)}</a></div>
   </section>
 
   <section class="section">
@@ -764,17 +688,15 @@ function renderHome() {
 function renderMonth(key) {
   const m = S.months[key], c = calc(m), keys = sortedKeys();
   const i = keys.indexOf(key), prev = keys[i-1], next = keys[i+1];
-  const tx = S.tx[key] || [];
   app.innerHTML = `
   <div class="mhead">
     <div class="nav">
       ${prev ? `<a class="icon" href="#/m/${prev}" title="${esc(monthLabel(prev))}">${ICON.left}</a>` : `<span class="icon" style="opacity:.3">${ICON.left}</span>`}
-      <h1>${esc(monthLabel(key))}</h1>
+      <h1 class="vh">${esc(monthLabel(key))}</h1>${monthSelect(key, 'month-pick')}
       ${next ? `<a class="icon" href="#/m/${next}" title="${esc(monthLabel(next))}">${ICON.right}</a>` : `<button class="icon" data-act="new-month" data-from="${key}" title="Start the next month">${ICON.plus}</button>`}
     </div>
     <label class="upd">updated on <input type="date" id="f-updated" data-f="updatedOn" value="${esc(m.updatedOn||'')}"></label>
     <div class="acts">
-      <button class="btn sm" data-act="import" data-key="${key}">${ICON.upload} Import Chase CSV</button>
       <button class="btn sm" data-act="chart" data-chart="where" data-key="${key}">${ICON.chart} Charts</button>
       <button class="btn sm ghost" data-act="delete-month" data-key="${key}" title="Delete this month">${ICON.x}</button>
     </div>
@@ -786,37 +708,29 @@ function renderMonth(key) {
     <div class="card p hero" data-act="chart" data-chart="where" data-key="${key}" role="button" tabindex="0"><div class="lab"><span class="sw ret"></span>Income Retained <span class="f">… − wealth building</span></div><div class="v num ${signCls(c.retained)}" data-perf="retained">${fmt(c.retained)}</div></div>
   </section>
 
-  <section class="cols">${COLS.map(col => colHTML(key, m, col, c, tx)).join('')}</section>
+  <section class="cols">${COLS.map(col => colHTML(key, m, col, c)).join('')}</section>
 
   <section class="section">
     <div class="sec-head"><h2>Balances</h2><span class="muted">where things stand at the end of the month</span></div>
     <div class="bals">${BALS.map(b => balHTML(key, m, b, c)).join('')}</div>
   </section>
 
-  <section class="section" id="txsec">
-    <div class="sec-head"><h2>Transactions</h2><span class="muted">${tx.length ? `${tx.length} imported from Chase` : 'from a Chase CSV download'}</span><span class="sp"></span>
-      <button class="btn sm" data-act="import" data-key="${key}">${ICON.upload} Import CSV</button>${tx.length?`<button class="btn sm ghost" data-act="clear-tx" data-key="${key}">Clear all</button>`:''}</div>
-    <div class="card">${tx.length ? txGroupsHTML(key, m, tx) : `<div class="tx-empty"><p>Download your activity from Chase (<b>Account activity → Download</b>, CSV), import it here, and each transaction is sorted into one of the lines above. Assign a line once and the app remembers that merchant next time.</p><button class="btn primary" data-act="import" data-key="${key}">${ICON.upload} Import Chase CSV</button></div>`}</div>
-  </section>
-
   <section class="notes"><div class="eyebrow" style="margin-bottom:6px">Notes</div><textarea id="f-notes" data-f="notes" placeholder="Anything worth remembering about this month…">${esc(m.notes||'')}</textarea></section>
   <footer class="foot"><a href="#/">← All months</a><span class="sp"></span><span>${S.mode==='firebase'?'Changes save automatically and sync to both of you':'Changes save automatically in this browser'}</span></footer>`;
 }
 
-function colHTML(key, m, col, c, tx) {
+function colHTML(key, m, col, c) {
   const lines = m[col.key] || [];
   const total = c[col.key==='income'?'net':col.key==='expenses'?'exp':col.key==='abnormal'?'abn':'wealth'];
   return `<div class="card col" data-col="${col.key}">
     <div class="col-head"><h3><span class="sw ${col.sw}"></span>${col.title}</h3><span class="tot num" data-total="${col.key}">${fmt(total)}</span></div>
-    <div class="col-body">${lines.map(l => lineHTML(key, col.key, l, tx)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(col.hint)}. Add a line below.</div>`}</div>
+    <div class="col-body">${lines.map(l => lineHTML(key, col.key, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(col.hint)}. Add a line below.</div>`}</div>
     <div class="col-foot"><button class="btn ghost sm" data-act="add-line" data-col="${col.key}">${ICON.plus} Add line</button><button class="chartbtn" data-act="chart" data-chart="${col.key}" data-key="${key}">${ICON.chart} Chart</button></div>
   </div>`;
 }
-function lineHTML(key, colKey, l, tx) {
+function lineHTML(key, colKey, l) {
   const hasItems = l.items && l.items.length;
   const open = S.view[l.id] || false;
-  const txFor = (tx||[]).filter(t => t.line === colKey + ':' + l.id);
-  const txSum = r2(txFor.reduce((s,t)=>s + (colKey==='income' ? t.amount : -t.amount), 0));
   return `<div class="row" data-line="${l.id}" data-col="${colKey}">
     <input type="text" id="f-${l.id}-label" data-f="label" value="${esc(l.label)}" placeholder="Label" aria-label="Line label" enterkeyhint="next" autocomplete="off">
     ${hasItems ? `<span class="calc num" data-line-amt="${l.id}" data-act="toggle-items" title="Sum of ${l.items.length} items — click to see them">${fmt(lineAmt(l))}</span>`
@@ -824,7 +738,6 @@ function lineHTML(key, colKey, l, tx) {
     <button class="icon ${open||hasItems?'on':''}" data-act="toggle-items" title="${hasItems?'Breakdown items':'Break this line into items'}">${ICON.list}</button>
     <button class="icon" data-act="del-line" title="Remove line">${ICON.x}</button>
   </div>
-  ${txFor.length && !hasItems ? `<div style="padding:0 30px 4px 8px"><button class="badge" data-act="use-tx" data-line="${l.id}" data-col="${colKey}" title="Replace this amount with the ${txFor.length} imported transactions">${txFor.length} transactions · ${fmt(txSum)} — use as breakdown</button></div>` : ''}
   ${open ? itemsHTML(colKey, l) : ''}`;
 }
 function itemsHTML(colKey, l) {
@@ -851,33 +764,6 @@ function balHTML(key, m, b, c) {
   </div>`;
 }
 
-/* ----- transactions grouped by line ----- */
-function lineOptions(m, selected) {
-  let out = `<option value="" ${!selected?'selected':''}>— unassigned —</option>`;
-  for (const col of COLS) {
-    out += `<optgroup label="${col.title}">` + (m[col.key]||[]).map(l => `<option value="${col.key}:${l.id}" ${selected===col.key+':'+l.id?'selected':''}>${esc(l.label)}</option>`).join('') + `</optgroup>`;
-  }
-  out += `<option value="skip" ${selected==='skip'?'selected':''}>Skip (payment / transfer)</option>`;
-  return out;
-}
-function resolveLine(m, ref) { if (!ref || ref==='skip') return null; const [col,id] = ref.split(':'); const l = (m[col]||[]).find(x=>x.id===id); return l ? {col, line:l} : null; }
-function txGroupsHTML(key, m, tx) {
-  const groups = new Map();
-  for (const t of tx) { const g = t.line || ''; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(t); }
-  const order = [...groups.keys()].sort((a,b) => (a===''?-1:b===''?1:0) || (a==='skip'?1:b==='skip'?-1:0));
-  return order.map(g => {
-    const rows = groups.get(g); const res = resolveLine(m, g);
-    const title = g==='' ? 'Unassigned' : g==='skip' ? 'Skipped (payments & transfers)' : res ? res.line.label : 'Line no longer exists';
-    const sum = r2(rows.reduce((s,t)=>s + (res && res.col==='income' ? t.amount : -t.amount), 0));
-    const open = S.view['g:'+key+':'+g] !== false && (g==='' || rows.length <= 1 ? true : !!S.view['g:'+key+':'+g]);
-    const sub = res ? COLS.find(c=>c.key===res.col).title : '';
-    return `<div class="txg ${open?'open':''}" data-group="${esc(g)}">
-      <div class="txg-head" data-act="toggle-group" data-group="${esc(g)}">${ICON.chev.replace('<svg','<svg class="chev"')}<div><span style="font-weight:600">${esc(title)}</span>${sub?` <span class="n">· ${esc(sub)}</span>`:''}${g===''?` <span class="pill warn" style="margin-left:6px">needs a line</span>`:''}</div><span class="n">${rows.length}</span><span class="t num">${fmt(sum)}</span></div>
-      <div class="txg-body"><table class="txt num">${rows.sort((a,b)=>a.date<b.date?-1:1).map(t => `<tr data-tx="${t.id}"><td class="d">${esc(t.date.slice(5).replace('-','/'))}</td><td class="desc" title="${esc(t.desc)}">${esc(t.desc)}</td><td class="a ${t.amount>0?'pos':''}">${fmt(-t.amount)}</td><td><select data-f="txline" data-tx="${t.id}" aria-label="Assign to line">${lineOptions(m, t.line)}</select></td></tr>`).join('')}</table>
-      ${res ? `<div class="txg-acts"><button class="btn sm" data-act="use-tx" data-col="${res.col}" data-line="${res.line.id}">Use these ${rows.length} as the breakdown for “${esc(res.line.label)}”</button><span class="faint" style="font-size:12px;align-self:center">Current line amount: ${fmt(lineAmt(res.line))}</span></div>` : ''}</div>
-    </div>`;
-  }).join('');
-}
 
 /* ---------- editing (event delegation) ---------- */
 function viewKey() { const m = /^#\/m\/(\d{4}-\d{2})/.exec(location.hash||''); return m ? m[1] : null; }
@@ -902,17 +788,7 @@ app.addEventListener('input', e => {
 });
 app.addEventListener('change', async e => {
   const el = e.target, key = viewKey();
-  if (el.dataset.f === 'txline' && key) {
-    const t = (S.tx[key]||[]).find(x => x.id === el.dataset.tx); if (!t) return;
-    const m = S.months[key]; t.line = el.value;
-    // remember this merchant, and apply to unassigned twins in this month
-    const mk = merchantKey(t.desc); const res = resolveLine(m, el.value);
-    if (el.value === 'skip') S.rules[mk] = {skip:true}; else if (res) S.rules[mk] = {col:res.col, label:res.line.label}; else delete S.rules[mk];
-    let n = 0; (S.tx[key]||[]).forEach(o => { if (o.id!==t.id && merchantKey(o.desc)===mk && !o.line) { o.line = el.value; n++; } });
-    await Store.saveTx(key); Store.saveRules();
-    if (n) toast(`Also assigned ${n} more from ${mk.toLowerCase()}`);
-    render();
-  }
+  if (el.dataset.f === 'monthpick') { if (el.value && el.value !== key) location.hash = '#/m/' + el.value; return; }
   if (el.classList.contains('amt') && (el.dataset.f==='amount'||el.dataset.f==='iamount'||el.dataset.f==='bamount')) el.value = fmtIn(parseNum(el.value));
 });
 app.addEventListener('keydown', e => {
@@ -925,7 +801,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','import','sign-in','sign-out','backup','restore'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore'].includes(act)) return;
   switch (act) {
     case 'open': location.hash = '#/m/' + t.dataset.key; break;
     case 'new-month': openNewMonth(t.dataset.from || currentKey()); break;
@@ -934,7 +810,6 @@ async function onAction(e) {
     case 'backup': downloadBackup(); break;
     case 'restore': openRestore(); break;
     case 'chart': openCharts(t.dataset.chart, t.dataset.key || key); break;
-    case 'import': openImport(t.dataset.key || key); break;
     case 'delete-month': confirmDelete(t.dataset.key || key); break;
     case 'add-line': { const col = t.dataset.col; m[col] = m[col]||[]; const l = {id:uid(), label:'', amount:0, items:[]}; m[col].push(l); Store.markDirty(key); render(); const inp = $('#f-'+l.id+'-label'); if (inp) inp.focus(); break; }
     case 'del-line': { const row = t.closest('[data-line]'); const col = row.dataset.col; const l = findLine(key, col, row.dataset.line); if (!l) break; if ((lineAmt(l) || l.label) && !(await ask(`Remove “${l.label||'this line'}”${lineAmt(l)?` (${fmt(lineAmt(l))})`:''} from ${COLS.find(c=>c.key===col).title}?`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur[col] = (cur[col]||[]).filter(x=>x.id!==l.id); Store.markDirty(key); render(); break; }
@@ -943,9 +818,6 @@ async function onAction(e) {
     case 'del-item': { const wrap = t.closest('[data-items]'), row = t.closest('[data-item]'); const col = t.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) break; l.items = l.items.filter(x=>x.id!==row.dataset.item); if (!l.items.length) { l.amount = 0; } Store.markDirty(key); render(); break; }
     case 'add-bal': { const b = t.dataset.bal; m[b] = m[b]||[]; const r = {id:uid(), label:'', amount:0}; m[b].push(r); Store.markDirty(key); render(); const inp = $('#f-'+r.id+'-label'); if (inp) inp.focus(); break; }
     case 'del-bal': { const row = t.closest('[data-brow]'); const b = row.dataset.bal; const r = (m[b]||[]).find(x=>x.id===row.dataset.brow); if (r && (r.amount||r.label) && !(await ask(`Remove “${r.label||'this balance'}”?`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur[b] = (cur[b]||[]).filter(x=>x.id!==row.dataset.brow); Store.markDirty(key); render(); break; }
-    case 'use-tx': { const col = t.dataset.col, l = findLine(key, col, t.dataset.line); if (!l) break; const rows = (S.tx[key]||[]).filter(x => x.line === col+':'+l.id); if (!rows.length) break; l.items = rows.sort((a,b)=>a.date<b.date?-1:1).map(x => ({id:uid(), label:`${x.date.slice(5).replace('-','/')} ${shortDesc(x.desc)}`, amount: r2(col==='income'? x.amount : -x.amount)})); S.view[l.id] = true; Store.markDirty(key); toast(`“${l.label}” is now ${fmt(lineAmt(l))} from ${rows.length} transactions`); render(); break; }
-    case 'toggle-group': { const g = t.dataset.group; const vk = 'g:'+key+':'+g; S.view[vk] = !(t.closest('.txg').classList.contains('open')); t.closest('.txg').classList.toggle('open'); break; }
-    case 'clear-tx': { if (!(await ask(`Remove all ${(S.tx[key]||[]).length} imported transactions from ${monthLabel(key)}? Line amounts you already filled in stay as they are.`, 'Clear'))) break; S.tx[key] = []; await Store.saveTx(key); render(); break; }
   }
 }
 app.addEventListener('click', onAction);
@@ -977,10 +849,6 @@ function dialogAction(t, e) {
   else if (a === 'table') { dialogCtx.table = !dialogCtx.table; openCharts(dialogCtx.chart, dialogCtx.key, true); }
   else if (a === 'create-month') createMonthFromForm();
   else if (a === 'delete-month') doDeleteMonth(t.dataset.key);
-  else if (a === 'parse-csv') parseImport();
-  else if (a === 'commit-import') commitImport();
-  else if (a === 'toggle-credits') { dialogCtx.showCredits = !dialogCtx.showCredits; renderReview(); }
-  else if (a === 'back-import') openImport(dialogCtx.key);
   else if (a === 'restore-go') { const d = dialogCtx.restore; dlg.style.maxWidth = ''; closeOverlay(); if (d) Store.restore(d); }
 }
 
@@ -1186,146 +1054,6 @@ function confirmDelete(key) {
 }
 async function doDeleteMonth(key) { const lab = monthLabel(key); dlg.style.maxWidth=''; closeOverlay(); await Store.deleteMonth(key); location.hash = '#/'; toast(lab + ' deleted'); render(); }
 
-/* ---------- Chase CSV import ---------- */
-function parseCSV(text) {
-  const rows = []; let row = [], field = '', q = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (q) { if (ch === '"') { if (text[i+1] === '"') { field += '"'; i++; } else q = false; } else field += ch; }
-    else if (ch === '"') q = true;
-    else if (ch === ',') { row.push(field); field = ''; }
-    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i+1] === '\n') i++; row.push(field); rows.push(row); row = []; field = ''; }
-    else field += ch;
-  }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
-  return rows.filter(r => r.some(c => c.trim() !== ''));
-}
-function toISODate(s) {
-  s = String(s||'').trim(); let m;
-  if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s))) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
-  if ((m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s))) return `${m[1]}-${m[2]}-${m[3]}`;
-  if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/.exec(s))) return `20${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
-  const d = new Date(s); return isNaN(d) ? null : d.toISOString().slice(0,10);
-}
-function detectColumns(rows) {
-  for (let i = 0; i < Math.min(rows.length, 10); i++) {
-    const h = rows[i].map(x => x.trim().toLowerCase());
-    const desc = h.findIndex(x => /description|merchant|payee/.test(x));
-    const amount = h.findIndex(x => x === 'amount' || /^amount/.test(x));
-    if (desc >= 0 && amount >= 0) {
-      let date = h.findIndex(x => x === 'transaction date'); if (date < 0) date = h.findIndex(x => /posting date|post date/.test(x)); if (date < 0) date = h.findIndex(x => /date/.test(x));
-      return { header: i, date, desc, amount, cat: h.findIndex(x => /category/.test(x)), type: h.findIndex(x => x === 'type' || x === 'details'), debit: h.findIndex(x=>/^debit/.test(x)), credit: h.findIndex(x=>/^credit/.test(x)) };
-    }
-  }
-  // headerless: guess MM/DD/YYYY, desc, amount
-  if (rows.length && rows[0].length >= 3 && /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(rows[0][0])) { const amt = rows[0].findIndex((c,i)=>i>0 && /^-?\$?\(?[\d,]+\.\d{2}\)?$/.test(c.trim())); return { header:-1, date:0, desc:1, amount: amt>0?amt:2, cat:-1, type:-1, debit:-1, credit:-1 }; }
-  return null;
-}
-const merchantKey = desc => String(desc||'').toUpperCase().replace(/^(SQ|TST|PP|SP|PY|PAYPAL)\s*\*\s*/,'').replace(/[*#].*$/,'').replace(/\b\d{2,}\b/g,'').replace(/[^A-Z&' \-]/g,' ').replace(/\s+/g,' ').trim().split(' ').slice(0,2).join(' ') || 'UNKNOWN';
-const shortDesc = desc => String(desc||'').replace(/\s+/g,' ').trim().replace(/\s*(\d{2}\/\d{2})?\s*(PURCHASE|AUTHORIZED ON|CARD \d+).*$/i,'').slice(0,40);
-const KW = [ // [matches category + description, matches a line label]
-  [/AMAZON|AMZN/, /amazon/i],
-  [/WAL-?MART|WALMART|KROGER|ALDI|COSTCO|SAM'?S CLUB|TRADER JOE|PUBLIX|HY-?VEE|SCHNUCKS|DIERBERGS|MEIJER|FOOD LION|WHOLE FOODS|SPROUTS|SAFEWAY|HEB|WINCO|GROCER/, /grocer/i],
-  [/NETFLIX|SPOTIFY|HULU|DISNEY|PARAMOUNT|PEACOCK|APPLE\.COM\/BILL|YOUTUBE|PRIME VIDEO|AUDIBLE|SUBSCRI/, /subscri/i],
-  [/TITH|LDS |LATTER|CHURCH|DONATION/, /tith/i],
-  [/AMEREN|EVERGY|ELECTRIC|ENERGY|POWER CO|UTILITY/, /electric/i],
-  [/SPIRE|GAS CO|NATURAL GAS|ATMOS|CENTERPOINT/, /heating|natural gas/i],
-  [/SHELL|BP |EXXON|CHEVRON|SPEEDWAY|QT |QUIKTRIP|CASEY|PHILLIPS 66|MARATHON|CIRCLE K|MURPHY|LOVE'S|PILOT|FUEL|GAS STATION|^GAS$/, /fuel|gasoline|^gas$|car gas/i],
-  [/INSURANCE|GEICO|PROGRESSIVE|STATE FARM|ALLSTATE|LIBERTY MUTUAL|USAA P&C/, /insurance/i],
-  [/VERIZON|AT&T|T-MOBILE|MINT MOBILE|VISIBLE|PHONE/, /phone/i],
-  [/MORTGAGE|SHOREHAM|HLIB|RENT /, /shoreham|mortgage|house|rent/i],
-  [/ROBINHOOD/, /^robinhood$/i], [/COINBASE/, /coinbase/i], [/FIDELITY|VANGUARD|SCHWAB/, /invest|robinhood/i],
-  [/TOYOTA FIN|HONDA FIN|FORD CREDIT|GM FIN|ALLY|CAPITAL ONE AUTO|CAR PAYMENT|AUTO LOAN/, /car(?! ?d)|'s car/i],
-  [/BILLS & UTILITIES|UTILIT|WATER|SEWER|TRASH|INTERNET|SPECTRUM|XFINITY|COMCAST/, /^bills/i],
-  [/GROCERIES/, /grocer/i], [/AUTOMOTIVE|AUTO PARTS|JIFFY|OIL CHANGE|DISCOUNT TIRE/, /car(?! ?d)|auto/i],
-  [/HEALTH|MEDICAL|PHARMACY|CVS|WALGREENS|DENTAL|CLINIC|HOSPITAL/, /health|medical|hsa|doctor/i],
-  [/FOOD & DRINK|RESTAURANT|DOORDASH|UBER EATS|GRUBHUB|MCDONALD|CHICK-FIL|STARBUCKS|TACO|PIZZA|CHIPOTLE|PANERA|SONIC|WENDY|BURGER|CAFE|COFFEE/, /food|dining|restaurant|eating out|fast food/i],
-  [/ENTERTAINMENT|SHOPPING|PERSONAL|TRAVEL|HOME|EDUCATION|GIFTS|TARGET|HOBBY|DOLLAR/, /random life/i],
-];
-function suggestLine(t, m) {
-  const mk = merchantKey(t.desc); const rule = S.rules[mk];
-  if (rule) { if (rule.skip) return 'skip'; const col = rule.col; const l = (m[col]||[]).find(x => x.label.trim().toLowerCase() === String(rule.label).trim().toLowerCase()); if (l) return col + ':' + l.id; }
-  const hay = (String(t.cat||'') + ' ' + String(t.desc||'')).toUpperCase();
-  if (t.amount > 0) { // money in: a payment to the card, a refund, or a deposit
-    if (/PAYMENT|AUTOPAY|THANK YOU|TRANSFER|ZELLE|VENMO CASHOUT/.test(hay)) return 'skip';
-    if (/PAYROLL|DIRECT DEP|DEPOSIT|DASA|VANDERBILT|\bVU\b/.test(hay)) { const l = (m.income||[]).find(x => /dasa|vu |paycheck|income/i.test(x.label)); return l ? 'income:' + l.id : ''; }
-    return 'skip';
-  }
-  if (/PAYMENT|AUTOPAY/.test(hay) && /CHASE|CARD|CRD|BANK OF AMERICA|BEST BUY|CITI|DISCOVER|AMEX|CAPITAL ONE|SYNCHRONY/.test(hay)) { const l = (m.expenses||[]).find(x => /credit card/i.test(x.label)); return l ? 'expenses:' + l.id : 'skip'; }
-  for (const [re, lab] of KW) { if (!re.test(hay)) continue; for (const col of ['expenses','abnormal','wealth']) { const l = (m[col]||[]).find(x => lab.test(x.label)); if (l) return col + ':' + l.id; } }
-  const rl = (m.abnormal||[]).find(x => /random/i.test(x.label)); return rl ? 'abnormal:' + rl.id : '';
-}
-function openImport(key) {
-  if (!key || !S.months[key]) key = currentKey(); if (!key) { toast('Create a month first'); return; }
-  dialogCtx = { key, rows: null, showCredits: false };
-  openOverlay(`<div class="dlg-head"><div class="ttl"><h2>Import Chase CSV</h2><span class="muted" style="font-size:13px">into ${esc(monthLabel(key))}</span></div><button class="icon x" data-dact="close">${ICON.x}</button></div>
-    <div class="dlg-body rev">
-      <div class="steps"><div><b>1 · Download</b>In Chase, open the account → <i>Account activity</i> → the download icon → choose <b>Spreadsheet (Excel, CSV)</b> and the date range for this month.</div><div><b>2 · Import</b>Choose the file below (or paste its contents). Nothing leaves this page.</div><div><b>3 · Review</b>Each row is matched to one of your lines. Fix any that are wrong — the app remembers the merchant for next time.</div></div>
-      <div class="drop">
-        <label class="btn primary" style="cursor:pointer">${ICON.upload} Choose CSV file<input type="file" id="csv-file" accept=".csv,text/csv,text/plain" hidden></label>
-        <span class="muted" style="font-size:12.5px">or paste the CSV text:</span>
-        <textarea id="csv-text" placeholder="Transaction Date,Post Date,Description,Category,Type,Amount,Memo&#10;09/14/2026,09/15/2026,WAL-MART #1234,Groceries,Sale,-54.21,"></textarea>
-        <button class="btn" data-dact="parse-csv">Review transactions →</button>
-      </div>
-    </div>`);
-  $('#csv-file').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { $('#csv-text').value = r.result; parseImport(); }; r.readAsText(f); });
-}
-function parseImport() {
-  const key = dialogCtx.key, m = S.months[key]; const text = $('#csv-text').value; if (!text.trim()) { toast('Choose a file or paste the CSV first'); return; }
-  const rows = parseCSV(text); const cols = detectColumns(rows);
-  if (!cols) { toast('Could not find Description and Amount columns in this file'); return; }
-  const existing = new Set((S.tx[key]||[]).map(t => t.date + '|' + t.desc + '|' + t.amount));
-  const out = []; let dupes = 0;
-  for (let i = cols.header + 1; i < rows.length; i++) {
-    const r = rows[i]; if (!r[cols.desc] && !r[cols.amount]) continue;
-    const date = toISODate(r[cols.date]); if (!date) continue;
-    let amount = parseNum(r[cols.amount]);
-    if (cols.debit >= 0 && cols.credit >= 0 && !amount) amount = (parseNum(r[cols.credit]) || 0) - (parseNum(r[cols.debit]) || 0);
-    const type = cols.type >= 0 ? String(r[cols.type]||'') : '';
-    if (/^DEBIT$/i.test(type) && amount > 0) amount = -amount;
-    const t = { id: uid(), date, desc: String(r[cols.desc]||'').replace(/\s+/g,' ').trim(), amount: r2(amount), cat: cols.cat >= 0 ? String(r[cols.cat]||'').trim() : '', line: '' };
-    if (existing.has(t.date + '|' + t.desc + '|' + t.amount)) { dupes++; continue; }
-    t.line = suggestLine(t, m); t.include = t.amount < 0 || (t.line && t.line !== 'skip'); t.oom = t.date.slice(0,7) !== key;
-    out.push(t);
-  }
-  dialogCtx.rows = out.sort((a,b)=>a.date<b.date?-1:1); dialogCtx.dupes = dupes; renderReview();
-}
-function renderReview() {
-  const { key, rows, dupes, showCredits } = dialogCtx, m = S.months[key];
-  const spend = r2(rows.filter(t=>t.include && t.amount<0).reduce((s,t)=>s-t.amount,0)), credits = rows.filter(t=>t.amount>0).length, oom = rows.filter(t=>t.oom).length, un = rows.filter(t=>t.include && !t.line).length;
-  const vis = rows.filter(t => showCredits || t.amount < 0 || (t.line && t.line !== 'skip'));
-  openOverlay(`<div class="dlg-head"><div class="ttl"><h2>Review ${rows.length} transactions</h2><span class="muted" style="font-size:13px">into ${esc(monthLabel(key))}${dupes?` · ${dupes} already imported, skipped`:''}</span></div><button class="icon x" data-dact="close">${ICON.x}</button></div>
-    <div class="dlg-body rev">
-      <div class="sum"><span><b>${fmt(spend)}</b> spending selected</span><span><b>${credits}</b> credits / payments${showCredits?'':' hidden'}</span>${oom?`<span style="color:var(--warn)"><b>${oom}</b> dated outside ${esc(shortMonth(key))} (statement overlap — still imported here)</span>`:''}${un?`<span style="color:var(--warn)"><b>${un}</b> need a line</span>`:''}</div>
-      <div class="tscroll"><table><thead><tr><th></th><th>Date</th><th>Description</th><th style="text-align:right">Amount</th><th>Line</th></tr></thead><tbody>
-        ${vis.map(t => `<tr class="${t.include?'':'off'} ${t.oom?'oom':''}" data-rid="${t.id}"><td><input type="checkbox" data-rf="inc" ${t.include?'checked':''} aria-label="Include"></td><td class="d">${esc(t.date.slice(5).replace('-','/'))}</td><td class="desc" title="${esc(t.desc)}${t.cat?' · '+esc(t.cat):''}">${esc(t.desc)}${t.cat?` <span class="faint">· ${esc(t.cat)}</span>`:''}</td><td class="a num ${t.amount>0?'pos':''}">${fmt(-t.amount)}</td><td><select data-rf="line" aria-label="Line">${lineOptions(m, t.line)}</select></td></tr>`).join('')}
-        ${!vis.length?`<tr><td colspan="5" class="empty">Nothing to show${showCredits?'':' — try showing credits'}.</td></tr>`:''}
-      </tbody></table></div>
-    </div>
-    <div class="dlg-foot"><button class="btn sm ghost" data-dact="back-import">← Back</button><button class="btn sm ghost" data-dact="toggle-credits">${showCredits?'Hide':'Show'} credits & payments</button><span class="sp"></span><button class="btn primary" data-dact="commit-import">Add ${rows.filter(t=>t.include).length} to ${esc(monthLabel(key))}</button></div>`);
-  $('.rev', dlg).addEventListener('change', e => {
-    const tr = e.target.closest('tr[data-rid]'); if (!tr) return; const t = rows.find(x => x.id === tr.dataset.rid); if (!t) return;
-    if (e.target.dataset.rf === 'inc') { t.include = e.target.checked; tr.classList.toggle('off', !t.include); }
-    if (e.target.dataset.rf === 'line') {
-      t.line = e.target.value; const mk = merchantKey(t.desc); const res = resolveLine(m, t.line);
-      if (t.line === 'skip') S.rules[mk] = {skip:true}; else if (res) S.rules[mk] = {col:res.col, label:res.line.label}; else delete S.rules[mk];
-      let n = 0; rows.forEach(o => { if (o.id !== t.id && merchantKey(o.desc) === mk && o.line !== t.line) { o.line = t.line; n++; } });
-      if (t.line && t.line !== 'skip' && !t.include) { t.include = true; tr.classList.remove('off'); tr.querySelector('[data-rf="inc"]').checked = true; }
-      if (n) { toast(`Applied to ${n} more “${mk.toLowerCase()}” rows`); renderReview(); }
-    }
-  });
-}
-async function commitImport() {
-  const { key, rows } = dialogCtx; if (!rows) return; dialogCtx.rows = null; // second click does nothing
-  const have = new Set((S.tx[key]||[]).map(t => t.id));
-  const inc = rows.filter(t => t.include && !have.has(t.id)).map(t => ({ id:t.id, date:t.date, desc:t.desc, amount:t.amount, cat:t.cat, line:t.line }));
-  if (!inc.length) { toast('Nothing selected'); return; }
-  S.tx[key] = [...(S.tx[key]||[]), ...inc];
-  await Store.saveTx(key); await Store.saveRules();
-  closeOverlay(); toast(`Imported ${inc.length} transactions into ${monthLabel(key)}`);
-  if (viewKey() !== key) location.hash = '#/m/' + key; render();
-  setTimeout(() => { const s = $('#txsec'); if (s) s.scrollIntoView({behavior:'smooth', block:'start'}); }, 50);
-}
 
 /* ---------- backup & restore ---------- */
 function downloadBackup() {
@@ -1348,7 +1076,7 @@ function openRestore() {
       let data; try { data = Store.parseBackup(r.result); } catch (err) { $('#bk-preview').innerHTML = `<p class="neg" style="margin:8px 0 0">${esc(err.message)}</p>`; return; }
       dialogCtx.restore = data;
       const keys = Object.keys(data.months).sort(), replacing = keys.filter(k => S.months[k]);
-      $('#bk-preview').innerHTML = `<div class="kv num" style="margin-top:8px"><span class="k">Months in file</span><span class="v">${keys.length} (${esc(monthLabel(keys[0]))} – ${esc(monthLabel(keys[keys.length-1]))})</span><span class="k">Would replace existing</span><span class="v">${replacing.length}</span><span class="k">Transactions</span><span class="v">${Object.values(data.tx||{}).reduce((s,a)=>s+(a.length||0),0)}</span></div>
+      $('#bk-preview').innerHTML = `<div class="kv num" style="margin-top:8px"><span class="k">Months in file</span><span class="v">${keys.length} (${esc(monthLabel(keys[0]))} – ${esc(monthLabel(keys[keys.length-1]))})</span><span class="k">Would replace existing</span><span class="v">${replacing.length}</span></div>
         <button class="btn primary" data-dact="restore-go" style="margin-top:12px">Restore ${keys.length} month${keys.length===1?'':'s'}</button>`;
     };
     r.readAsText(f);
@@ -1358,5 +1086,18 @@ function openRestore() {
 /* ---------- boot ---------- */
 render();
 Store.init();
-if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('/sw.js').catch(() => {}); }
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('/sw.js').then(reg => {
+    const upd = $('#upd');
+    const offer = () => { upd.hidden = false; };
+    if (reg.waiting && navigator.serviceWorker.controller) offer();
+    reg.addEventListener('updatefound', () => { const nw = reg.installing; if (!nw) return; nw.addEventListener('statechange', () => { if (nw.state === 'installed' && navigator.serviceWorker.controller) offer(); }); });
+    // look for new versions when the app comes back to the foreground, and every half hour while open
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
+    upd.addEventListener('click', () => { upd.disabled = true; upd.textContent = 'Updating…'; if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' }); else location.reload(); });
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloading) return; reloading = true; Store.flushAll().finally(() => location.reload()); });
+  }).catch(() => {});
+}
 </script>

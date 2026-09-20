@@ -17,12 +17,11 @@ data is ours; the code is here for anyone.)
 - **Balances block** — credit cards → total debt, cash savings, 401K and mortgage balances.
 - **Charts in an overlay** — where the month's money went, per-column bars, a nine-month
   trend, and credit-card debt over time. Every chart has a table view.
-- **Chase CSV import** — download activity from Chase, import it into a month, and each
-  transaction is matched to a budget line (Chase's category, the merchant name, and rules
-  learned from earlier corrections). One click turns a line's transactions into its breakdown.
 - **New month** copies last month's structure, keeps the amounts that repeat (mortgage,
   insurance, 401k), carries balances forward, and pre-fills "money left over".
 - **Backup / restore** as JSON.
+- **Month picker** on the home page and in the month header to jump anywhere in one tap.
+- **Update button** appears when a new version is deployed; one tap reloads to it.
 - **Phone-first**: single-column layout, large touch targets, full-screen overlays,
   installable (web app manifest + service worker), offline via Firestore's local cache.
 
@@ -33,7 +32,7 @@ data is ours; the code is here for anyone.)
 | App | One HTML file, vanilla JS, hand-drawn SVG charts (`public/index.html`) | No build step; the whole thing is readable in one sitting |
 | Hosting | Cloudflare Worker with static assets (`wrangler.jsonc`) | Free, global, one-command deploy |
 | Sign-in | Firebase Authentication, Google provider | Both of us already have Google accounts; no passwords to manage |
-| Data | Firestore — `months/{YYYY-MM}`, `transactions/{YYYY-MM}`, `settings/rules` | Real-time listeners for live sync, offline persistence on phones |
+| Data | Firestore — one document per month, `months/{YYYY-MM}` | Real-time listeners for live sync, offline persistence on phones |
 | Access | `firestore.rules` allow-listing two Google accounts | The security boundary lives server-side, not in the page |
 
 Editing model: inputs update in-memory state and recompute totals instantly; writes are
@@ -60,7 +59,7 @@ in every chart and on every tile.
    database → paste `firestore.rules` with your two emails → **Publish**.
 2. Project settings → Your apps → Web app → copy the config into `FIREBASE_CONFIG` near the
    top of the script in `public/index.html`.
-3. `npx wrangler login`, set your Worker name in `wrangler.jsonc`, `npx wrangler deploy`.
+3. `npx wrangler login`, set your Worker name in `wrangler.jsonc`, `node deploy.js`.
 4. Add the deployed domain under **Authentication → Settings → Authorized domains**.
 5. Open the site, sign in, and start a month (or **Restore** a backup).
 
