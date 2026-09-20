@@ -423,7 +423,22 @@ function fmt(n, opts={}) {
   return (n < 0 ? '−' : (opts.sign && n > 0 ? '+' : '')) + s;
 }
 const fmtIn = n => { n = +n || 0; return Number.isInteger(n) ? String(n) : n.toFixed(2); };
-function parseNum(str) { let s = String(str||'').trim().replace(/[$,\s]/g,''); let neg=false; if (/^\(.*\)$/.test(s)) { neg=true; s=s.slice(1,-1); } s=s.replace('−','-'); const v=parseFloat(s); return isNaN(v)?0:(neg?-v:v); }
+/* Amount boxes accept arithmetic — "45+30.50", "3*12.99", "(200-15)/2" — the way the spreadsheet did.
+   A small recursive-descent evaluator: no eval(), only digits . + - * / ( ) after stripping $ , and spaces. */
+function calcExpr(str) {
+  const s = String(str || '').replace(/[$,\s]/g, '').replace(/−/g, '-').replace(/×/g, '*').replace(/÷/g, '/');
+  if (!s || !/^[\d.+\-*/()]+$/.test(s)) return NaN;
+  let i = 0;
+  const num = () => { const st = i; while (i < s.length && /[\d.]/.test(s[i])) i++; return i > st ? parseFloat(s.slice(st, i)) : NaN; };
+  const factor = () => { if (s[i] === '(') { i++; const v = expr(); if (s[i++] !== ')') return NaN; return v; } if (s[i] === '-') { i++; return -factor(); } if (s[i] === '+') { i++; return factor(); } return num(); };
+  const term = () => { let v = factor(); while (s[i] === '*' || s[i] === '/') { const op = s[i++], r = factor(); v = op === '*' ? v * r : v / r; } return v; };
+  const expr = () => { let v = term(); while (s[i] === '+' || s[i] === '-') { const op = s[i++], r = term(); v = op === '+' ? v + r : v - r; } return v; };
+  const v = expr(); return (i === s.length && Number.isFinite(v)) ? v : NaN;
+}
+const parseNumLive = str => calcExpr(str);                         // NaN while an expression is still being typed
+function parseNum(str) { const v = calcExpr(str); if (!isNaN(v)) return v; const f = parseFloat(String(str||'').replace(/[$,\s]/g,'').replace('−','-')); return isNaN(f) ? 0 : f; }
+const amtOr = (str, prev) => { const v = parseNumLive(str); return isNaN(v) ? prev : r2(v); }; // keep the last good value mid-expression
+const isFormula = str => /[+*/]|\d\s*-\s*\d/.test(String(str || ''));
 const fmtDate = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00:00'); return isNaN(d)?iso:d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); };
 const signCls = n => n < 0 ? 'neg' : (n > 0 ? 'pos' : '');
 function calc(m) {
@@ -746,13 +761,13 @@ function editorBody(key, sec) {
   const m = S.months[key], s = SECTIONS.find(x => x.key === sec); if (!m || !s) return '';
   const rows = m[sec] || [];
   if (s.kind === 'budgets') return `<div class="col-body" data-budgets>
-    <div class="bud-form" id="bud-form" hidden><select id="bud-name" class="sel" aria-label="Category">${(() => { const std = standardExpenses(key), taken = new Set((m.budgets||[]).map(b => norm(b.label))); const opts = (m.expenses||[]).filter(l => l.label.trim() && !taken.has(norm(l.label)) && !std.has(norm(l.label))); return `<option value="">Choose a category…</option>${opts.map(l => `<option value="${esc(l.label)}">${esc(l.label)}</option>`).join('')}<option value="__new__">Other — type a new one…</option>`; })()}</select><input type="text" id="bud-name-new" placeholder="New category name" autocomplete="off" hidden><input type="text" inputmode="decimal" class="amt" id="bud-limit" placeholder="Don’t go over"><button class="btn primary sm" data-act="bud-add">Add</button></div>
-    ${rows.filter(b => !isStandard(m, b.label)).map(b => `<div class="bud" data-bud="${b.id}"><div class="row bud-row"><input type="text" id="f-${b.id}-label" data-f="bud-label" value="${esc(b.label)}" placeholder="Name" autocomplete="off"><span class="faint" style="font-size:12px;white-space:nowrap">limit</span><input type="text" inputmode="decimal" class="amt" id="f-${b.id}-limit" data-f="bud-limit" value="${fmtIn(b.limit)}" aria-label="Limit" autocomplete="off"><button class="icon" data-act="del-bud" title="Remove budget">${ICON.x}</button></div>${meterHTML(b, m)}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Tap + to add one.</div>`}
+    <div class="bud-form" id="bud-form" hidden><select id="bud-name" class="sel" aria-label="Category">${(() => { const std = standardExpenses(key), taken = new Set((m.budgets||[]).map(b => norm(b.label))); const opts = (m.expenses||[]).filter(l => l.label.trim() && !taken.has(norm(l.label)) && !std.has(norm(l.label))); return `<option value="">Choose a category…</option>${opts.map(l => `<option value="${esc(l.label)}">${esc(l.label)}</option>`).join('')}<option value="__new__">Other — type a new one…</option>`; })()}</select><input type="text" id="bud-name-new" placeholder="New category name" autocomplete="off" hidden><input type="text" inputmode="decimal" class="amt" title="You can type math here, e.g. 45+30.50" id="bud-limit" placeholder="Don’t go over"><button class="btn primary sm" data-act="bud-add">Add</button></div>
+    ${rows.filter(b => !isStandard(m, b.label)).map(b => `<div class="bud" data-bud="${b.id}"><div class="row bud-row"><input type="text" id="f-${b.id}-label" data-f="bud-label" value="${esc(b.label)}" placeholder="Name" autocomplete="off"><span class="faint" style="font-size:12px;white-space:nowrap">limit</span><input type="text" inputmode="decimal" class="amt" title="You can type math here, e.g. 45+30.50" id="f-${b.id}-limit" data-f="bud-limit" value="${fmtIn(b.limit)}" aria-label="Limit" autocomplete="off"><button class="icon" data-act="del-bud" title="Remove budget">${ICON.x}</button></div>${meterHTML(b, m)}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Tap + to add one.</div>`}
     ${(() => { const std = [...standardExpenses(key).values()]; if (!std.length) return ''; return `<div class="std"><div class="eyebrow">Standard monthly expenses</div><div class="faint" style="font-size:12px;margin:2px 0 6px">Same amount three months running — tracked here instead of as budgets.</div>${std.map(x => `<div class="std-row num"><span>${esc(x.label)}</span><span>${fmt(x.amount)}</span></div>`).join('')}</div>`; })()}</div>`;
   if (s.kind === 'lines') return `<div class="col-body" data-col="${sec}">${rows.map(l => lineHTML(key, sec, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Add a line below.</div>`}</div>`;
   return `<div class="col-body bal" data-bal="${sec}">${rows.map(r => `<div class="row" data-brow="${r.id}" data-bal="${sec}">
       <input type="text" id="f-${r.id}-label" data-f="blabel" value="${esc(r.label)}" placeholder="${sec==='cards'?'Card name':sec==='savings'?'Account':'e.g. 401K balance'}" enterkeyhint="next" autocomplete="off">
-      <input type="text" inputmode="decimal" class="amt" id="f-${r.id}-amount" data-f="bamount" value="${fmtIn(r.amount)}" aria-label="Balance" enterkeyhint="next" autocomplete="off">
+      <input type="text" inputmode="decimal" class="amt" title="You can type math here, e.g. 45+30.50" id="f-${r.id}-amount" data-f="bamount" value="${fmtIn(r.amount)}" aria-label="Balance" enterkeyhint="next" autocomplete="off">
       <button class="icon" data-act="del-bal" title="Remove">${ICON.x}</button></div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}.</div>`}</div>`;
 }
 function openEditor(key, sec) {
@@ -775,7 +790,7 @@ function lineHTML(key, colKey, l) {
   return `<div class="row" data-line="${l.id}" data-col="${colKey}">
     <input type="text" id="f-${l.id}-label" data-f="label" value="${esc(l.label)}" placeholder="Label" aria-label="Line label" enterkeyhint="next" autocomplete="off">
     ${hasItems ? `<span class="calc num" data-line-amt="${l.id}" data-act="toggle-items" title="Sum of ${l.items.length} items — click to see them">${fmt(lineAmt(l))}</span>`
-               : `<input type="text" inputmode="decimal" class="amt" id="f-${l.id}-amount" data-f="amount" value="${fmtIn(l.amount)}" aria-label="Amount" enterkeyhint="next" autocomplete="off">`}
+               : `<input type="text" inputmode="decimal" class="amt" title="You can type math here, e.g. 45+30.50" id="f-${l.id}-amount" data-f="amount" value="${fmtIn(l.amount)}" aria-label="Amount" enterkeyhint="next" autocomplete="off">`}
     <button class="icon ${open||hasItems?'on':''}" data-act="toggle-items" title="${hasItems?'Breakdown items':'Break this line into items'}">${ICON.list}</button>
     <button class="icon" data-act="del-line" title="Remove line">${ICON.x}</button>
   </div>
@@ -785,7 +800,7 @@ function itemsHTML(colKey, l) {
   return `<div class="items" data-items="${l.id}">
     ${(l.items||[]).map(it => `<div class="row" data-item="${it.id}">
       <input type="text" id="f-${it.id}-label" data-f="ilabel" value="${esc(it.label||'')}" placeholder="e.g. paycheck, Walmart 9/14">
-      <input type="text" inputmode="decimal" class="amt" id="f-${it.id}-amount" data-f="iamount" value="${fmtIn(it.amount)}" aria-label="Item amount">
+      <input type="text" inputmode="decimal" class="amt" title="You can type math here, e.g. 45+30.50" id="f-${it.id}-amount" data-f="iamount" value="${fmtIn(it.amount)}" aria-label="Item amount">
       <button class="icon" data-act="del-item" title="Remove item">${ICON.x}</button>
     </div>${it.note?`<div class="note">${esc(it.note)}</div>`:''}`).join('')}
     <button class="btn ghost sm add" data-act="add-item">${ICON.plus} Add item</button>
@@ -811,11 +826,11 @@ function onInput(e) {
   const m = S.months[key]; if (!m) return;
   if (f === 'updatedOn') m.updatedOn = el.value || null;
   else if (f === 'notes') m.notes = el.value;
-  else if (f === 'label' || f === 'amount') { const row = el.closest('[data-line]'); const l = findLine(key, row.dataset.col, row.dataset.line); if (!l) return; if (f==='label') l.label = el.value; else l.amount = r2(parseNum(el.value)); }
-  else if (f === 'ilabel' || f === 'iamount') { const wrap = el.closest('[data-items]'), row = el.closest('[data-item]'); const col = el.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) return; const it = l.items.find(x=>x.id===row.dataset.item); if (!it) return; if (f==='ilabel') it.label = el.value; else it.amount = r2(parseNum(el.value)); }
+  else if (f === 'label' || f === 'amount') { const row = el.closest('[data-line]'); const l = findLine(key, row.dataset.col, row.dataset.line); if (!l) return; if (f==='label') l.label = el.value; else l.amount = amtOr(el.value, l.amount); }
+  else if (f === 'ilabel' || f === 'iamount') { const wrap = el.closest('[data-items]'), row = el.closest('[data-item]'); const col = el.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) return; const it = l.items.find(x=>x.id===row.dataset.item); if (!it) return; if (f==='ilabel') it.label = el.value; else it.amount = amtOr(el.value, it.amount); }
   else if (f === 'bud-label' || f === 'bud-limit') { const row = el.closest('[data-bud]'); const b = (m.budgets||[]).find(x => x.id === row.dataset.bud); if (!b) return;
-    if (f === 'bud-limit') b.limit = r2(parseNum(el.value)); else { const l = expenseFor(m, b.label); if (l && !expenseFor(m, el.value)) l.label = el.value; b.label = el.value; } }
-  else if (f === 'blabel' || f === 'bamount') { const row = el.closest('[data-brow]'); const r = (m[row.dataset.bal]||[]).find(x=>x.id===row.dataset.brow); if (!r) return; if (f==='blabel') r.label = el.value; else r.amount = r2(parseNum(el.value)); }
+    if (f === 'bud-limit') b.limit = amtOr(el.value, b.limit); else { const l = expenseFor(m, b.label); if (l && !expenseFor(m, el.value)) l.label = el.value; b.label = el.value; } }
+  else if (f === 'blabel' || f === 'bamount') { const row = el.closest('[data-brow]'); const r = (m[row.dataset.bal]||[]).find(x=>x.id===row.dataset.brow); if (!r) return; if (f==='blabel') r.label = el.value; else r.amount = amtOr(el.value, r.amount); }
   else return;
   updateTotals(key); Store.markDirty(key);
 }
@@ -823,7 +838,12 @@ async function onChange(e) {
   const el = e.target, key = viewKey();
   if (el.id === 'bud-name') { const n = $('#bud-name-new'); if (n) { n.hidden = el.value !== '__new__'; if (!n.hidden) n.focus(); } return; }
   if (el.dataset.f === 'monthpick') { if (el.value && el.value !== key) location.hash = '#/m/' + el.value; return; }
-  if (el.classList.contains('amt') && (el.dataset.f==='amount'||el.dataset.f==='iamount'||el.dataset.f==='bamount')) el.value = fmtIn(parseNum(el.value));
+  if (el.classList.contains('amt')) {
+    const raw = el.value.trim(), v = parseNum(raw); el.value = fmtIn(v);
+    if (key && el.dataset.f === 'iamount') { const wrap = el.closest('[data-items]'), row = el.closest('[data-item]'), col = el.closest('[data-col]'); const l = wrap && col && findLine(key, col.dataset.col, wrap.dataset.items); const it = l && (l.items||[]).find(x => x.id === row.dataset.item);
+      if (it) { const note = isFormula(raw) ? '= ' + raw.replace(/\s+/g, '') : ''; if ((it.note || '') !== note) { if (note) it.note = note; else delete it.note; Store.markDirty(key); refreshEditor(); } } }
+    else if (isFormula(raw)) el.title = '= ' + raw;
+  }
 }
 function onKey(e) {
   if (e.key === 'Enter' && e.target.matches('.row input')) { e.preventDefault(); const rows = $$('.row input', e.target.closest('.col-body, .items')); const i = rows.indexOf(e.target); if (rows[i+2]) rows[i+2].focus(); else e.target.blur(); }
