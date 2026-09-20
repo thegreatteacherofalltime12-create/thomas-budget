@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <meta charset="utf-8">
 <title>Thomas Budget</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -54,8 +55,10 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+html{overflow-x:clip}
+body{margin:0;overflow-x:clip;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 a{color:var(--accent)}
@@ -139,7 +142,7 @@ h3{font-size:16px;font-weight:700}
 .pick{padding:14px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .pick label{color:var(--ink-2);font-size:13px;font-weight:500}
 .sel{border:1px solid var(--line-2);background:var(--surface);color:var(--ink);border-radius:var(--r-s);padding:9px 12px;font-size:15px;min-height:40px;max-width:100%;font-family:var(--body)}
-.mhead .sel{font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:-.02em;border-color:transparent;background:transparent;padding:4px 28px 4px 6px;appearance:auto}
+.mhead .sel{font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:-.02em;border-color:transparent;background:transparent;padding:4px 28px 4px 6px;appearance:auto;min-width:0;flex:1 1 auto;width:auto;text-overflow:ellipsis}
 .mhead .sel:hover{background:var(--surface-2)}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
@@ -154,7 +157,7 @@ h3{font-size:16px;font-weight:700}
 
 /* ---- month view ---- */
 .mhead{margin-top:22px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.mhead .nav{display:flex;align-items:center;gap:4px}
+.mhead .nav{display:flex;align-items:center;gap:4px;min-width:0;max-width:100%}
 .mhead h1{font-size:30px}
 .mhead .upd{display:flex;align-items:center;gap:8px;color:var(--ink-2);font-size:13px;margin-left:8px}
 .mhead .upd input{border:1px solid var(--line-2);background:var(--surface);border-radius:6px;padding:4px 7px;font-size:13px}
@@ -330,6 +333,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   .kcard .big{font-size:22px}
   .mhead .upd{margin-left:0}
   .perf .p .v{font-size:24px} .perf .p.hero .v{font-size:30px}
+  .perf .p .lab .f{display:none}
   .wrap{padding-inline:16px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -551,7 +555,7 @@ const Store = {
     setSync('busy', 'Restoring…');
     let n = 0;
     for (const key of Object.keys(data.months).sort()) { S.months[key] = data.months[key]; this.saveMonthNow(key); n++; }
-    S.dbEmpty = false; toast(`Restored ${n} month${n === 1 ? '' : 's'}`); render();
+    S.dbEmpty = false; if (S.mode !== 'firebase') setSync('local', 'Saved on this device'); toast(`Restored ${n} month${n === 1 ? '' : 's'}`); render();
   }
 };
 window.addEventListener('beforeunload', () => { Store.flushAll(); });
@@ -596,9 +600,9 @@ function render() {
   else renderHome();
 }
 
-function monthSelect(selected, id) {
+function monthSelect(selected, id, brief) {
   const keys = [...sortedKeys()].reverse();
-  return `<select id="${id}" class="sel" data-f="monthpick" aria-label="Choose a month">${keys.map(k => { const r = calc(S.months[k]).retained; return `<option value="${k}" ${k===selected?'selected':''}>${esc(monthLabel(k))}${k===todayKey()?' · now':''} — ${r>=0?'kept':'overspent'} ${esc(fmt(Math.abs(r),{cents:false}))}</option>`; }).join('')}</select>`;
+  return `<select id="${id}" class="sel" data-f="monthpick" aria-label="Choose a month">${keys.map(k => { const r = calc(S.months[k]).retained; return `<option value="${k}" ${k===selected?'selected':''}>${esc(monthLabel(k))}${brief ? '' : `${k===todayKey()?' · now':''} — ${r>=0?'kept':'overspent'} ${esc(fmt(Math.abs(r),{cents:false}))}`}</option>`; }).join('')}</select>`;
 }
 
 /* ----- home / landing ----- */
@@ -692,7 +696,7 @@ function renderMonth(key) {
   <div class="mhead">
     <div class="nav">
       ${prev ? `<a class="icon" href="#/m/${prev}" title="${esc(monthLabel(prev))}">${ICON.left}</a>` : `<span class="icon" style="opacity:.3">${ICON.left}</span>`}
-      <h1 class="vh">${esc(monthLabel(key))}</h1>${monthSelect(key, 'month-pick')}
+      <h1 class="vh">${esc(monthLabel(key))}</h1>${monthSelect(key, 'month-pick', true)}
       ${next ? `<a class="icon" href="#/m/${next}" title="${esc(monthLabel(next))}">${ICON.right}</a>` : `<button class="icon" data-act="new-month" data-from="${key}" title="Start the next month">${ICON.plus}</button>`}
     </div>
     <label class="upd">updated on <input type="date" id="f-updated" data-f="updatedOn" value="${esc(m.updatedOn||'')}"></label>
