@@ -153,13 +153,12 @@ h3{font-size:16px;font-weight:700}
 .mhead .upd{display:flex;align-items:center;gap:8px;color:var(--ink-2);font-size:13px;margin-left:8px}
 .mhead .upd input{border:1px solid var(--line-2);background:var(--surface);border-radius:6px;padding:4px 7px;font-size:13px}
 .mhead .acts{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
-.perf{margin-top:18px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.perf .p{padding:14px 16px;display:flex;flex-direction:column;gap:4px;cursor:pointer;min-width:0}
+.perf{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;justify-content:flex-start}
+.perf .p{padding:7px 12px;display:flex;flex-direction:column;gap:1px;cursor:pointer;min-width:0;text-align:left;color:var(--ink)}
 .perf .p:hover{border-color:var(--accent-line)}
-.perf .p .lab{font-size:12px;color:var(--ink-2);font-weight:500;display:flex;gap:8px;align-items:center}
-.perf .p .lab .f{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:0;margin-left:auto;white-space:nowrap}
-.perf .p .v{font-size:clamp(20px,2.2vw,26px);font-weight:600;letter-spacing:-.02em;white-space:nowrap}
-.perf .p.hero .v{font-size:clamp(24px,2.8vw,32px)}
+.perf .p .lab{font-size:11px;color:var(--ink-2);font-weight:500;display:flex;gap:6px;align-items:center;white-space:nowrap}
+.perf .p .v{font-size:15px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+.perf .btn{align-self:center}
 .list{display:flex;flex-direction:column;margin-top:20px}
 .lrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto 18px;gap:12px;align-items:center;width:100%;text-align:left;padding:14px 16px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--ink);min-height:56px}
 .lrow:last-child{border-bottom:0}
@@ -284,10 +283,9 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   .grid3{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:620px){
-  .grid3,.perf{grid-template-columns:1fr}
+  .grid3{grid-template-columns:1fr}
   h1{font-size:28px}
   .mhead h1{font-size:24px}
-  .mhead .acts{margin-left:0;width:100%}
   .donut-lg{grid-template-columns:1fr}
   .hb{grid-template-columns:minmax(70px,110px) minmax(0,1fr) 80px}
   .top .wrap{gap:10px}
@@ -320,8 +318,6 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   .tab{white-space:nowrap}
   .kcard .big{font-size:22px}
   .mhead .upd{margin-left:0}
-  .perf .p .v{font-size:24px} .perf .p.hero .v{font-size:30px}
-  .perf .p .lab .f{display:none}
   .wrap{padding-inline:16px}
   .top{position:static;backdrop-filter:none;background:var(--bg)}
 }
@@ -671,19 +667,19 @@ function renderMonth(key) {
     </div>
     <label class="upd">updated on <input type="date" id="f-updated" data-f="updatedOn" value="${esc(m.updatedOn||'')}"></label>
     <div class="acts">
-      <button class="btn sm" data-act="chart" data-chart="where" data-key="${key}">${ICON.chart} Charts</button>
       <button class="btn sm ghost" data-act="delete-month" data-key="${key}" title="Delete this month">${ICON.x}</button>
     </div>
   </div>
 
   <section class="perf">
-    <div class="card p" data-act="chart" data-chart="where" data-key="${key}" role="button" tabindex="0"><div class="lab">Month Performance <span class="f">income − expenses − abnormal</span></div><div class="v num ${signCls(c.perf)}" data-perf="perf">${fmt(c.perf)}</div></div>
-    <div class="card p" data-act="chart" data-chart="where" data-key="${key}" role="button" tabindex="0"><div class="lab">Excluding Abnormal Expenses <span class="f">income − expenses</span></div><div class="v num ${signCls(c.exAbn)}" data-perf="exAbn">${fmt(c.exAbn)}</div></div>
-    <div class="card p hero" data-act="chart" data-chart="where" data-key="${key}" role="button" tabindex="0"><div class="lab"><span class="sw ret"></span>Income Retained <span class="f">… − wealth building</span></div><div class="v num ${signCls(c.retained)}" data-perf="retained">${fmt(c.retained)}</div></div>
+    <button class="card p" data-act="chart" data-chart="where" data-key="${key}"><span class="lab">Month Performance</span><span class="v num ${signCls(c.perf)}" data-perf="perf">${fmt(c.perf)}</span></button>
+    <button class="card p" data-act="chart" data-chart="where" data-key="${key}"><span class="lab">Excl. Abnormal</span><span class="v num ${signCls(c.exAbn)}" data-perf="exAbn">${fmt(c.exAbn)}</span></button>
+    <button class="card p" data-act="chart" data-chart="where" data-key="${key}"><span class="lab"><span class="sw ret"></span>Income Retained</span><span class="v num ${signCls(c.retained)}" data-perf="retained">${fmt(c.retained)}</span></button>
+    <button class="btn sm" data-act="chart" data-chart="where" data-key="${key}">${ICON.chart} Charts</button>
   </section>
 
   <section class="section">
-    <div class="card list">${SECTIONS.map(s => `<button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${(m[s.key]||[]).length} ${s.kind==='lines'?'lines':'entries'}</span></span><span class="v num" data-total="${s.key}">${fmt(secTotal(m, s.key))}</span>${ICON.chev}</button>`).join('')}</div>
+    <div class="card list">${SECTIONS.map(s => `<button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${(m[s.key]||[]).length} ${s.kind==='lines'?'line':'entr'}${(m[s.key]||[]).length===1?(s.kind==='lines'?'':'y'):(s.kind==='lines'?'s':'ies')}</span></span><span class="v num" data-total="${s.key}">${fmt(secTotal(m, s.key))}</span>${ICON.chev}</button>`).join('')}</div>
   </section>
 
   <section class="notes"><div class="eyebrow" style="margin-bottom:6px">Notes</div><textarea id="f-notes" data-f="notes" placeholder="Anything worth remembering about this month…">${esc(m.notes||'')}</textarea></section>
@@ -751,7 +747,7 @@ function findLine(key, col, id) { return (S.months[key][col]||[]).find(l => l.id
 function updateTotals(key) {
   const m = S.months[key], c = calc(m);
   $$('[data-total]').forEach(el => { const k = el.dataset.total; el.textContent = fmt(k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:k==='accounts'?sumFlat(m.accounts):0); });
-  $$('[data-perf]').forEach(el => { const v = c[el.dataset.perf]; el.textContent = fmt(v); el.className = 'v num ' + signCls(v); });
+  $('[data-perf]').forEach(el => { const v = c[el.dataset.perf]; el.textContent = fmt(v); el.className = 'v num ' + signCls(v); });
   $$('[data-line-amt]').forEach(el => { for (const col of COLS) { const l = findLine(key, col.key, el.dataset.lineAmt); if (l) { el.textContent = fmt(lineAmt(l)); break; } } });
 }
 
