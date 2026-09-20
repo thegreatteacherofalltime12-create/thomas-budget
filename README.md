@@ -22,6 +22,7 @@ data is ours; the code is here for anyone.)
 - **Budgets** — name a spending limit; it is tracked against the Expenses line with the same name (created for you if missing), with a meter that turns amber near the limit and red over it. Budgets carry forward into new months. Pick the category from a dropdown of your Expenses lines, or type a new one. An Expenses line whose amount is identical three months running is flagged a **standard monthly expense** and drops out of the budget meters automatically (no model, no network — plain arithmetic over the months already loaded).
 - **Amount boxes are calculators** — type `45+30.50` or `3*12.99`; totals update as you type, the box shows the result when you leave it, and breakdown items keep the formula as a note (like the sheet did).
 - **End-of-month outlook** — starts from what last month left over and assumes every income, expense and wealth-building line reaches at least its usual amount (average of the last three months it had a value); abnormal expenses count only as entered. Tap the card for the line-by-line breakdown.
+- **LDS church expenses** — a separate reimbursable ledger at the bottom of the home page (date, description, amount, paid), with a graph of spend per month. Stored on its own and never counted in any budget figure.
 - **Backup / restore** as JSON.
 - **Month picker** on the home page and in the month header to jump anywhere in one tap.
 - **Update button** appears when a new version is deployed; one tap reloads to it.
@@ -35,7 +36,7 @@ data is ours; the code is here for anyone.)
 | App | One HTML file, vanilla JS, hand-drawn SVG charts (`public/index.html`) | No build step; the whole thing is readable in one sitting |
 | Hosting | Cloudflare Worker with static assets (`wrangler.jsonc`) | Free, global, one-command deploy |
 | Sign-in | Firebase Authentication, Google provider | Both of us already have Google accounts; no passwords to manage |
-| Data | Firestore — one document per month, `months/{YYYY-MM}` | Real-time listeners for live sync, offline persistence on phones |
+| Data | Firestore — one document per month, `months/{YYYY-MM}`; the church ledger in `ledgers/church` | Real-time listeners for live sync, offline persistence on phones |
 | Access | `firestore.rules` allow-listing two Google accounts | The security boundary lives server-side, not in the page |
 
 Editing model: inputs update in-memory state and recompute totals instantly; writes are

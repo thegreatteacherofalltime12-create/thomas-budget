@@ -177,6 +177,11 @@ h3{font-size:16px;font-weight:700}
 .col-body{padding:6px 0 4px;display:flex;flex-direction:column;gap:2px}
 .dlg-body.editor{padding:8px 10px 10px}
 .dlg-body .list .lrow{padding:14px 10px}
+.chrow{grid-template-columns:118px minmax(0,1fr) 92px auto 22px}
+.chrow input[type=date]{font-size:13px;padding:5px 4px}
+.chrow .paid{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);white-space:nowrap} .chrow .paid input{width:16px;height:16px;margin:0}
+.kcard.church{text-align:left;color:var(--ink)}
+@media (max-width:620px){ .chrow{grid-template-columns:minmax(0,1fr) 96px 36px;grid-template-areas:"label amt del" "date paid paid"} .chrow input[type=date]{grid-area:date} .chrow input[data-f=ch-label]{grid-area:label} .chrow .amt{grid-area:amt} .chrow .paid{grid-area:paid;justify-content:flex-end} .chrow .icon{grid-area:del} }
 .yrow{display:flex;align-items:stretch;border-bottom:1px solid var(--line)} .yrow:last-child{border-bottom:0} .yrow .lrow{border-bottom:0;flex:1;min-width:0}
 .yrow .del{width:44px;height:auto;border-radius:0;color:var(--ink-3)} .yrow .del:hover{color:var(--bad);background:var(--bad-soft)}
 .kcard.click{text-align:left;color:var(--ink)}
@@ -409,7 +414,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -529,6 +534,13 @@ const Store = {
       requestRender();
       if (!snap.metadata.fromCache) ensureCurrentMonth();
     }, err => this.onError(err)));
+    this._unsubs.push(F.onSnapshot(F.doc(db, 'ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; requestRender(); }, err => this.onError(err)));
+  },
+  markChurch() { this._churchDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._churchTimer); this._churchTimer = setTimeout(() => this.saveChurch(), 700); },
+  saveChurch() {
+    this._churchDirty = false; clearTimeout(this._churchTimer);
+    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'ledgers', 'church'), { rows: S.church }), 'church expenses'); }
+    else this.saveLocal();
   },
   onError(err) {
     const code = err && err.code || 'unknown';
@@ -536,10 +548,10 @@ const Store = {
     else { setSync('bad', 'Sync problem'); toast('Sync problem: ' + code); S.ready = true; requestRender(); }
   },
   loadLocal() {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; } } catch (e) {}
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; } } catch (e) {}
     S.ready = true;
   },
-  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
+  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
   markDirty(key) { dirty[key] = true; const mm = S.months[key]; if (mm) { mm.updatedOn = today(); $$('[data-updated]').forEach(el => { el.textContent = 'Updated ' + fmtDate(mm.updatedOn); }); } setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
   write(fn, what) { // fire-and-forget: the SDK queues the write locally; report only failures
     Promise.resolve().then(fn).then(() => { if (!Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced'); })
@@ -559,7 +571,7 @@ const Store = {
       this.write(() => F.setDoc(F.doc(db, 'months', key), body), monthLabel(key));
     } else { this.saveLocal(); }
   },
-  async flushAll() { for (const k of Object.keys(dirty)) if (dirty[k]) await this.flush(k); },
+  async flushAll() { for (const k of Object.keys(dirty)) if (dirty[k]) await this.flush(k); if (this._churchDirty) this.saveChurch(); },
   async saveMonthNow(key) { dirty[key] = true; await this.flush(key); },
   async deleteMonth(key) {
     delete S.months[key]; dirty[key] = false; clearTimeout(timers[key]);
@@ -567,7 +579,7 @@ const Store = {
     else this.saveLocal();
   },
   /* ---- backup & restore (JSON) ---- */
-  backupJSON() { return JSON.stringify({ app: 'thomas-budget', version: 1, exportedAt: new Date().toISOString(), months: S.months }, null, 1); },
+  backupJSON() { return JSON.stringify({ app: 'thomas-budget', version: 1, exportedAt: new Date().toISOString(), months: S.months, church: S.church }, null, 1); },
   parseBackup(text) {
     let d; try { d = JSON.parse(text); } catch (e) { throw new Error('That file is not valid JSON'); }
     const safeId = id => (typeof id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(id)) ? id : uid();
@@ -583,12 +595,14 @@ const Store = {
       months[m.key] = doc;
     }
     if (!Object.keys(months).length) throw new Error('No months found in that file');
-    return { months };
+    const church = (d && !Array.isArray(d) && Array.isArray(d.church) ? d.church : []).filter(r => r && /^\d{4}-\d{2}-\d{2}$/.test(String(r.date || ''))).map(r => ({ id: safeId(r.id), date: String(r.date), label: String(r.label || '').slice(0, 120), amount: r2(r.amount), paid: !!r.paid }));
+    return { months, church };
   },
   async restore(data) {
     setSync('busy', 'Restoring…');
     let n = 0;
     for (const key of Object.keys(data.months).sort()) { S.months[key] = data.months[key]; this.saveMonthNow(key); n++; }
+    if (data.church && data.church.length) { S.church = data.church; this.saveChurch(); }
     S.dbEmpty = false; if (S.mode !== 'firebase') setSync('local', 'Saved on this device'); toast(`Restored ${n} month${n === 1 ? '' : 's'}`); render();
   }
 };
@@ -707,6 +721,15 @@ function renderHome() {
       </button>
     </div>
   </section>
+
+  <section class="section">
+    ${(() => { const t = churchTotals(); return `<button class="card click kcard church" data-act="church">
+      <div class="eyebrow">LDS church expenses · ${t.year}</div>
+      <div class="big num">${fmt(t.spent)}</div>
+      <div class="delta">${t.outstanding ? `${fmt(t.outstanding)} awaiting reimbursement` : t.count ? 'all reimbursed' : 'nothing recorded yet'} · ${t.count} entr${t.count===1?'y':'ies'} · kept separate from the budget</div>
+      ${t.months.length > 1 ? sparkline(t.months.map(x=>x.total), 'var(--s-wealth)') : ''}
+    </button>`; })()}
+  </section>
   <footer class="foot"><span>Thomas Budget</span><button class="btn ghost sm" data-act="backup">Back up</button><button class="btn ghost sm" data-act="restore">Restore</button><span class="sp"></span><span>${S.mode==='firebase'?`Shared live · signed in as ${esc(S.user?S.user.email:'')}`:'Data is stored in this browser only'}</span></footer>`;
 }
 
@@ -817,6 +840,40 @@ function openYear(year) {
     <div class="dlg-foot"><span class="muted" style="font-size:12px">The × deletes a month for both of you, after a confirmation.</span><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
   dlg.style.maxWidth = '560px';
 }
+/* LDS church expenses: a reimbursable ledger, deliberately outside every budget figure. */
+function churchTotals(year = String(new Date().getFullYear())) {
+  const rows = (S.church || []).filter(r => String(r.date || '').startsWith(year));
+  const spent = r2(rows.reduce((s, r) => s + (+r.amount || 0), 0)), paid = r2(rows.filter(r => r.paid).reduce((s, r) => s + (+r.amount || 0), 0));
+  const last = Math.max(new Date().getMonth() + 1, ...rows.map(r => +r.date.slice(5, 7)));
+  const months = []; for (let mth = 1; mth <= last; mth++) { const k = `${year}-${String(mth).padStart(2,'0')}`; months.push({ key: k, total: r2(rows.filter(r => r.date.startsWith(k)).reduce((s, r) => s + (+r.amount || 0), 0)) }); }
+  return { year, rows, spent, paid, outstanding: r2(spent - paid), count: rows.length, months };
+}
+function churchChart() {
+  const t = churchTotals();
+  return t.months.length > 1 ? lineChartHTML([{ name: 'Spent per month', color: 'var(--s-wealth)', values: t.months.map(x => x.total) }], t.months.map(x => shortMonth(x.key)), { height: 220 }) : '<div class="faint" style="padding:8px">The graph appears from February on.</div>';
+}
+function churchBody() {
+  const t = churchTotals(); const rows = [...(S.church || [])].sort((a, b) => a.date < b.date ? 1 : -1);
+  return `<div class="okv num" style="margin:4px 8px 10px"><span class="k">Spent in ${t.year}</span><span class="v" data-church="spent">${fmt(t.spent)}</span><span class="k">Reimbursed</span><span class="v" data-church="paid">${fmt(t.paid)}</span><span class="k tot">Awaiting reimbursement</span><span class="v tot" data-church="outstanding">${fmt(t.outstanding)}</span></div>
+    <div id="church-chart" style="padding:0 4px 8px">${churchChart()}</div>
+    <div class="col-body" data-church-rows>${rows.map(r => `<div class="row chrow" data-ch="${r.id}">
+      <input type="date" data-f="ch-date" value="${esc(r.date)}" aria-label="Date">
+      <input type="text" id="f-${r.id}-label" data-f="ch-label" value="${esc(r.label)}" placeholder="What was it for" autocomplete="off">
+      <input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${r.id}-amount" data-f="ch-amount" value="${fmtIn(r.amount)}" aria-label="Amount" autocomplete="off">
+      <label class="paid" title="Reimbursed"><input type="checkbox" data-f="ch-paid" ${r.paid ? 'checked' : ''}> paid</label>
+      <button class="icon" data-act="ch-del" title="Remove">${ICON.x}</button></div>`).join('') || '<div class="faint" style="padding:10px 8px;font-size:12.5px">Nothing recorded yet. Tap + Add expense.</div>'}</div>`;
+}
+function openChurch() {
+  dialogCtx = { sec: 'church' };
+  openOverlay(`<div class="dlg-head"><div class="ttl"><h2>LDS church expenses</h2><span class="muted" style="font-size:13px">Reimbursable — not part of the budget figures</span></div><button class="icon x" data-dact="close" title="Done">${ICON.x}</button></div>
+    <div class="dlg-body editor">${churchBody()}</div>
+    <div class="dlg-foot"><button class="btn sm" data-act="ch-add">${ICON.plus} Add expense</button><span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
+  dlg.style.maxWidth = '640px';
+}
+function updateChurch() { // live: totals and graph, without rebuilding the rows being typed in
+  const t = churchTotals(); const set = (k, v) => { const el = $(`[data-church="${k}"]`); if (el) el.textContent = fmt(v); };
+  set('spent', t.spent); set('paid', t.paid); set('outstanding', t.outstanding); const c = $('#church-chart'); if (c) c.innerHTML = churchChart();
+}
 function openOutlook(key) {
   const o = outlook(key), m = S.months[key]; dialogCtx = { key };
   const group = (title, rows, sign) => rows.length ? `<tr class="grp"><th colspan="3">${title}</th></tr>` + rows.map(r => `<tr class="${r.expected !== r.actual ? 'pred' : ''}"><td>${esc(r.label)}</td><td class="num">${fmt(r.actual)}</td><td class="num">${r.expected !== r.actual ? fmt(r.expected) : '<span class="faint">same</span>'}</td></tr>`).join('') : '';
@@ -871,7 +928,7 @@ function openEditor(key, sec) {
 function refreshEditor() {
   if (!dialogCtx.sec || !dlg.open) return;
   const body = $('.dlg-body.editor', dlg); if (!body) return;
-  const st = body.scrollTop; body.innerHTML = dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
+  const st = body.scrollTop; body.innerHTML = dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
 }
 function lineHTML(key, colKey, l) {
   const hasItems = l.items && l.items.length;
@@ -912,7 +969,11 @@ function updateTotals(key) {
 }
 
 function onInput(e) {
-  const el = e.target, f = el.dataset.f, key = viewKey() || dialogCtx.key; if (!f || !key) return;
+  const el = e.target, f = el.dataset.f;
+  if (f && f.startsWith('ch-')) { const row = el.closest('[data-ch]'); const r = (S.church || []).find(x => x.id === row.dataset.ch); if (!r) return;
+    if (f === 'ch-date') { if (/^\d{4}-\d{2}-\d{2}$/.test(el.value)) r.date = el.value; } else if (f === 'ch-label') r.label = el.value; else if (f === 'ch-amount') r.amount = amtOr(el.value, r.amount); else if (f === 'ch-paid') r.paid = el.checked;
+    updateChurch(); Store.markChurch(); return; }
+  const key = viewKey() || dialogCtx.key; if (!f || !key) return;
   const m = S.months[key]; if (!m) return;
   if (f === 'notes') m.notes = el.value;
   else if (f === 'label' || f === 'amount') { const row = el.closest('[data-line]'); const l = findLine(key, row.dataset.col, row.dataset.line); if (!l) return; if (f==='label') l.label = el.value; else l.amount = amtOr(el.value, l.amount); }
@@ -925,6 +986,7 @@ function onInput(e) {
 }
 async function onChange(e) {
   const el = e.target, key = viewKey() || dialogCtx.key;
+  if (el.dataset.f === 'ch-paid') { onInput(e); return; }
   if (el.id === 'bud-name') { const n = $('#bud-name-new'); if (n) { n.hidden = el.value !== '__new__'; if (!n.hidden) n.focus(); } return; }
   if (el.dataset.f === 'yearpick') { const y = el.value; el.value = ''; if (y) openYear(y); return; }
   if (el.dataset.f === 'monthpick') { if (el.value && el.value !== key) location.hash = '#/m/' + el.value; return; }
@@ -946,13 +1008,16 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && act !== 'chart') return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': if (dlg.open) closeOverlay(); location.hash = '#/m/' + t.dataset.key; break;
     case 'edit': openEditor(key, t.dataset.sec); break;
     case 'outlook': openOutlook(key); break;
     case 'balances': openBalances(t.dataset.key || key); break;
+    case 'church': openChurch(); break;
+    case 'ch-add': { S.church = S.church || []; const r = { id: uid(), date: today(), label: '', amount: 0, paid: false }; S.church.push(r); Store.markChurch(); refreshEditor(); const inp = $('#f-' + r.id + '-label'); if (inp) inp.focus(); break; }
+    case 'ch-del': { const row = t.closest('[data-ch]'); const r = (S.church || []).find(x => x.id === row.dataset.ch); if (!r) break; if ((r.amount || r.label) && !(await ask(`Remove “${r.label || 'this expense'}” (${fmt(r.amount)})?`, 'Remove'))) break; S.church = S.church.filter(x => x.id !== r.id); Store.markChurch(); refreshEditor(); break; }
     case 'copy-bal': { const src = S.months[t.dataset.from]; if (!src) break; for (const b of BALS) m[b.key] = (src[b.key]||[]).map(r => ({ id: uid(), label: r.label, amount: r.amount })); Store.markDirty(key); render(); break; }
     case 'new-month': openNewMonth(t.dataset.from || currentKey()); break;
     case 'sign-in': await Store.signIn(); break;
