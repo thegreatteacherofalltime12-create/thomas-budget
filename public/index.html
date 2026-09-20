@@ -480,7 +480,7 @@ const Store = {
       try { await this.initFirebase(); return; }
       catch (e) { console.error(e); S.ready = true; setSync('bad', 'Offline'); app.innerHTML = '<div class="empty card" style="margin-top:40px"><h2>Can’t reach the budget right now</h2><p>Check your connection and reload.</p><button class="btn primary" onclick="location.reload()">Reload</button></div>'; return; }
     }
-    S.mode = 'local'; this.loadLocal(); setSync('local', 'Saved on this device'); render();
+    S.mode = 'local'; this.loadLocal(); setSync('local', 'Saved on this device'); render(); ensureCurrentMonth();
   },
   async initFirebase() {
     S.mode = 'firebase'; setSync('busy', 'Connecting…');
@@ -525,6 +525,7 @@ const Store = {
       S.dbEmpty = snap.empty && !snap.metadata.fromCache;
       if (!Object.values(dirty).some(Boolean)) setSync('ok', snap.metadata.fromCache ? 'Offline · saved on device' : 'Shared · synced');
       requestRender();
+      if (!snap.metadata.fromCache) ensureCurrentMonth();
     }, err => this.onError(err)));
   },
   onError(err) {
@@ -1187,11 +1188,8 @@ function openNewMonth(fromKey) {
   dlg.style.maxWidth = '520px';
   dlg.addEventListener('close', () => { dlg.style.maxWidth=''; }, {once:true});
 }
-async function createMonthFromForm() {
-  const month = +$('#nm-m').value, year = +$('#nm-y').value, key = `${year}-${String(month).padStart(2,'0')}`;
-  if (S.months[key]) { closeOverlay(); location.hash = '#/m/'+key; toast(monthLabel(key)+' already exists'); return; }
-  const srcKey = $('#nm-src').value, src = srcKey ? S.months[srcKey] : null;
-  const prefill = src && $('#nm-prefill').checked, carry = src && $('#nm-carry').checked;
+function buildMonth(key, srcKey, prefill, carry) {
+  const src = srcKey ? S.months[srcKey] : null, [year, month] = key.split('-').map(Number);
   const mk = (labels) => labels.map(l => ({id:uid(), label:l, amount:0, items:[]}));
   const doc = { key, label: monthLabel(key), year, month, updatedOn: today(), notes:'', cards:[], savings:[], accounts:[] };
   for (const col of COLS) {
@@ -1200,11 +1198,31 @@ async function createMonthFromForm() {
   }
   if (src) for (const b of BALS) doc[b.key] = (src[b.key]||[]).map(r => ({id:uid(), label:r.label, amount:r.amount}));
   doc.budgets = src ? (src.budgets||[]).map(b => ({ id: uid(), label: b.label, limit: b.limit })) : [];
-  if (carry) { const ret = calc(src).retained; let l = doc.income.find(x => /left over|carry/i.test(x.label)); if (!l) { l = {id:uid(), label:'Money left over from last month', amount:0, items:[]}; doc.income.push(l); } l.amount = ret > 0 ? ret : 0; }
-  S.months[key] = doc; dlg.style.maxWidth=''; closeOverlay();
+  if (carry && src) { const ret = calc(src).retained; let l = doc.income.find(x => /left over|carry/i.test(x.label)); if (!l) { l = {id:uid(), label:'Money left over from last month', amount:0, items:[]}; doc.income.push(l); } l.amount = ret > 0 ? ret : 0; }
+  return doc;
+}
+async function createMonthFromForm() {
+  const month = +$('#nm-m').value, year = +$('#nm-y').value, key = `${year}-${String(month).padStart(2,'0')}`;
+  if (S.months[key]) { closeOverlay(); location.hash = '#/m/'+key; toast(monthLabel(key)+' already exists'); return; }
+  const srcKey = $('#nm-src').value || null;
+  S.months[key] = buildMonth(key, srcKey, srcKey && $('#nm-prefill').checked, srcKey && $('#nm-carry').checked);
+  dlg.style.maxWidth=''; closeOverlay();
   await Store.saveMonthNow(key);
   location.hash = '#/m/' + key; toast(monthLabel(key) + ' created'); render();
 }
+/* On the 1st, the new month appears by itself: the first time the app has the data and the calendar
+   month has no record, it is created from the previous month (repeating expenses, balances, budgets,
+   and last month's leftover). Runs on load and hourly while the app stays open. */
+let autoTried = '';
+function ensureCurrentMonth() {
+  const key = todayKey(); if (!S.ready || S.denied || S.months[key] || autoTried === key) return;
+  if (S.mode === 'firebase' && !S.user) return;
+  const src = sortedKeys().filter(k => k < key).pop(); if (!src) return;
+  autoTried = key;
+  S.months[key] = buildMonth(key, src, true, true);
+  Store.saveMonthNow(key); toast(`${monthLabel(key)} is ready — started from ${monthLabel(src)}`, 4000); render();
+}
+setInterval(ensureCurrentMonth, 60 * 60 * 1000);
 function confirmDelete(key) {
   openOverlay(`<div class="dlg-head"><div class="ttl"><h2>Delete ${esc(monthLabel(key))}?</h2></div><button class="icon x" data-dact="close">${ICON.x}</button></div>
     <div class="dlg-body"><p style="margin:0;max-width:60ch">This removes the month and its imported transactions for everyone who uses this budget. There is no undo.</p></div>

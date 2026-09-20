@@ -17,7 +17,7 @@ data is ours; the code is here for anyone.)
 - **Balances block** — credit cards → total debt, cash savings, 401K and mortgage balances.
 - **Charts in an overlay** — where the month's money went, per-column bars, a nine-month
   trend, and credit-card debt over time. Every chart has a table view.
-- **New month** copies last month's structure, keeps the amounts that repeat (mortgage,
+- **New month appears by itself on the 1st** — the first time the app opens in a calendar month with no record, it creates one from the previous month (also available manually). It copies last month's structure, keeps the amounts that repeat (mortgage,
   insurance, 401k), carries balances forward, and pre-fills "money left over".
 - **Budgets** — name a spending limit; it is tracked against the Expenses line with the same name (created for you if missing), with a meter that turns amber near the limit and red over it. Budgets carry forward into new months. Pick the category from a dropdown of your Expenses lines, or type a new one. An Expenses line whose amount is identical three months running is flagged a **standard monthly expense** and drops out of the budget meters automatically (no model, no network — plain arithmetic over the months already loaded).
 - **Amount boxes are calculators** — type `45+30.50` or `3*12.99`; totals update as you type, the box shows the result when you leave it, and breakdown items keep the formula as a note (like the sheet did).
