@@ -180,6 +180,9 @@ h3{font-size:16px;font-weight:700}
 .sw.none{background:var(--line-2)}
 .col-body{padding:6px 0 4px;display:flex;flex-direction:column;gap:2px}
 .dlg-body.editor{padding:8px 10px 10px}
+.bal-group{padding:6px 0 10px;border-bottom:1px solid var(--line)} .bal-group:last-child{border-bottom:0}
+.bal-head{display:flex;align-items:center;justify-content:space-between;padding:6px 8px 2px} .bal-head h3{font-size:14px} .bal-head span{font-weight:600}
+.kcard.click{text-align:left;color:var(--ink)}
 .calcbar{display:flex;gap:6px;flex-wrap:wrap;padding:6px 6px 10px;align-items:center}
 .calcbar button{min-width:44px;height:42px;padding:0 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);color:var(--ink);font-size:20px;font-weight:500}
 .calcbar button:active{background:var(--surface-2)}
@@ -688,14 +691,15 @@ function renderHome() {
         <div class="delta">${bpc ? `${fmt(bc.cc - bpc.cc, {sign:true})} since ${esc(shortMonth(bPrev))}` : ''} · as of ${esc(monthLabel(withBal))}</div>
         ${sparkline(keys.filter(k=>(S.months[k].cards||[]).length).map(k=>calc(S.months[k]).cc), 'var(--s-debt)')}` : `<div class="big">—</div><div class="delta">Add card balances in a month to track this</div>`}
       </div>
-      <div class="card kcard">
-        <div class="eyebrow">Balances${bm?` · ${esc(monthLabel(withBal))}`:''}</div>
-        ${bm ? `<div class="kv num">
-          <span class="k">Savings in cash</span><span class="v">${fmt(bc.cash)}</span>
-          ${(bm.accounts||[]).map(a=>`<span class="k">${esc(a.label)}</span><span class="v">${fmt(a.amount)}</span>`).join('')}
-          <span class="k">Credit cards (${(bm.cards||[]).filter(x=>x.amount).length} with a balance)</span><span class="v">${fmt(bc.cc)}</span>
-        </div>` : `<div class="delta">Open a month and fill in the balances block.</div>`}
-      </div>
+      <button class="card click kcard" data-act="balances" data-key="${cur}">
+        <div class="eyebrow">Balances · ${esc(monthLabel(cur))}</div>
+        ${(() => { const cm = S.months[cur], cc = calc(cm); const n = (cm.cards||[]).length + (cm.savings||[]).length + (cm.accounts||[]).length; return n ? `<div class="kv num">
+          <span class="k">Credit cards (${(cm.cards||[]).filter(x=>x.amount).length} with a balance)</span><span class="v">${fmt(cc.cc)}</span>
+          <span class="k">Savings in cash</span><span class="v">${fmt(cc.cash)}</span>
+          ${(cm.accounts||[]).map(a=>`<span class="k">${esc(a.label)}</span><span class="v">${fmt(a.amount)}</span>`).join('')}
+        </div>` : `<div class="delta">Nothing recorded yet for ${esc(shortMonth(cur))}.</div>`; })()}
+        <div class="hint" style="font-size:12px;color:var(--accent);font-weight:600">Tap to edit balances</div>
+      </button>
     </div>
   </section>
   <footer class="foot"><span>Thomas Budget</span><button class="btn ghost sm" data-act="backup">Back up</button><button class="btn ghost sm" data-act="restore">Restore</button><span class="sp"></span><span>${S.mode==='firebase'?`Shared live · signed in as ${esc(S.user?S.user.email:'')}`:'Data is stored in this browser only'}</span></footer>`;
@@ -727,7 +731,7 @@ function renderMonth(key) {
   ${(() => { const o = outlook(key); return `<button class="card outlook" data-act="outlook"><span class="lab">End-of-month outlook</span><span class="v num ${signCls(o.projected)}" data-outlook>${fmt(o.projected)}</span><span class="sub">${o.carried ? 'includes last month’s leftover listed under income' : o.prevKey ? `starts with ${fmt(o.leftover)} left over from ${esc(shortMonth(o.prevKey))}` : 'no earlier month to start from'} · tap for the breakdown</span></button>`; })()}
 
   <section class="section">
-    <div class="card list">${SECTIONS.map(s => `<button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${s.kind==='budgets' ? (budgetStats(m).count ? `${budgetStats(m).count} budget${budgetStats(m).count===1?'':'s'}${budgetStats(m).over?` · ${budgetStats(m).over} over`:''}${standardExpenses(key).size?` · ${standardExpenses(key).size} standard`:''}` : standardExpenses(key).size ? `${standardExpenses(key).size} standard expense${standardExpenses(key).size===1?'':'s'}` : 'set spending limits') : `${(m[s.key]||[]).length} ${s.kind==='lines'?'line':'entr'}${(m[s.key]||[]).length===1?(s.kind==='lines'?'':'y'):(s.kind==='lines'?'s':'ies')}`}</span></span><span class="v num" data-total="${s.key}">${s.key==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, s.key))}</span>${ICON.chev}</button>`).join('')}</div>
+    <div class="card list">${SECTIONS.filter(s => s.kind !== 'bal').map(s => `<button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${s.kind==='budgets' ? (budgetStats(m).count ? `${budgetStats(m).count} budget${budgetStats(m).count===1?'':'s'}${budgetStats(m).over?` · ${budgetStats(m).over} over`:''}${standardExpenses(key).size?` · ${standardExpenses(key).size} standard`:''}` : standardExpenses(key).size ? `${standardExpenses(key).size} standard expense${standardExpenses(key).size===1?'':'s'}` : 'set spending limits') : `${(m[s.key]||[]).length} ${s.kind==='lines'?'line':'entr'}${(m[s.key]||[]).length===1?(s.kind==='lines'?'':'y'):(s.kind==='lines'?'s':'ies')}`}</span></span><span class="v num" data-total="${s.key}">${s.key==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, s.key))}</span>${ICON.chev}</button>`).join('')}</div>
   </section>
 
   <section class="notes"><div class="eyebrow" style="margin-bottom:6px">Notes</div><textarea id="f-notes" data-f="notes" placeholder="Anything worth remembering about this month…">${esc(m.notes||'')}</textarea></section>
@@ -823,6 +827,20 @@ function openOutlook(key) {
     <div class="dlg-foot"><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
   dlg.style.maxWidth = '600px';
 }
+function balancesBody(key) {
+  const m = S.months[key], keys = sortedKeys(), i = keys.indexOf(key), prev = i > 0 ? keys[i - 1] : null;
+  const empty = !((m.cards||[]).length || (m.savings||[]).length || (m.accounts||[]).length);
+  const prevHas = prev && ((S.months[prev].cards||[]).length || (S.months[prev].savings||[]).length || (S.months[prev].accounts||[]).length);
+  return (empty && prevHas ? `<div class="bud-form" style="grid-template-columns:1fr auto;align-items:center"><span class="muted" style="font-size:13px">Start from ${esc(monthLabel(prev))}’s balances?</span><button class="btn sm" data-act="copy-bal" data-from="${prev}">Copy them</button></div>` : '') +
+    BALS.map(b => `<div class="bal-group"><div class="bal-head"><h3>${b.title}</h3>${b.key!=='accounts' ? `<span class="num" data-total="${b.key}">${fmt(secTotal(m, b.key))}</span>` : ''}</div>${editorBody(key, b.key)}<button class="btn ghost sm" data-act="add-bal" data-bal="${b.key}">${ICON.plus} Add ${b.key==='cards'?'card':b.key==='savings'?'account':'balance'}</button></div>`).join('');
+}
+function openBalances(key) {
+  if (!S.months[key]) return; dialogCtx = { key, sec: 'balances' };
+  openOverlay(`<div class="dlg-head"><div class="ttl"><h2>Balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · where things stand at month end</span></div><button class="icon x" data-dact="close" title="Done">${ICON.x}</button></div>
+    <div class="dlg-body editor">${balancesBody(key)}</div>
+    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
+  dlg.style.maxWidth = '640px';
+}
 function openEditor(key, sec) {
   const m = S.months[key], s = SECTIONS.find(x => x.key === sec); if (!m || !s) return;
   dialogCtx = { key, sec };
@@ -835,7 +853,7 @@ function openEditor(key, sec) {
 function refreshEditor() {
   if (!dialogCtx.sec || !dlg.open) return;
   const body = $('.dlg-body.editor', dlg); if (!body) return;
-  const st = body.scrollTop; body.innerHTML = editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
+  const st = body.scrollTop; body.innerHTML = dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
 }
 function lineHTML(key, colKey, l) {
   const hasItems = l.items && l.items.length;
@@ -876,7 +894,7 @@ function updateTotals(key) {
 }
 
 function onInput(e) {
-  const el = e.target, f = el.dataset.f, key = viewKey(); if (!f || !key) return;
+  const el = e.target, f = el.dataset.f, key = viewKey() || dialogCtx.key; if (!f || !key) return;
   const m = S.months[key]; if (!m) return;
   if (f === 'updatedOn') m.updatedOn = el.value || null;
   else if (f === 'notes') m.notes = el.value;
@@ -889,7 +907,7 @@ function onInput(e) {
   updateTotals(key); Store.markDirty(key);
 }
 async function onChange(e) {
-  const el = e.target, key = viewKey();
+  const el = e.target, key = viewKey() || dialogCtx.key;
   if (el.id === 'bud-name') { const n = $('#bud-name-new'); if (n) { n.hidden = el.value !== '__new__'; if (!n.hidden) n.focus(); } return; }
   if (el.dataset.f === 'monthpick') { if (el.value && el.value !== key) location.hash = '#/m/' + el.value; return; }
   if (el.classList.contains('amt')) {
@@ -908,14 +926,16 @@ for (const el of [app, $('#dlg')]) { el.addEventListener('input', onInput); el.a
 async function onAction(e) {
   const t = e.target.closest('[data-act]'); if (!t) return;
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
-  const act = t.dataset.act, key = viewKey() || t.dataset.key;
+  const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && act !== 'chart') return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': location.hash = '#/m/' + t.dataset.key; break;
     case 'edit': openEditor(key, t.dataset.sec); break;
     case 'outlook': openOutlook(key); break;
+    case 'balances': openBalances(t.dataset.key || key); break;
+    case 'copy-bal': { const src = S.months[t.dataset.from]; if (!src) break; for (const b of BALS) m[b.key] = (src[b.key]||[]).map(r => ({ id: uid(), label: r.label, amount: r.amount })); Store.markDirty(key); render(); break; }
     case 'new-month': openNewMonth(t.dataset.from || currentKey()); break;
     case 'sign-in': await Store.signIn(); break;
     case 'sign-out': await Store.signOut(); break;
@@ -946,9 +966,9 @@ $('#dlg').addEventListener('click', onAction);
 /* ---------- overlay ---------- */
 const dlg = $('#dlg');
 function openOverlay(html) { dlg.innerHTML = `<div class="dlg">${html}</div>`; if (!dlg.open) dlg.showModal(); dlg.scrollTop = 0; }
-function closeOverlay() { dialogCtx.sec = null; dlg.style.maxWidth = ''; if (dlg.open) dlg.close(); dlg.innerHTML = ''; hideTip(); }
+function closeOverlay() { const wasEdit = !!dialogCtx.sec; dialogCtx.sec = null; dlg.style.maxWidth = ''; if (dlg.open) dlg.close(); dlg.innerHTML = ''; hideTip(); if (wasEdit && !viewKey()) render(); }
 dlg.addEventListener('click', e => { if (e.target === dlg) closeOverlay(); const t = e.target.closest('[data-dact]'); if (t) dialogAction(t, e); });
-dlg.addEventListener('close', () => { if (dlg.open) return; dialogCtx.sec = null; dlg.style.maxWidth = ''; dlg.innerHTML = ''; hideTip(); });
+dlg.addEventListener('close', () => { if (dlg.open) return; const wasEdit = !!dialogCtx.sec; dialogCtx.sec = null; dlg.style.maxWidth = ''; dlg.innerHTML = ''; hideTip(); if (wasEdit && !viewKey()) render(); });
 const askDlg = $('#askdlg');
 function ask(msg, okLabel='OK') {
   return new Promise(res => {
