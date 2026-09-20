@@ -177,6 +177,8 @@ h3{font-size:16px;font-weight:700}
 .col-body{padding:6px 0 4px;display:flex;flex-direction:column;gap:2px}
 .dlg-body.editor{padding:8px 10px 10px}
 .dlg-body .list .lrow{padding:14px 10px}
+.yrow{display:flex;align-items:stretch;border-bottom:1px solid var(--line)} .yrow:last-child{border-bottom:0} .yrow .lrow{border-bottom:0;flex:1;min-width:0}
+.yrow .del{width:44px;height:auto;border-radius:0;color:var(--ink-3)} .yrow .del:hover{color:var(--bad);background:var(--bad-soft)}
 .kcard.click{text-align:left;color:var(--ink)}
 .calcbar{display:flex;gap:6px;flex-wrap:wrap;padding:6px 6px 10px;align-items:center}
 .calcbar button{min-width:44px;height:42px;padding:0 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);color:var(--ink);font-size:20px;font-weight:500}
@@ -669,8 +671,8 @@ function renderHome() {
   </section>
 
   <section class="section">
-    <div class="sec-head"><h2>Months</h2><span class="muted">${keys.length} on record</span><span class="sp"></span><button class="btn sm" data-act="new-month">${ICON.plus} New month</button></div>
-    <div class="card pick"><label for="month-pick">Open a month</label>${monthSelect(cur, 'month-pick')}</div>
+    <div class="sec-head"><h2>Past spreadsheets</h2><span class="muted">${keys.length} on record</span><span class="sp"></span><button class="btn sm" data-act="new-month">${ICON.plus} New month</button></div>
+    <div class="card pick"><label for="year-pick">Choose a year</label><select id="year-pick" class="sel" data-f="yearpick" aria-label="Choose a year"><option value="">Choose…</option>${[...new Set(keys.map(k => k.slice(0,4)))].sort().reverse().map(y => `<option value="${y}">${y} · ${keys.filter(k => k.startsWith(y)).length} month${keys.filter(k => k.startsWith(y)).length===1?'':'s'}</option>`).join('')}</select></div>
   </section>
 
   <section class="section">
@@ -780,13 +782,13 @@ function editorBody(key, sec) {
   const m = S.months[key], s = SECTIONS.find(x => x.key === sec); if (!m || !s) return '';
   const rows = m[sec] || [];
   if (s.kind === 'budgets') return `<div class="col-body" data-budgets>
-    <div class="bud-form" id="bud-form" hidden><select id="bud-name" class="sel" aria-label="Category">${(() => { const std = standardExpenses(key), taken = new Set((m.budgets||[]).map(b => norm(b.label))); const opts = (m.expenses||[]).filter(l => l.label.trim() && !taken.has(norm(l.label)) && !std.has(norm(l.label))); return `<option value="">Choose a category…</option>${opts.map(l => `<option value="${esc(l.label)}">${esc(l.label)}</option>`).join('')}<option value="__new__">Other — type a new one…</option>`; })()}</select><input type="text" id="bud-name-new" placeholder="New category name" autocomplete="off" hidden><input type="text" inputmode="decimal" class="amt" title="You can type math here, e.g. 45+30.50" id="bud-limit" placeholder="Don’t go over"><button class="btn primary sm" data-act="bud-add">Add</button></div>
-    ${rows.filter(b => !isStandard(m, b.label)).map(b => `<div class="bud" data-bud="${b.id}"><div class="row bud-row"><input type="text" id="f-${b.id}-label" data-f="bud-label" value="${esc(b.label)}" placeholder="Name" autocomplete="off"><span class="faint" style="font-size:12px;white-space:nowrap">limit</span><input type="text" inputmode="decimal" class="amt" title="You can type math here, e.g. 45+30.50" id="f-${b.id}-limit" data-f="bud-limit" value="${fmtIn(b.limit)}" aria-label="Limit" autocomplete="off"><button class="icon" data-act="del-bud" title="Remove budget">${ICON.x}</button></div>${meterHTML(b, m)}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Tap + to add one.</div>`}
+    <div class="bud-form" id="bud-form" hidden><select id="bud-name" class="sel" aria-label="Category">${(() => { const std = standardExpenses(key), taken = new Set((m.budgets||[]).map(b => norm(b.label))); const opts = (m.expenses||[]).filter(l => l.label.trim() && !taken.has(norm(l.label)) && !std.has(norm(l.label))); return `<option value="">Choose a category…</option>${opts.map(l => `<option value="${esc(l.label)}">${esc(l.label)}</option>`).join('')}<option value="__new__">Other — type a new one…</option>`; })()}</select><input type="text" id="bud-name-new" placeholder="New category name" autocomplete="off" hidden><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="bud-limit" placeholder="Don’t go over"><button class="btn primary sm" data-act="bud-add">Add</button></div>
+    ${rows.filter(b => !isStandard(m, b.label)).map(b => `<div class="bud" data-bud="${b.id}"><div class="row bud-row"><input type="text" id="f-${b.id}-label" data-f="bud-label" value="${esc(b.label)}" placeholder="Name" autocomplete="off"><span class="faint" style="font-size:12px;white-space:nowrap">limit</span><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${b.id}-limit" data-f="bud-limit" value="${fmtIn(b.limit)}" aria-label="Limit" autocomplete="off"><button class="icon" data-act="del-bud" title="Remove budget">${ICON.x}</button></div>${meterHTML(b, m)}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Tap + to add one.</div>`}
     ${(() => { const std = [...standardExpenses(key).values()]; if (!std.length) return ''; return `<div class="std"><div class="eyebrow">Standard monthly expenses</div><div class="faint" style="font-size:12px;margin:2px 0 6px">Same amount three months running — tracked here instead of as budgets.</div>${std.map(x => `<div class="std-row num"><span>${esc(x.label)}</span><span>${fmt(x.amount)}</span></div>`).join('')}</div>`; })()}</div>`;
   if (s.kind === 'lines') return `<div class="col-body" data-col="${sec}">${rows.map(l => lineHTML(key, sec, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Add a line below.</div>`}</div>`;
   return `<div class="col-body bal" data-bal="${sec}">${rows.map(r => `<div class="row" data-brow="${r.id}" data-bal="${sec}">
       <input type="text" id="f-${r.id}-label" data-f="blabel" value="${esc(r.label)}" placeholder="${sec==='cards'?'Card name':sec==='savings'?'Account':'e.g. 401K balance'}" enterkeyhint="next" autocomplete="off">
-      <input type="text" inputmode="decimal" class="amt" title="You can type math here, e.g. 45+30.50" id="f-${r.id}-amount" data-f="bamount" value="${fmtIn(r.amount)}" aria-label="Balance" enterkeyhint="next" autocomplete="off">
+      <input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${r.id}-amount" data-f="bamount" value="${fmtIn(r.amount)}" aria-label="Balance" enterkeyhint="next" autocomplete="off">
       <button class="icon" data-act="del-bal" title="Remove">${ICON.x}</button></div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}.</div>`}</div>`;
 }
 /* End-of-month outlook. Start from what last month left over; assume every income, expense and
@@ -806,6 +808,14 @@ function outlook(key) {
   const sum = arr => r2(arr.reduce((s, r) => s + r.expected, 0));
   const inc = sum(g.income), exp = sum(g.expenses), abn = sum(g.abnormal), wl = sum(g.wealth);
   return { leftover, carried: !!carried, prevKey: prev ? prev.key : null, g, inc, exp, abn, wl, projected: r2(leftover + inc - exp - abn - wl), sofar: r2(leftover + calc(m).retained) };
+}
+function openYear(year) {
+  const keys = sortedKeys().filter(k => k.startsWith(year)).reverse(); if (!keys.length) return;
+  dialogCtx = { sec: 'year', year };
+  openOverlay(`<div class="dlg-head"><div class="ttl"><h2>${esc(year)}</h2><span class="muted" style="font-size:13px">${keys.length} month${keys.length===1?'':'s'} · tap one to open it</span></div><button class="icon x" data-dact="close">${ICON.x}</button></div>
+    <div class="dlg-body editor"><div class="list" style="margin:0">${keys.map(k => { const c = calc(S.months[k]); return `<div class="yrow"><button class="lrow" data-act="open" data-key="${k}"><span class="sw ${c.retained>=0?'ret':'debt'}"></span><span class="t">${esc(monthLabel(k))}${k===todayKey()?' · now':''}<span class="n">updated ${esc(fmtDate(S.months[k].updatedOn))}</span></span><span class="v num ${signCls(c.retained)}">${fmt(c.retained)}</span>${ICON.chev}</button><button class="icon del" data-act="delete-month" data-key="${k}" title="Delete ${esc(monthLabel(k))}">${ICON.x}</button></div>`; }).join('')}</div></div>
+    <div class="dlg-foot"><span class="muted" style="font-size:12px">The × deletes a month for both of you, after a confirmation.</span><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
+  dlg.style.maxWidth = '560px';
 }
 function openOutlook(key) {
   const o = outlook(key), m = S.months[key]; dialogCtx = { key };
@@ -869,7 +879,7 @@ function lineHTML(key, colKey, l) {
   return `<div class="row" data-line="${l.id}" data-col="${colKey}">
     <input type="text" id="f-${l.id}-label" data-f="label" value="${esc(l.label)}" placeholder="Label" aria-label="Line label" enterkeyhint="next" autocomplete="off">
     ${hasItems ? `<span class="calc num" data-line-amt="${l.id}" data-act="toggle-items" title="Sum of ${l.items.length} items — click to see them">${fmt(lineAmt(l))}</span>`
-               : `<input type="text" inputmode="decimal" class="amt" title="You can type math here, e.g. 45+30.50" id="f-${l.id}-amount" data-f="amount" value="${fmtIn(l.amount)}" aria-label="Amount" enterkeyhint="next" autocomplete="off">`}
+               : `<input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${l.id}-amount" data-f="amount" value="${fmtIn(l.amount)}" aria-label="Amount" enterkeyhint="next" autocomplete="off">`}
     <button class="icon ${open||hasItems?'on':''}" data-act="toggle-items" title="${hasItems?'Breakdown items':'Break this line into items'}">${ICON.list}</button>
     <button class="icon" data-act="del-line" title="Remove line">${ICON.x}</button>
   </div>
@@ -879,7 +889,7 @@ function itemsHTML(colKey, l) {
   return `<div class="items" data-items="${l.id}">
     ${(l.items||[]).map(it => `<div class="row" data-item="${it.id}">
       <input type="text" id="f-${it.id}-label" data-f="ilabel" value="${esc(it.label||'')}" placeholder="e.g. paycheck, Walmart 9/14">
-      <input type="text" inputmode="decimal" class="amt" title="You can type math here, e.g. 45+30.50" id="f-${it.id}-amount" data-f="iamount" value="${fmtIn(it.amount)}" aria-label="Item amount">
+      <input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${it.id}-amount" data-f="iamount" value="${fmtIn(it.amount)}" aria-label="Item amount">
       <button class="icon" data-act="del-item" title="Remove item">${ICON.x}</button>
     </div>${it.note?`<div class="note">${esc(it.note)}</div>`:''}`).join('')}
     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm add" data-act="add-item">${ICON.plus} Add item</button><button class="btn ghost sm" data-act="toggle-items" data-line="${l.id}" data-col="${colKey}">Hide</button></div>
@@ -916,6 +926,7 @@ function onInput(e) {
 async function onChange(e) {
   const el = e.target, key = viewKey() || dialogCtx.key;
   if (el.id === 'bud-name') { const n = $('#bud-name-new'); if (n) { n.hidden = el.value !== '__new__'; if (!n.hidden) n.focus(); } return; }
+  if (el.dataset.f === 'yearpick') { const y = el.value; el.value = ''; if (y) openYear(y); return; }
   if (el.dataset.f === 'monthpick') { if (el.value && el.value !== key) location.hash = '#/m/' + el.value; return; }
   if (el.classList.contains('amt')) {
     const raw = el.value.trim(), v = parseNum(raw); el.value = fmtIn(v);
@@ -938,7 +949,7 @@ async function onAction(e) {
   if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && act !== 'chart') return; // only the editor dialog carries edit actions
   switch (act) {
-    case 'open': location.hash = '#/m/' + t.dataset.key; break;
+    case 'open': if (dlg.open) closeOverlay(); location.hash = '#/m/' + t.dataset.key; break;
     case 'edit': openEditor(key, t.dataset.sec); break;
     case 'outlook': openOutlook(key); break;
     case 'balances': openBalances(t.dataset.key || key); break;
@@ -1252,7 +1263,8 @@ function showCalcbar(inp) {
   if (host.classList.contains('bud-form')) { calcbar.style.gridColumn = '1 / -1'; host.appendChild(calcbar); } else host.insertAdjacentElement('afterend', calcbar);
 }
 function hideCalcbar() { if (calcbar) { calcbar.remove(); calcbar = null; } }
-document.addEventListener('focusin', e => { if (isTouch() && e.target.matches && e.target.matches('input.amt')) showCalcbar(e.target); });
+document.addEventListener('focusin', e => { const t = e.target; if (!t.matches || !t.matches('input.amt')) return; if (parseNum(t.value) === 0) t.value = ''; else setTimeout(() => { try { t.select(); } catch (err) {} }, 0); if (isTouch()) showCalcbar(t); });
+document.addEventListener('focusout', e => { const t = e.target; if (t.matches && t.matches('input.amt') && t.value.trim() === '') { t.value = '0'; } });
 document.addEventListener('click', e => { if (isTouch() && e.target.matches && e.target.matches('input.amt') && !(calcbar && calcbar.previousElementSibling && calcbar.previousElementSibling.contains(e.target))) showCalcbar(e.target); });
 document.addEventListener('focusout', e => { if (e.target.matches && e.target.matches('input.amt')) setTimeout(() => { if (!document.activeElement || !document.activeElement.matches('input.amt')) hideCalcbar(); }, 80); });
 
