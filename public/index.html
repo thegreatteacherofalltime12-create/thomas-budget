@@ -170,6 +170,17 @@ h3{font-size:16px;font-weight:700}
 .sw.none{background:var(--line-2)}
 .col-body{padding:6px 0 4px;display:flex;flex-direction:column;gap:2px}
 .dlg-body.editor{padding:8px 10px 10px}
+.bud{padding:4px 2px 10px;border-bottom:1px solid var(--line)} .bud:last-child{border-bottom:0}
+.bud-row{grid-template-columns:minmax(0,1fr) auto 96px 22px}
+.meter{padding:2px 8px 0 8px;display:flex;flex-direction:column;gap:4px}
+.meter .track{height:8px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.meter .fill{height:100%;border-radius:999px;background:var(--accent);transition:width .2s}
+.meter.warn .fill{background:var(--s-abn)} .meter.bad .fill{background:var(--bad)}
+.meter .mtext{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-2)}
+.meter.bad .mtext span:last-child{color:var(--bad);font-weight:600} .meter.ok .mtext span:last-child{color:var(--good)}
+.bud-form{display:grid;grid-template-columns:minmax(0,1fr) 120px auto;gap:8px;padding:8px;margin:0 0 6px;background:var(--surface-2);border-radius:var(--r-s)}
+.bud-form input{border:1px solid var(--line-2);background:var(--surface);border-radius:var(--r-s);padding:8px 10px;font-size:15px;min-width:0}
+.bud-form .amt{text-align:right}
 .row{display:grid;grid-template-columns:minmax(0,1fr) 92px 22px 22px;align-items:center;gap:4px;padding:2px 2px 2px 6px;border-radius:6px}
 .row:hover{background:var(--surface-2)}
 .row input{border:0;background:transparent;padding:5px 6px;border-radius:4px;min-width:0;width:100%}
@@ -300,6 +311,8 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   .items .row{grid-template-columns:minmax(0,1fr) 96px 36px}
   .items .row input{font-size:16px;padding:7px 8px}
   .col-body.bal .row{grid-template-columns:minmax(0,1fr) 116px 36px}
+  .bud-row{grid-template-columns:minmax(0,1fr) auto 100px 36px}
+  .bud-form{grid-template-columns:1fr} .bud-form input{font-size:16px}
   .btn{padding:11px 16px;min-height:44px} .btn.sm{padding:9px 13px;min-height:40px}
   .chartbtn{padding:7px 12px 7px 10px;min-height:36px}
   .tab{padding:9px 13px;min-height:38px}
@@ -532,6 +545,7 @@ const Store = {
       const doc = { key: m.key, label: m.label || monthLabel(m.key), year: +m.key.slice(0, 4), month: +m.key.slice(5, 7), updatedOn: m.updatedOn || null, notes: String(m.notes || ''), cards: [], savings: [], accounts: [] };
       for (const col of COLS) doc[col.key] = (Array.isArray(m[col.key]) ? m[col.key] : []).map(l => ({ id: safeId(l.id), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })) }));
       for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount) }));
+      doc.budgets = (Array.isArray(m.budgets) ? m.budgets : []).map(b => ({ id: safeId(b.id), label: String(b.label || '').slice(0, 80), limit: r2(b.limit) }));
       months[m.key] = doc;
     }
     if (!Object.keys(months).length) throw new Error('No months found in that file');
@@ -679,7 +693,7 @@ function renderMonth(key) {
   </section>
 
   <section class="section">
-    <div class="card list">${SECTIONS.map(s => `<button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${(m[s.key]||[]).length} ${s.kind==='lines'?'line':'entr'}${(m[s.key]||[]).length===1?(s.kind==='lines'?'':'y'):(s.kind==='lines'?'s':'ies')}</span></span><span class="v num" data-total="${s.key}">${fmt(secTotal(m, s.key))}</span>${ICON.chev}</button>`).join('')}</div>
+    <div class="card list">${SECTIONS.map(s => `<button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${s.kind==='budgets' ? (budgetStats(m).count ? `${budgetStats(m).count} budget${budgetStats(m).count===1?'':'s'}${budgetStats(m).over?` · ${budgetStats(m).over} over`:''}` : 'set spending limits') : `${(m[s.key]||[]).length} ${s.kind==='lines'?'line':'entr'}${(m[s.key]||[]).length===1?(s.kind==='lines'?'':'y'):(s.kind==='lines'?'s':'ies')}`}</span></span><span class="v num" data-total="${s.key}">${s.key==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, s.key))}</span>${ICON.chev}</button>`).join('')}</div>
   </section>
 
   <section class="notes"><div class="eyebrow" style="margin-bottom:6px">Notes</div><textarea id="f-notes" data-f="notes" placeholder="Anything worth remembering about this month…">${esc(m.notes||'')}</textarea></section>
@@ -687,15 +701,34 @@ function renderMonth(key) {
 }
 
 const SECTIONS = [
+  { key: 'budgets', title: 'Budgets', sw: 'exp', kind: 'budgets', hint: 'Spending limits tracked against the Expenses lines with the same name' },
   ...COLS.map(c => ({ key: c.key, title: c.title, sw: c.sw, kind: 'lines', hint: c.hint })),
   { key: 'cards',    title: 'Credit card balances', kind: 'bal', hint: 'Each card and what is owed on it' },
   { key: 'savings',  title: 'Savings in cash',      kind: 'bal', hint: 'Cash savings, HSA cash' },
   { key: 'accounts', title: 'Other balances',       kind: 'bal', hint: '401K balance, mortgage balance' },
 ];
-function secTotal(m, k) { const c = calc(m); return k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:sumFlat(m.accounts); }
+function secTotal(m, k) { if (k === 'budgets') return budgetStats(m).spent; const c = calc(m); return k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:sumFlat(m.accounts); }
+/* Budgets: a name and a limit; spending is whatever the Expenses line with the same name adds up to. */
+const norm = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+function expenseFor(m, label) { const n = norm(label); return (m.expenses || []).find(l => norm(l.label) === n) || null; }
+function budgetStats(m) {
+  const list = m.budgets || []; let spent = 0, limit = 0, over = 0;
+  for (const b of list) { const l = expenseFor(m, b.label); const s = l ? lineAmt(l) : 0; spent += s; limit += +b.limit || 0; if (b.limit && s > b.limit) over++; }
+  return { spent: r2(spent), limit: r2(limit), over, count: list.length };
+}
+const fmtBudgets = m => { const s = budgetStats(m); return s.count ? `${fmt(s.spent)} of ${fmt(s.limit)}` : 'none yet'; };
+function meterHTML(b, m) {
+  const l = expenseFor(m, b.label), spent = l ? lineAmt(l) : 0, lim = +b.limit || 0;
+  const pct = lim ? Math.min(100, Math.max(0, spent / lim * 100)) : 0, state = lim && spent > lim ? 'bad' : (lim && spent >= lim * 0.85 ? 'warn' : 'ok');
+  const note = !lim ? 'no limit set' : spent > lim ? `${fmt(spent - lim)} over` : `${fmt(lim - spent)} left`;
+  return `<div class="meter ${state}" data-bud-meter="${b.id}"><div class="track"><div class="fill" style="width:${pct.toFixed(1)}%"></div></div><div class="mtext num"><span>${fmt(spent)} spent</span><span>${esc(note)}</span></div>${l ? '' : '<div class="faint" style="font-size:11.5px">No Expenses line called this yet — it will be added when you save.</div>'}</div>`;
+}
 function editorBody(key, sec) {
   const m = S.months[key], s = SECTIONS.find(x => x.key === sec); if (!m || !s) return '';
   const rows = m[sec] || [];
+  if (s.kind === 'budgets') return `<div class="col-body" data-budgets>
+    <div class="bud-form" id="bud-form" hidden><input type="text" id="bud-name" list="expense-names" placeholder="Name (matches an Expenses line)" autocomplete="off"><datalist id="expense-names">${(m.expenses||[]).map(l => `<option value="${esc(l.label)}">`).join('')}</datalist><input type="text" inputmode="decimal" class="amt" id="bud-limit" placeholder="Don’t go over"><button class="btn primary sm" data-act="bud-add">Add</button></div>
+    ${rows.map(b => `<div class="bud" data-bud="${b.id}"><div class="row bud-row"><input type="text" id="f-${b.id}-label" data-f="bud-label" value="${esc(b.label)}" placeholder="Name" autocomplete="off"><span class="faint" style="font-size:12px;white-space:nowrap">limit</span><input type="text" inputmode="decimal" class="amt" id="f-${b.id}-limit" data-f="bud-limit" value="${fmtIn(b.limit)}" aria-label="Limit" autocomplete="off"><button class="icon" data-act="del-bud" title="Remove budget">${ICON.x}</button></div>${meterHTML(b, m)}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Tap + to add one.</div>`}</div>`;
   if (s.kind === 'lines') return `<div class="col-body" data-col="${sec}">${rows.map(l => lineHTML(key, sec, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Add a line below.</div>`}</div>`;
   return `<div class="col-body bal" data-bal="${sec}">${rows.map(r => `<div class="row" data-brow="${r.id}" data-bal="${sec}">
       <input type="text" id="f-${r.id}-label" data-f="blabel" value="${esc(r.label)}" placeholder="${sec==='cards'?'Card name':sec==='savings'?'Account':'e.g. 401K balance'}" enterkeyhint="next" autocomplete="off">
@@ -706,9 +739,9 @@ function openEditor(key, sec) {
   const m = S.months[key], s = SECTIONS.find(x => x.key === sec); if (!m || !s) return;
   dialogCtx = { key, sec };
   const chart = s.kind === 'lines' ? sec : (sec === 'cards' ? 'debt' : null);
-  openOverlay(`<div class="dlg-head"><div class="ttl"><h2 style="display:flex;align-items:center;gap:8px">${s.sw?`<span class="sw ${s.sw}"></span>`:''}${s.title}</h2><span class="muted num" style="font-size:13px">${esc(monthLabel(key))} · <b data-total="${sec}">${fmt(secTotal(m, sec))}</b></span></div><button class="icon x" data-dact="close" title="Done">${ICON.x}</button></div>
+  openOverlay(`<div class="dlg-head"><div class="ttl"><h2 style="display:flex;align-items:center;gap:8px">${s.sw?`<span class="sw ${s.sw}"></span>`:''}${s.title}</h2><span class="muted num" style="font-size:13px">${esc(monthLabel(key))} · <b data-total="${sec}">${sec==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, sec))}</b></span></div><button class="icon x" data-dact="close" title="Done">${ICON.x}</button></div>
     <div class="dlg-body editor">${editorBody(key, sec)}</div>
-    <div class="dlg-foot">${s.kind==='lines' ? `<button class="btn sm" data-act="add-line" data-col="${sec}">${ICON.plus} Add line</button>` : `<button class="btn sm" data-act="add-bal" data-bal="${sec}">${ICON.plus} Add</button>`}${chart?`<button class="chartbtn" data-act="chart" data-chart="${chart}" data-key="${key}">${ICON.chart} Chart</button>`:''}<span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
+    <div class="dlg-foot">${s.kind==='budgets' ? `<button class="btn sm" data-act="bud-new" title="New budget">${ICON.plus} Budget</button>` : s.kind==='lines' ? `<button class="btn sm" data-act="add-line" data-col="${sec}">${ICON.plus} Add line</button>` : `<button class="btn sm" data-act="add-bal" data-bal="${sec}">${ICON.plus} Add</button>`}${chart?`<button class="chartbtn" data-act="chart" data-chart="${chart}" data-key="${key}">${ICON.chart} Chart</button>`:''}<span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
   dlg.style.maxWidth = '640px';
 }
 function refreshEditor() {
@@ -746,8 +779,9 @@ function viewKey() { const m = /^#\/m\/(\d{4}-\d{2})/.exec(location.hash||''); r
 function findLine(key, col, id) { return (S.months[key][col]||[]).find(l => l.id === id); }
 function updateTotals(key) {
   const m = S.months[key], c = calc(m);
-  $$('[data-total]').forEach(el => { const k = el.dataset.total; el.textContent = fmt(k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:k==='accounts'?sumFlat(m.accounts):0); });
-  $('[data-perf]').forEach(el => { const v = c[el.dataset.perf]; el.textContent = fmt(v); el.className = 'v num ' + signCls(v); });
+  $$('[data-total]').forEach(el => { const k = el.dataset.total; el.textContent = fmt(k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:k==='accounts'?sumFlat(m.accounts):0); if (k==='budgets') el.textContent = fmtBudgets(m); });
+  $$('[data-bud-meter]').forEach(el => { const b = (m.budgets||[]).find(x => x.id === el.dataset.budMeter); if (b) el.outerHTML = meterHTML(b, m); });
+  $$('[data-perf]').forEach(el => { const v = c[el.dataset.perf]; el.textContent = fmt(v); el.className = 'v num ' + signCls(v); });
   $$('[data-line-amt]').forEach(el => { for (const col of COLS) { const l = findLine(key, col.key, el.dataset.lineAmt); if (l) { el.textContent = fmt(lineAmt(l)); break; } } });
 }
 
@@ -758,6 +792,8 @@ function onInput(e) {
   else if (f === 'notes') m.notes = el.value;
   else if (f === 'label' || f === 'amount') { const row = el.closest('[data-line]'); const l = findLine(key, row.dataset.col, row.dataset.line); if (!l) return; if (f==='label') l.label = el.value; else l.amount = r2(parseNum(el.value)); }
   else if (f === 'ilabel' || f === 'iamount') { const wrap = el.closest('[data-items]'), row = el.closest('[data-item]'); const col = el.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) return; const it = l.items.find(x=>x.id===row.dataset.item); if (!it) return; if (f==='ilabel') it.label = el.value; else it.amount = r2(parseNum(el.value)); }
+  else if (f === 'bud-label' || f === 'bud-limit') { const row = el.closest('[data-bud]'); const b = (m.budgets||[]).find(x => x.id === row.dataset.bud); if (!b) return;
+    if (f === 'bud-limit') b.limit = r2(parseNum(el.value)); else { const l = expenseFor(m, b.label); if (l && !expenseFor(m, el.value)) l.label = el.value; b.label = el.value; } }
   else if (f === 'blabel' || f === 'bamount') { const row = el.closest('[data-brow]'); const r = (m[row.dataset.bal]||[]).find(x=>x.id===row.dataset.brow); if (!r) return; if (f==='blabel') r.label = el.value; else r.amount = r2(parseNum(el.value)); }
   else return;
   updateTotals(key); Store.markDirty(key);
@@ -795,6 +831,13 @@ async function onAction(e) {
     case 'toggle-items': { const row = t.closest('[data-line]'); const l = findLine(key, row.dataset.col, row.dataset.line); if (!l) break; S.view[l.id] = !S.view[l.id]; if (S.view[l.id] && !(l.items&&l.items.length) && l.amount) { l.items = [{id:uid(), label:'', amount:l.amount}]; Store.markDirty(key); } render(); break; }
     case 'add-item': { const wrap = t.closest('[data-items]'); const col = t.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) break; l.items = l.items||[]; const it = {id:uid(), label:'', amount:0}; l.items.push(it); Store.markDirty(key); render(); const inp = $('#f-'+it.id+'-label'); if (inp) inp.focus(); break; }
     case 'del-item': { const wrap = t.closest('[data-items]'), row = t.closest('[data-item]'); const col = t.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) break; l.items = l.items.filter(x=>x.id!==row.dataset.item); if (!l.items.length) { l.amount = 0; } Store.markDirty(key); render(); break; }
+    case 'bud-new': { const f = $('#bud-form'); if (!f) break; f.hidden = !f.hidden; if (!f.hidden) $('#bud-name').focus(); break; }
+    case 'bud-add': { const name = $('#bud-name').value.trim(), limit = r2(parseNum($('#bud-limit').value)); if (!name) { toast('Give the budget a name'); $('#bud-name').focus(); break; }
+      m.budgets = m.budgets || []; if (m.budgets.some(b => norm(b.label) === norm(name))) { toast('There is already a budget called that'); break; }
+      m.budgets.push({ id: uid(), label: name, limit });
+      if (!expenseFor(m, name)) { m.expenses = m.expenses || []; m.expenses.push({ id: uid(), label: name, amount: 0, items: [] }); toast(`Added “${name}” to Expenses too`); }
+      Store.markDirty(key); render(); break; }
+    case 'del-bud': { const row = t.closest('[data-bud]'); const b = (m.budgets||[]).find(x => x.id === row.dataset.bud); if (!b) break; if (!(await ask(`Remove the “${b.label}” budget? The Expenses line stays.`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur.budgets = (cur.budgets||[]).filter(x => x.id !== b.id); Store.markDirty(key); render(); break; }
     case 'add-bal': { const b = t.dataset.bal; m[b] = m[b]||[]; const r = {id:uid(), label:'', amount:0}; m[b].push(r); Store.markDirty(key); render(); const inp = $('#f-'+r.id+'-label'); if (inp) inp.focus(); break; }
     case 'del-bal': { const row = t.closest('[data-brow]'); const b = row.dataset.bal; const r = (m[b]||[]).find(x=>x.id===row.dataset.brow); if (r && (r.amount||r.label) && !(await ask(`Remove “${r.label||'this balance'}”?`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur[b] = (cur[b]||[]).filter(x=>x.id!==row.dataset.brow); Store.markDirty(key); render(); break; }
   }
@@ -1022,6 +1065,7 @@ async function createMonthFromForm() {
     else doc[col.key] = mk(DEFAULT_LINES[col.key]);
   }
   if (src) for (const b of BALS) doc[b.key] = (src[b.key]||[]).map(r => ({id:uid(), label:r.label, amount:r.amount}));
+  doc.budgets = src ? (src.budgets||[]).map(b => ({ id: uid(), label: b.label, limit: b.limit })) : [];
   if (carry) { const ret = calc(src).retained; let l = doc.income.find(x => /left over|carry/i.test(x.label)); if (!l) { l = {id:uid(), label:'Money left over from last month', amount:0, items:[]}; doc.income.push(l); } l.amount = ret > 0 ? ret : 0; }
   S.months[key] = doc; dlg.style.maxWidth=''; closeOverlay();
   await Store.saveMonthNow(key);
