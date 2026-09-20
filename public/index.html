@@ -160,14 +160,17 @@ h3{font-size:16px;font-weight:700}
 .perf .p .lab .f{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:0;margin-left:auto;white-space:nowrap}
 .perf .p .v{font-size:clamp(20px,2.2vw,26px);font-weight:600;letter-spacing:-.02em;white-space:nowrap}
 .perf .p.hero .v{font-size:clamp(24px,2.8vw,32px)}
-.cols{margin-top:20px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-.col{display:flex;flex-direction:column;min-width:0}
-.col-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
-.col-head h3{display:flex;align-items:center;gap:8px;font-size:15px}
-.col-head .tot{margin-left:auto;font-weight:600;white-space:nowrap}
-.col-body{padding:6px 8px 4px;display:flex;flex-direction:column;gap:2px;flex:1}
-.col-foot{padding:6px 8px 8px;display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--line)}
-.col-foot .chartbtn{margin-left:auto}
+.list{display:flex;flex-direction:column;margin-top:20px}
+.lrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto 18px;gap:12px;align-items:center;width:100%;text-align:left;padding:14px 16px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--ink);min-height:56px}
+.lrow:last-child{border-bottom:0}
+.lrow:hover{background:var(--surface-2)}
+.lrow .t{font-weight:600;font-size:15px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.lrow .n{font-size:12px;color:var(--ink-3);font-weight:400}
+.lrow .v{font-weight:600;white-space:nowrap}
+.lrow svg{width:18px;height:18px;color:var(--ink-3)}
+.sw.none{background:var(--line-2)}
+.col-body{padding:6px 0 4px;display:flex;flex-direction:column;gap:2px}
+.dlg-body.editor{padding:8px 10px 10px}
 .row{display:grid;grid-template-columns:minmax(0,1fr) 92px 22px 22px;align-items:center;gap:4px;padding:2px 2px 2px 6px;border-radius:6px}
 .row:hover{background:var(--surface-2)}
 .row input{border:0;background:transparent;padding:5px 6px;border-radius:4px;min-width:0;width:100%}
@@ -185,9 +188,7 @@ h3{font-size:16px;font-weight:700}
 .items .note{font-size:11px;color:var(--ink-3);padding:0 6px 4px}
 .badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:1px 7px;font-weight:600;border:0;white-space:nowrap}
 .badge:hover{filter:brightness(.95)}
-.bals{margin-top:20px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.bals .row{grid-template-columns:minmax(0,1fr) 110px 22px}
-.bals .col-head h3{font-size:14px}
+.col-body.bal .row{grid-template-columns:minmax(0,1fr) 110px 22px}
 .notes{margin-top:20px}
 .notes textarea{width:100%;min-height:72px;resize:vertical;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:10px 12px}
 
@@ -279,12 +280,11 @@ dialog::backdrop{background:rgba(10,14,10,.55);backdrop-filter:blur(6px)}
 kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:4px;padding:0 5px}
 
 @media (max-width:1000px){
-  .cols{grid-template-columns:repeat(2,minmax(0,1fr))}
   .hero{grid-template-columns:1fr}
-  .grid3,.bals{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid3{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:620px){
-  .cols,.grid3,.bals,.perf{grid-template-columns:1fr}
+  .grid3,.perf{grid-template-columns:1fr}
   h1{font-size:28px}
   .mhead h1{font-size:24px}
   .mhead .acts{margin-left:0;width:100%}
@@ -301,7 +301,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   .row input,.row .calc{padding:9px 8px;font-size:16px}
   .items .row{grid-template-columns:minmax(0,1fr) 96px 36px}
   .items .row input{font-size:16px;padding:7px 8px}
-  .bals .row{grid-template-columns:minmax(0,1fr) 116px 36px}
+  .col-body.bal .row{grid-template-columns:minmax(0,1fr) 116px 36px}
   .btn{padding:11px 16px;min-height:44px} .btn.sm{padding:9px 13px;min-height:40px}
   .chartbtn{padding:7px 12px 7px 10px;min-height:36px}
   .tab{padding:9px 13px;min-height:38px}
@@ -339,6 +339,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
 </div></header>
 <main class="wrap" id="app"><div class="loading">Opening your budget…</div></main>
 <dialog id="dlg"></dialog>
+<dialog id="askdlg" style="max-width:480px"></dialog>
 <div id="tip" hidden></div>
 <div id="toast"></div>
 
@@ -552,9 +553,10 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) Store
 
 /* ---------- rendering ---------- */
 const app = $('#app');
-function isEditing() { const a = document.activeElement; return !!(a && app.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); }
+function isEditing() { const a = document.activeElement; return !!(a && (app.contains(a) || dlg.contains(a)) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); }
 function requestRender() { if (isEditing()) { S.pendingRender = true; return; } render(); }
-app.addEventListener('focusout', () => { setTimeout(() => { if (S.pendingRender && !isEditing()) { S.pendingRender = false; render(); } }, 60); });
+const onFocusOut = () => { setTimeout(() => { if (S.pendingRender && !isEditing()) { S.pendingRender = false; render(); } }, 60); };
+app.addEventListener('focusout', onFocusOut); $('#dlg').addEventListener('focusout', onFocusOut);
 window.addEventListener('hashchange', render);
 
 function currentKey() { const keys = sortedKeys(); if (!keys.length) return null; return S.months[todayKey()] ? todayKey() : keys[keys.length-1]; }
@@ -579,7 +581,7 @@ function renderDenied() {
   </div>`;
 }
 function render() {
-  renderNav();
+  renderNav(); refreshEditor();
   if (S.mode === 'firebase' && !S.user) { renderSignIn(); return; }
   if (S.denied) { renderDenied(); return; }
   if (!S.ready) { app.innerHTML = '<div class="loading">Opening your budget…</div>'; return; }
@@ -680,25 +682,43 @@ function renderMonth(key) {
     <div class="card p hero" data-act="chart" data-chart="where" data-key="${key}" role="button" tabindex="0"><div class="lab"><span class="sw ret"></span>Income Retained <span class="f">… − wealth building</span></div><div class="v num ${signCls(c.retained)}" data-perf="retained">${fmt(c.retained)}</div></div>
   </section>
 
-  <section class="cols">${COLS.map(col => colHTML(key, m, col, c)).join('')}</section>
-
   <section class="section">
-    <div class="sec-head"><h2>Balances</h2><span class="muted">where things stand at the end of the month</span></div>
-    <div class="bals">${BALS.map(b => balHTML(key, m, b, c)).join('')}</div>
+    <div class="card list">${SECTIONS.map(s => `<button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${(m[s.key]||[]).length} ${s.kind==='lines'?'lines':'entries'}</span></span><span class="v num" data-total="${s.key}">${fmt(secTotal(m, s.key))}</span>${ICON.chev}</button>`).join('')}</div>
   </section>
 
   <section class="notes"><div class="eyebrow" style="margin-bottom:6px">Notes</div><textarea id="f-notes" data-f="notes" placeholder="Anything worth remembering about this month…">${esc(m.notes||'')}</textarea></section>
   <footer class="foot"><a href="#/">← All months</a><span class="sp"></span><span>${S.mode==='firebase'?'Changes save automatically and sync to both of you':'Changes save automatically in this browser'}</span></footer>`;
 }
 
-function colHTML(key, m, col, c) {
-  const lines = m[col.key] || [];
-  const total = c[col.key==='income'?'net':col.key==='expenses'?'exp':col.key==='abnormal'?'abn':'wealth'];
-  return `<div class="card col" data-col="${col.key}">
-    <div class="col-head"><h3><span class="sw ${col.sw}"></span>${col.title}</h3><span class="tot num" data-total="${col.key}">${fmt(total)}</span></div>
-    <div class="col-body">${lines.map(l => lineHTML(key, col.key, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(col.hint)}. Add a line below.</div>`}</div>
-    <div class="col-foot"><button class="btn ghost sm" data-act="add-line" data-col="${col.key}">${ICON.plus} Add line</button><button class="chartbtn" data-act="chart" data-chart="${col.key}" data-key="${key}">${ICON.chart} Chart</button></div>
-  </div>`;
+const SECTIONS = [
+  ...COLS.map(c => ({ key: c.key, title: c.title, sw: c.sw, kind: 'lines', hint: c.hint })),
+  { key: 'cards',    title: 'Credit card balances', kind: 'bal', hint: 'Each card and what is owed on it' },
+  { key: 'savings',  title: 'Savings in cash',      kind: 'bal', hint: 'Cash savings, HSA cash' },
+  { key: 'accounts', title: 'Other balances',       kind: 'bal', hint: '401K balance, mortgage balance' },
+];
+function secTotal(m, k) { const c = calc(m); return k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:sumFlat(m.accounts); }
+function editorBody(key, sec) {
+  const m = S.months[key], s = SECTIONS.find(x => x.key === sec); if (!m || !s) return '';
+  const rows = m[sec] || [];
+  if (s.kind === 'lines') return `<div class="col-body" data-col="${sec}">${rows.map(l => lineHTML(key, sec, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Add a line below.</div>`}</div>`;
+  return `<div class="col-body bal" data-bal="${sec}">${rows.map(r => `<div class="row" data-brow="${r.id}" data-bal="${sec}">
+      <input type="text" id="f-${r.id}-label" data-f="blabel" value="${esc(r.label)}" placeholder="${sec==='cards'?'Card name':sec==='savings'?'Account':'e.g. 401K balance'}" enterkeyhint="next" autocomplete="off">
+      <input type="text" inputmode="decimal" class="amt" id="f-${r.id}-amount" data-f="bamount" value="${fmtIn(r.amount)}" aria-label="Balance" enterkeyhint="next" autocomplete="off">
+      <button class="icon" data-act="del-bal" title="Remove">${ICON.x}</button></div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}.</div>`}</div>`;
+}
+function openEditor(key, sec) {
+  const m = S.months[key], s = SECTIONS.find(x => x.key === sec); if (!m || !s) return;
+  dialogCtx = { key, sec };
+  const chart = s.kind === 'lines' ? sec : (sec === 'cards' ? 'debt' : null);
+  openOverlay(`<div class="dlg-head"><div class="ttl"><h2 style="display:flex;align-items:center;gap:8px">${s.sw?`<span class="sw ${s.sw}"></span>`:''}${s.title}</h2><span class="muted num" style="font-size:13px">${esc(monthLabel(key))} · <b data-total="${sec}">${fmt(secTotal(m, sec))}</b></span></div><button class="icon x" data-dact="close" title="Done">${ICON.x}</button></div>
+    <div class="dlg-body editor">${editorBody(key, sec)}</div>
+    <div class="dlg-foot">${s.kind==='lines' ? `<button class="btn sm" data-act="add-line" data-col="${sec}">${ICON.plus} Add line</button>` : `<button class="btn sm" data-act="add-bal" data-bal="${sec}">${ICON.plus} Add</button>`}${chart?`<button class="chartbtn" data-act="chart" data-chart="${chart}" data-key="${key}">${ICON.chart} Chart</button>`:''}<span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
+  dlg.style.maxWidth = '640px';
+}
+function refreshEditor() {
+  if (!dialogCtx.sec || !dlg.open) return;
+  const body = $('.dlg-body.editor', dlg); if (!body) return;
+  const st = body.scrollTop; body.innerHTML = editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
 }
 function lineHTML(key, colKey, l) {
   const hasItems = l.items && l.items.length;
@@ -723,18 +743,6 @@ function itemsHTML(colKey, l) {
     ${(l.items||[]).length ? `<div class="note">The line amount is the sum of these items.</div>` : `<div class="note">Add items and the line total is calculated for you.</div>`}
   </div>`;
 }
-function balHTML(key, m, b, c) {
-  const rows = m[b.key] || [];
-  const tot = b.key==='cards' ? c.cc : b.key==='savings' ? c.cash : null;
-  return `<div class="card col" data-bal="${b.key}">
-    <div class="col-head"><h3>${b.title}</h3>${tot!==null?`<span class="tot num" data-total="${b.key}">${fmt(tot)}</span>`:''}</div>
-    <div class="col-body">${rows.map(r => `<div class="row" data-brow="${r.id}" data-bal="${b.key}">
-      <input type="text" id="f-${r.id}-label" data-f="blabel" value="${esc(r.label)}" placeholder="${b.key==='cards'?'Card name':b.key==='savings'?'Account':'e.g. 401K balance'}">
-      <input type="text" inputmode="decimal" class="amt" id="f-${r.id}-amount" data-f="bamount" value="${fmtIn(r.amount)}" aria-label="Balance">
-      <button class="icon" data-act="del-bal" title="Remove">${ICON.x}</button></div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${b.key==='cards'?'Each card and what is owed on it.':b.key==='savings'?'Cash savings, HSA cash.':'401K balance, mortgage balance.'}</div>`}</div>
-    <div class="col-foot"><button class="btn ghost sm" data-act="add-bal" data-bal="${b.key}">${ICON.plus} Add</button>${b.key==='cards'?`<button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Chart</button>`:''}</div>
-  </div>`;
-}
 
 
 /* ---------- editing (event delegation) ---------- */
@@ -742,12 +750,12 @@ function viewKey() { const m = /^#\/m\/(\d{4}-\d{2})/.exec(location.hash||''); r
 function findLine(key, col, id) { return (S.months[key][col]||[]).find(l => l.id === id); }
 function updateTotals(key) {
   const m = S.months[key], c = calc(m);
-  $$('[data-total]').forEach(el => { const k = el.dataset.total; el.textContent = fmt(k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:0); });
+  $$('[data-total]').forEach(el => { const k = el.dataset.total; el.textContent = fmt(k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:k==='accounts'?sumFlat(m.accounts):0); });
   $$('[data-perf]').forEach(el => { const v = c[el.dataset.perf]; el.textContent = fmt(v); el.className = 'v num ' + signCls(v); });
   $$('[data-line-amt]').forEach(el => { for (const col of COLS) { const l = findLine(key, col.key, el.dataset.lineAmt); if (l) { el.textContent = fmt(lineAmt(l)); break; } } });
 }
 
-app.addEventListener('input', e => {
+function onInput(e) {
   const el = e.target, f = el.dataset.f, key = viewKey(); if (!f || !key) return;
   const m = S.months[key]; if (!m) return;
   if (f === 'updatedOn') m.updatedOn = el.value || null;
@@ -757,16 +765,17 @@ app.addEventListener('input', e => {
   else if (f === 'blabel' || f === 'bamount') { const row = el.closest('[data-brow]'); const r = (m[row.dataset.bal]||[]).find(x=>x.id===row.dataset.brow); if (!r) return; if (f==='blabel') r.label = el.value; else r.amount = r2(parseNum(el.value)); }
   else return;
   updateTotals(key); Store.markDirty(key);
-});
-app.addEventListener('change', async e => {
+}
+async function onChange(e) {
   const el = e.target, key = viewKey();
   if (el.dataset.f === 'monthpick') { if (el.value && el.value !== key) location.hash = '#/m/' + el.value; return; }
   if (el.classList.contains('amt') && (el.dataset.f==='amount'||el.dataset.f==='iamount'||el.dataset.f==='bamount')) el.value = fmtIn(parseNum(el.value));
-});
-app.addEventListener('keydown', e => {
+}
+function onKey(e) {
   if (e.key === 'Enter' && e.target.matches('.row input')) { e.preventDefault(); const rows = $$('.row input', e.target.closest('.col-body, .items')); const i = rows.indexOf(e.target); if (rows[i+2]) rows[i+2].focus(); else e.target.blur(); }
   if (e.key === 'Enter' && e.target.matches('tr[data-act="open"], .card[role="button"], .p[role="button"]')) e.target.click();
-});
+}
+for (const el of [app, $('#dlg')]) { el.addEventListener('input', onInput); el.addEventListener('change', onChange); el.addEventListener('keydown', onKey); }
 
 async function onAction(e) {
   const t = e.target.closest('[data-act]'); if (!t) return;
@@ -774,8 +783,10 @@ async function onAction(e) {
   const act = t.dataset.act, key = viewKey() || t.dataset.key;
   const m = key && S.months[key];
   if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore'].includes(act)) return;
+  if (t.closest('#dlg') && !dialogCtx.sec && act !== 'chart') return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': location.hash = '#/m/' + t.dataset.key; break;
+    case 'edit': openEditor(key, t.dataset.sec); break;
     case 'new-month': openNewMonth(t.dataset.from || currentKey()); break;
     case 'sign-in': await Store.signIn(); break;
     case 'sign-out': await Store.signOut(); break;
@@ -794,23 +805,25 @@ async function onAction(e) {
 }
 app.addEventListener('click', onAction);
 $('.top').addEventListener('click', onAction);
+$('#dlg').addEventListener('click', onAction);
 
 /* ---------- overlay ---------- */
 const dlg = $('#dlg');
 function openOverlay(html) { dlg.innerHTML = `<div class="dlg">${html}</div>`; if (!dlg.open) dlg.showModal(); dlg.scrollTop = 0; }
-function closeOverlay() { if (dlg.open) dlg.close(); dlg.innerHTML = ''; hideTip(); }
+function closeOverlay() { dialogCtx.sec = null; dlg.style.maxWidth = ''; if (dlg.open) dlg.close(); dlg.innerHTML = ''; hideTip(); }
 dlg.addEventListener('click', e => { if (e.target === dlg) closeOverlay(); const t = e.target.closest('[data-dact]'); if (t) dialogAction(t, e); });
-dlg.addEventListener('close', () => { dlg.innerHTML = ''; hideTip(); });
+dlg.addEventListener('close', () => { dialogCtx.sec = null; dlg.style.maxWidth = ''; dlg.innerHTML = ''; hideTip(); });
+const askDlg = $('#askdlg');
 function ask(msg, okLabel='OK') {
   return new Promise(res => {
-    openOverlay(`<div class="dlg-head"><div class="ttl"><h2>Are you sure?</h2></div><button class="icon x" data-dact="close">${ICON.x}</button></div>
+    askDlg.innerHTML = `<div class="dlg"><div class="dlg-head"><div class="ttl"><h2>Are you sure?</h2></div></div>
       <div class="dlg-body"><p style="margin:0;max-width:60ch">${esc(msg)}</p></div>
-      <div class="dlg-foot"><span class="sp"></span><button class="btn" data-dact="close">Cancel</button><button class="btn danger" data-dact="ok">${esc(okLabel)}</button></div>`);
-    dlg.style.maxWidth = '480px';
-    const done = v => { res(v); dlg.style.maxWidth = ''; closeOverlay(); };
-    dlg.querySelector('[data-dact="ok"]').onclick = () => done(true);
-    dlg.querySelectorAll('[data-dact="close"]').forEach(b => b.onclick = () => done(false));
-    dlg.addEventListener('close', () => res(false), {once:true});
+      <div class="dlg-foot"><span class="sp"></span><button class="btn" data-ask="no">Cancel</button><button class="btn danger" data-ask="yes">${esc(okLabel)}</button></div></div>`;
+    const done = v => { res(v); if (askDlg.open) askDlg.close(); askDlg.innerHTML = ''; };
+    askDlg.querySelector('[data-ask="yes"]').onclick = () => done(true);
+    askDlg.querySelector('[data-ask="no"]').onclick = () => done(false);
+    askDlg.addEventListener('close', () => res(false), { once: true });
+    askDlg.showModal();
   });
 }
 let dialogCtx = {};
