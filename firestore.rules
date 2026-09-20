@@ -1,0 +1,23 @@
+rules_version = '2';
+// Thomas Budget — Firestore security rules.
+//
+// Every document is readable and writable only by the household's own Google accounts.
+// The page and this repository contain no financial data; this allow-list is the boundary.
+// The deployed rules carry the real addresses; this committed copy uses placeholders.
+// Deploy by pasting into Firebase console → Firestore Database → Rules → Publish
+// (or: firebase deploy --only firestore:rules).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function household() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in [
+          'first-person@example.com',
+          'second-person@example.com'
+        ];
+    }
+    match /{document=**} {
+      allow read, write: if household();
+    }
+  }
+}

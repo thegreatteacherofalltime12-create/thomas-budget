@@ -1,0 +1,11 @@
+{
+  // Thomas Budget — static site served by a Cloudflare Worker (assets only, no server code).
+  // Deploy with:  npx wrangler deploy
+  "name": "shiny-mouse-ee83",
+  "compatibility_date": "2026-06-01",
+  "assets": {
+    "directory": "./public",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "single-page-application"
+  }
+}

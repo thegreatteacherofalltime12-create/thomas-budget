@@ -1,4 +1,11 @@
+# real household data — never commit or deploy
+private/
+*.backup.json
+*.xlsx
+
+node_modules/
+.wrangler/
+.dev.vars
 Thumbs.db
 .DS_Store
-*.xlsx
 *.tmp
