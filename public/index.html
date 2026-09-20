@@ -138,7 +138,7 @@ h3{font-size:16px;font-weight:700}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* ---- cards grid (trend / debt / balances) ---- */
-.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
 .kcard{padding:16px 18px;display:flex;flex-direction:column;gap:8px;min-width:0}
 .kcard .big{font-size:26px;font-weight:600;letter-spacing:-.02em}
 .kcard .delta{font-size:12.5px;color:var(--ink-2)}
@@ -432,6 +432,7 @@ const todayKey = () => today().slice(0,7);
 const monthLabel = key => { const [y,m]=key.split('-'); return `${MONTH_NAMES[+m-1]} ${y}`; };
 const shortMonth = key => MONTH_NAMES[+key.split('-')[1]-1].slice(0,3);
 const sortedKeys = () => Object.keys(S.months).sort();
+const yearKeys = key => sortedKeys().filter(k => k.slice(0, 4) === String(key).slice(0, 4)); // trends show the calendar year, restarting each January
 const shiftKey = (key, n) => { let [y,m]=key.split('-').map(Number); m+=n; while(m>12){m-=12;y++;} while(m<1){m+=12;y--;} return `${y}-${String(m).padStart(2,'0')}`; };
 function fmt(n, opts={}) {
   n = +n || 0;
@@ -660,7 +661,8 @@ function renderHome() {
   const withBal = [...keys].reverse().find(k => (S.months[k].cards||[]).length || (S.months[k].accounts||[]).length || (S.months[k].savings||[]).length);
   const bm = withBal ? S.months[withBal] : null, bc = bm ? calc(bm) : null;
   const bPrev = withBal ? keys[keys.indexOf(withBal)-1] : null, bpc = bPrev && (S.months[bPrev].cards||[]).length ? calc(S.months[bPrev]) : null;
-  const retSeries = keys.map(k => calc(S.months[k]).retained);
+  const yk = yearKeys(cur);
+  const retSeries = yk.map(k => calc(S.months[k]).retained);
 
   app.innerHTML = `
   <section class="hero">
@@ -689,7 +691,13 @@ function renderHome() {
         <div class="eyebrow">Total credit card debt</div>
         ${bm ? `<div class="big num">${fmt(bc.cc)}</div>
         <div class="delta">${bpc ? `${fmt(bc.cc - bpc.cc, {sign:true})} since ${esc(shortMonth(bPrev))}` : ''} · as of ${esc(monthLabel(withBal))}</div>
-        ${sparkline(keys.filter(k=>(S.months[k].cards||[]).length).map(k=>calc(S.months[k]).cc), 'var(--s-debt)')}` : `<div class="big">—</div><div class="delta">Add card balances in a month to track this</div>`}
+        ${sparkline(yk.filter(k=>(S.months[k].cards||[]).length).map(k=>calc(S.months[k]).cc), 'var(--s-debt)')}` : `<div class="big">—</div><div class="delta">Add card balances in a month to track this</div>`}
+      </div>
+      <div class="card click kcard" data-act="chart" data-chart="savings" data-key="${cur}" role="button" tabindex="0">
+        <div class="eyebrow">Savings & wealth building</div>
+        <div class="big num">${fmt(c.cash)}</div>
+        <div class="delta">in cash · ${fmt(c.wealth)} to wealth building this month · ${fmt(r2(yk.reduce((s,k)=>s+calc(S.months[k]).wealth,0)))} so far in ${cur.slice(0,4)}</div>
+        ${sparkline(yk.map(k=>calc(S.months[k]).wealth), 'var(--s-wealth)')}
       </div>
       <button class="card click kcard" data-act="balances" data-key="${cur}">
         <div class="eyebrow">Balances · ${esc(monthLabel(cur))}</div>
@@ -832,7 +840,7 @@ function balancesBody(key) {
   const empty = !((m.cards||[]).length || (m.savings||[]).length || (m.accounts||[]).length);
   const prevHas = prev && ((S.months[prev].cards||[]).length || (S.months[prev].savings||[]).length || (S.months[prev].accounts||[]).length);
   return (empty && prevHas ? `<div class="bud-form" style="grid-template-columns:1fr auto;align-items:center"><span class="muted" style="font-size:13px">Start from ${esc(monthLabel(prev))}’s balances?</span><button class="btn sm" data-act="copy-bal" data-from="${prev}">Copy them</button></div>` : '') +
-    BALS.map(b => `<div class="bal-group"><div class="bal-head"><h3>${b.title}</h3>${b.key!=='accounts' ? `<span class="num" data-total="${b.key}">${fmt(secTotal(m, b.key))}</span>` : ''}</div>${editorBody(key, b.key)}<button class="btn ghost sm" data-act="add-bal" data-bal="${b.key}">${ICON.plus} Add ${b.key==='cards'?'card':b.key==='savings'?'account':'balance'}</button></div>`).join('');
+    BALS.map(b => `<div class="bal-group"><div class="bal-head"><h3>${b.title}</h3>${b.key==='savings' ? '' : ''}${b.key!=='accounts' ? `<span class="num" data-total="${b.key}">${fmt(secTotal(m, b.key))}</span>` : ''}</div>${editorBody(key, b.key)}<button class="btn ghost sm" data-act="add-bal" data-bal="${b.key}">${ICON.plus} Add ${b.key==='cards'?'card':b.key==='savings'?'account':'balance'}</button></div>` + (b.key==='savings' ? `<div class="bal-group"><div class="bal-head"><h3><span class="sw wealth" style="margin-right:6px"></span>Wealth building this month</h3><span class="num" data-total="wealth">${fmt(secTotal(m, 'wealth'))}</span></div>${editorBody(key, 'wealth')}<button class="btn ghost sm" data-act="add-line" data-col="wealth">${ICON.plus} Add line</button></div>` : '')).join('');
 }
 function openBalances(key) {
   if (!S.months[key]) return; dialogCtx = { key, sec: 'balances' };
@@ -996,7 +1004,7 @@ function dialogAction(t, e) {
 /* ---------- charts ---------- */
 const CHART_TABS = [
   {id:'where', label:'Where it went'}, {id:'expenses', label:'Expenses'}, {id:'income', label:'Income'},
-  {id:'wealth', label:'Wealth Building'}, {id:'abnormal', label:'Abnormal'}, {id:'trend', label:'Trend'}, {id:'debt', label:'Debt'},
+  {id:'wealth', label:'Wealth Building'}, {id:'abnormal', label:'Abnormal'}, {id:'trend', label:'Trend'}, {id:'debt', label:'Debt'}, {id:'savings', label:'Savings & wealth'},
 ];
 function openCharts(chart, key, keepTable) {
   if (!key || !S.months[key]) key = currentKey(); if (!key) return;
@@ -1008,7 +1016,7 @@ function openCharts(chart, key, keepTable) {
   if (chart === 'where') {
     title = 'Where the money went'; sub = `${monthLabel(key)} · ${fmt(c.net)} came in`;
     body = donutHTML(m, {size:300});
-    note = c.retained < 0 ? `Spending plus wealth building exceeded income by ${fmt(-c.retained)} this month, so there is no “retained” slice. The ring shows how the ${fmt(c.exp+c.abn+c.wealth)} that went out splits up.` : `The ring is the ${fmt(c.net)} of net income. Income Retained is the part left after expenses, abnormal expenses and wealth building.`;
+    note = c.perf < 0 ? `Spending exceeded income by ${fmt(-c.perf)} this month, so nothing was left after expenses. The ring shows how the ${fmt(c.exp+c.abn)} that went out splits up.` : `The ring is the ${fmt(c.net)} of net income. “Left after expenses” is income minus expenses and abnormal expenses; wealth building (${fmt(c.wealth)} this month) is tracked under Balances.`;
     const rows = donutSegments(m).map(s => [s.label, s.value, c.net ? Math.round(s.value/c.net*1000)/10 + '%' : '']);
     table = tableHTML(['Category','Amount','Share of income'], rows, ['Net Income', c.net, '100%']);
   } else if (barCol) {
@@ -1019,19 +1027,30 @@ function openCharts(chart, key, keepTable) {
     const top = rows[0]; if (top && total) note = `“${esc(top.label)}” is the largest line at ${fmt(top.value)}, ${Math.round(Math.abs(top.value)/Math.abs(total)*100)}% of the total.`;
     table = tableHTML([barCol.title, 'Amount'], rows.map(r=>[r.label, r.value]), ['Total', total]);
   } else if (chart === 'trend') {
-    const keys = sortedKeys();
-    title = 'Month by month'; sub = `${keys.length} months · net income, expenses and what was retained`;
+    const keys = yearKeys(key);
+    title = 'Month by month'; sub = `${key.slice(0,4)} · ${keys.length} month${keys.length===1?'':'s'} · net income, expenses and what was retained`;
     const series = [
       {name:'Net Income', color:'var(--s-income)', values: keys.map(k=>calc(S.months[k]).net)},
       {name:'Expenses', color:'var(--s-exp)', values: keys.map(k=>calc(S.months[k]).exp)},
       {name:'Income Retained', color:'var(--s-ret)', values: keys.map(k=>calc(S.months[k]).retained)},
     ];
-    body = keys.length > 1 ? lineChartHTML(series, keys.map(k => shortMonth(k) + (k.endsWith('-01')||k===keys[0]?' ’'+k.slice(2,4):''))) : `<div class="empty">Add a second month to see a trend.</div>`;
+    body = keys.length > 1 ? lineChartHTML(series, keys.map(shortMonth)) : `<div class="empty">Add a second month in ${key.slice(0,4)} to see a trend.</div>`;
     const kept = keys.filter(k=>calc(S.months[k]).retained>=0).length;
     note = `${kept} of ${keys.length} months ended with money retained. Abnormal expenses and wealth building are included in the retained figure, so a big one-off month dips below zero even when regular expenses were covered.`;
     table = tableHTML(['Month', ...series.map(s=>s.name)], keys.map((k,i)=>[monthLabel(k), ...series.map(s=>s.values[i])]));
+  } else if (chart === 'savings') {
+    const keys = yearKeys(key);
+    title = 'Savings & wealth building'; sub = `${key.slice(0,4)} · cash savings balance and monthly wealth building`;
+    const series = [
+      {name:'Savings in cash', color:'var(--s-income)', values: keys.map(k=>calc(S.months[k]).cash)},
+      {name:'Wealth building (monthly)', color:'var(--s-wealth)', values: keys.map(k=>calc(S.months[k]).wealth)},
+    ];
+    body = keys.length > 1 ? lineChartHTML(series, keys.map(shortMonth)) : `<div class="empty">Add a second month in ${key.slice(0,4)} to see a trend.</div>`;
+    const ytd = r2(keys.reduce((s,k)=>s+calc(S.months[k]).wealth,0));
+    note = `${fmt(ytd)} put toward wealth building so far in ${key.slice(0,4)}. Cash savings is the balance recorded under Balances each month.`;
+    table = tableHTML(['Month', ...series.map(s=>s.name)], keys.map((k,i)=>[monthLabel(k), ...series.map(s=>s.values[i])]), ['Wealth building total', '', ytd]);
   } else if (chart === 'debt') {
-    const keys = sortedKeys().filter(k => (S.months[k].cards||[]).length);
+    const keys = yearKeys(key).filter(k => (S.months[k].cards||[]).length);
     const bk = keys.includes(key) ? key : keys[keys.length-1];
     title = 'Credit card debt';
     if (!bk) { sub = 'No card balances recorded yet'; body = `<div class="empty">Add card balances in a month’s Balances block to track debt here.</div>`; }
@@ -1041,7 +1060,7 @@ function openCharts(chart, key, keepTable) {
       const rows = (bm.cards||[]).map(x=>({label:x.label, value:+x.amount||0})).filter(r=>r.value!==0).sort((a,b)=>b.value-a.value);
       body = (keys.length > 1 ? `<div class="eyebrow" style="margin-bottom:8px">Total owed, by month</div>` + lineChartHTML([{name:'Total CC debt', color:'var(--s-debt)', values: keys.map(k=>calc(S.months[k]).cc)}], keys.map(shortMonth), {height:200}) + `<div style="height:18px"></div>` : '')
            + `<div class="eyebrow" style="margin-bottom:8px">By card · ${esc(monthLabel(bk))}</div>` + hbarsHTML(rows, 'var(--s-debt)', bc.cc);
-      const first = keys[0]; if (keys.length > 1) { const d = bc.cc - calc(S.months[first]).cc; note = `${d<=0?'Down':'Up'} ${fmt(Math.abs(d))} since ${monthLabel(first)}.`; }
+      const first = keys[0]; if (keys.length > 1) { const d = bc.cc - calc(S.months[first]).cc; note = `${d<=0?'Down':'Up'} ${fmt(Math.abs(d))} since ${monthLabel(first)} (charts cover the calendar year).`; }
       table = tableHTML(['Card','Balance'], rows.map(r=>[r.label,r.value]), ['Total', bc.cc]);
     }
   }
@@ -1049,7 +1068,7 @@ function openCharts(chart, key, keepTable) {
     <div class="dlg-head"><div class="ttl"><h2>${esc(title)}</h2><span class="muted" style="font-size:13px">${esc(sub)}</span></div><button class="icon x" data-dact="close" title="Close (Esc)">${ICON.x}</button></div>
     <div class="tabs">${CHART_TABS.map(t => `<button class="tab ${t.id===chart?'on':''}" data-dact="tab" data-chart="${t.id}">${t.label}</button>`).join('')}</div>
     <div class="dlg-body"><div class="chart-area">${body}</div>${note?`<p class="chart-note">${note}</p>`:''}${dialogCtx.table ? table : ''}</div>
-    <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','debt'].includes(chart) ? 'Across all months' : esc(monthLabel(key))}</span><span class="sp"></span><button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button><button class="btn sm" data-dact="close">Close</button></div>`);
+    <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','debt','savings'].includes(chart) ? key.slice(0,4) + ' · resets each January' : esc(monthLabel(key))}</span><span class="sp"></span><button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button><button class="btn sm" data-dact="close">Close</button></div>`);
   attachChartHover();
 }
 function tableHTML(head, rows, total) {
@@ -1061,9 +1080,8 @@ function donutSegments(m) {
   const c = calc(m);
   const segs = [
     {label:'Expenses', value:c.exp, color:'var(--s-exp)'},
-    {label:'Wealth Building', value:c.wealth, color:'var(--s-wealth)'},
     {label:'Abnormal Expenses', value:c.abn, color:'var(--s-abn)'},
-    {label:'Income Retained', value:Math.max(0,c.retained), color:'var(--s-ret)'},
+    {label:'Left after expenses', value:Math.max(0,c.perf), color:'var(--s-ret)'},
   ];
   return segs;
 }
@@ -1085,13 +1103,13 @@ function donutHTML(m, {size=260, compact=false}={}) {
     a += span;
   });
   if (!segs.length) paths = `<circle cx="${cx}" cy="${cy}" r="${(r0+r1)/2}" fill="none" stroke="var(--surface-3)" stroke-width="${r1-r0}"/>`;
-  const centerBig = c.retained < 0 ? fmt(c.exp+c.abn+c.wealth, {cents:false}) : fmt(c.net, {cents:false});
-  const centerLab = c.retained < 0 ? 'went out' : 'came in';
+  const centerBig = c.perf < 0 ? fmt(c.exp+c.abn, {cents:false}) : fmt(c.net, {cents:false});
+  const centerLab = c.perf < 0 ? 'went out' : 'came in';
   const svg = `<svg class="donut" viewBox="0 0 ${size} ${size}" role="img" aria-label="Where the money went">${paths}
     <text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="${compact?15:24}" font-weight="600" class="num">${centerBig}</text>
     <text x="${cx}" y="${cy+(compact?14:20)}" text-anchor="middle" font-size="${compact?10:12}" class="ctr-l">${centerLab}</text></svg>`;
   const legend = `<div class="legend">${donutSegments(m).map(s => `<div class="li"><span class="sw" style="background:${s.color}"></span><span class="muted">${s.label}</span>${compact?'':`<span class="pct num">${c.net>0?Math.round(s.value/Math.max(c.net,1)*100)+'%':'—'}</span>`}<span class="v num">${fmt(s.value)}</span></div>`).join('')}
-    ${c.retained<0?`<div class="li" style="color:var(--bad)"><span class="sw" style="background:var(--bad)"></span><span>Overspent</span>${compact?'':'<span></span>'}<span class="v num">${fmt(-c.retained)}</span></div>`:''}</div>`;
+    ${c.perf<0?`<div class="li" style="color:var(--bad)"><span class="sw" style="background:var(--bad)"></span><span>Overspent</span>${compact?'':'<span></span>'}<span class="v num">${fmt(-c.perf)}</span></div>`:''}</div>`;
   return compact ? `<div class="donut-wrap">${svg}${legend}</div>` : `<div class="donut-lg">${svg}${legend}</div>`;
 }
 function hbarsHTML(rows, color, total) {
