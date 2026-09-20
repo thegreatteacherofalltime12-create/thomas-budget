@@ -857,6 +857,7 @@ function openBalances(key) {
 }
 function openEditor(key, sec) {
   const m = S.months[key], s = SECTIONS.find(x => x.key === sec); if (!m || !s) return;
+  S.view = {}; // breakdown panels start collapsed
   const fromBalances = dialogCtx.sec === 'balances' || dialogCtx.from === 'balances';
   dialogCtx = { key, sec, from: fromBalances ? 'balances' : null };
   const chart = s.kind === 'lines' ? sec : (sec === 'cards' ? 'debt' : null);
@@ -889,7 +890,7 @@ function itemsHTML(colKey, l) {
       <input type="text" inputmode="decimal" class="amt" title="You can type math here, e.g. 45+30.50" id="f-${it.id}-amount" data-f="iamount" value="${fmtIn(it.amount)}" aria-label="Item amount">
       <button class="icon" data-act="del-item" title="Remove item">${ICON.x}</button>
     </div>${it.note?`<div class="note">${esc(it.note)}</div>`:''}`).join('')}
-    <button class="btn ghost sm add" data-act="add-item">${ICON.plus} Add item</button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm add" data-act="add-item">${ICON.plus} Add item</button><button class="btn ghost sm" data-act="toggle-items" data-line="${l.id}" data-col="${colKey}">Hide</button></div>
     ${(l.items||[]).length ? `<div class="note">The line amount is the sum of these items.</div>` : `<div class="note">Add items and the line total is calculated for you.</div>`}
   </div>`;
 }
@@ -961,7 +962,7 @@ async function onAction(e) {
     case 'del-line': { const row = t.closest('[data-line]'); const col = row.dataset.col; const l = findLine(key, col, row.dataset.line); if (!l) break; if ((lineAmt(l) || l.label) && !(await ask(`Remove “${l.label||'this line'}”${lineAmt(l)?` (${fmt(lineAmt(l))})`:''} from ${COLS.find(c=>c.key===col).title}?`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur[col] = (cur[col]||[]).filter(x=>x.id!==l.id); Store.markDirty(key); render(); break; }
     case 'toggle-items': { const row = t.closest('[data-line]'); const l = findLine(key, row.dataset.col, row.dataset.line); if (!l) break; S.view[l.id] = !S.view[l.id]; if (S.view[l.id] && !(l.items&&l.items.length) && l.amount) { l.items = [{id:uid(), label:'', amount:l.amount}]; Store.markDirty(key); } render(); break; }
     case 'add-item': { const wrap = t.closest('[data-items]'); const col = t.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) break; l.items = l.items||[]; const it = {id:uid(), label:'', amount:0}; l.items.push(it); Store.markDirty(key); render(); const inp = $('#f-'+it.id+'-label'); if (inp) inp.focus(); break; }
-    case 'del-item': { const wrap = t.closest('[data-items]'), row = t.closest('[data-item]'); const col = t.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) break; l.items = l.items.filter(x=>x.id!==row.dataset.item); if (!l.items.length) { l.amount = 0; } Store.markDirty(key); render(); break; }
+    case 'del-item': { const wrap = t.closest('[data-items]'), row = t.closest('[data-item]'); const col = t.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) break; l.items = l.items.filter(x=>x.id!==row.dataset.item); if (!l.items.length) { l.amount = 0; S.view[l.id] = false; } Store.markDirty(key); render(); break; }
     case 'bud-new': { const f = $('#bud-form'); if (!f) break; f.hidden = !f.hidden; if (!f.hidden) $('#bud-name').focus(); break; }
     case 'bud-add': { const pick = $('#bud-name').value, name = (pick === '__new__' ? $('#bud-name-new').value : pick).trim(), limit = r2(parseNum($('#bud-limit').value)); if (!name) { toast(pick === '__new__' ? 'Type the new category name' : 'Choose a category'); (pick === '__new__' ? $('#bud-name-new') : $('#bud-name')).focus(); break; }
       m.budgets = m.budgets || []; if (m.budgets.some(b => norm(b.label) === norm(name))) { toast('There is already a budget called that'); break; }
