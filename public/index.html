@@ -160,11 +160,6 @@ h3{font-size:16px;font-weight:700}
 .perf .p .lab{font-size:11px;color:var(--ink-2);font-weight:500;display:flex;gap:6px;align-items:center;white-space:nowrap}
 .perf .p .v{font-size:15px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
 .perf .btn{align-self:center}
-.outlook{margin-top:10px;width:100%;text-align:left;padding:10px 14px;display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:baseline;color:var(--ink);cursor:pointer}
-.outlook:hover{border-color:var(--accent-line)}
-.outlook .lab{font-size:12px;color:var(--ink-2);font-weight:500}
-.outlook .v{font-size:18px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;grid-row:1/3}
-.outlook .sub{font-size:11.5px;color:var(--ink-3)}
 .okv{display:grid;grid-template-columns:1fr auto;gap:6px 14px;font-size:14px}
 .okv .k{color:var(--ink-2)} .okv .v{font-weight:500;white-space:nowrap}
 .okv .tot{font-weight:700;font-size:16px;border-top:1px solid var(--line);padding-top:8px;margin-top:2px}
@@ -725,18 +720,14 @@ function renderMonth(key) {
       ${next ? `<a class="icon" href="#/m/${next}" title="${esc(monthLabel(next))}">${ICON.right}</a>` : `<button class="icon" data-act="new-month" data-from="${key}" title="Start the next month">${ICON.plus}</button>`}
     </div>
     <span class="upd" data-updated>Updated ${esc(fmtDate(m.updatedOn))}</span>
-    <div class="acts">
-      <button class="btn sm ghost" data-act="delete-month" data-key="${key}" title="Delete this month">${ICON.x}</button>
-    </div>
   </div>
 
   <section class="perf">
     <button class="card p" data-act="chart" data-chart="where" data-key="${key}"><span class="lab">Month Performance</span><span class="v num ${signCls(c.perf)}" data-perf="perf">${fmt(c.perf)}</span></button>
     <button class="card p" data-act="chart" data-chart="where" data-key="${key}"><span class="lab">Excl. Abnormal</span><span class="v num ${signCls(c.exAbn)}" data-perf="exAbn">${fmt(c.exAbn)}</span></button>
     <button class="card p" data-act="chart" data-chart="where" data-key="${key}"><span class="lab"><span class="sw ret"></span>Income Retained</span><span class="v num ${signCls(c.retained)}" data-perf="retained">${fmt(c.retained)}</span></button>
-    <button class="btn sm" data-act="chart" data-chart="where" data-key="${key}">${ICON.chart} Charts</button>
+    <button class="card p" data-act="outlook" title="Tap for the breakdown"><span class="lab">End-of-month outlook</span><span class="v num ${signCls(outlook(key).projected)}" data-outlook>${fmt(outlook(key).projected)}</span></button>
   </section>
-  ${(() => { const o = outlook(key); return `<button class="card outlook" data-act="outlook"><span class="lab">End-of-month outlook</span><span class="v num ${signCls(o.projected)}" data-outlook>${fmt(o.projected)}</span><span class="sub">${o.carried ? 'includes last month’s leftover listed under income' : o.prevKey ? `starts with ${fmt(o.leftover)} left over from ${esc(shortMonth(o.prevKey))}` : 'no earlier month to start from'} · tap for the breakdown</span></button>`; })()}
 
   <section class="section">
     <div class="card list">${SECTIONS.filter(s => s.kind !== 'bal' && s.key !== 'wealth').map(s => `<button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${s.kind==='budgets' ? (budgetStats(m).count ? `${budgetStats(m).count} budget${budgetStats(m).count===1?'':'s'}${budgetStats(m).over?` · ${budgetStats(m).over} over`:''}${standardExpenses(key).size?` · ${standardExpenses(key).size} standard`:''}` : standardExpenses(key).size ? `${standardExpenses(key).size} standard expense${standardExpenses(key).size===1?'':'s'}` : 'set spending limits') : `${(m[s.key]||[]).length} ${s.kind==='lines'?'line':'entr'}${(m[s.key]||[]).length===1?(s.kind==='lines'?'':'y'):(s.kind==='lines'?'s':'ies')}`}</span></span><span class="v num" data-total="${s.key}">${s.key==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, s.key))}</span>${ICON.chev}</button>`).join('')}</div>
