@@ -117,21 +117,12 @@ h3{font-size:16px;font-weight:700}
 .card.click:hover{border-color:var(--accent-line)}
 
 /* ---- home hero ---- */
-.hero{margin-top:28px;display:grid;grid-template-columns:1.3fr 1fr;gap:20px;align-items:stretch}
-.hero-main{padding:26px 28px;display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden}
-.hero-main .figure{font-size:56px;font-weight:600;line-height:1;letter-spacing:-.03em}
-.hero-main .figure.neg{color:var(--bad)}
-.hero-main .lede{max-width:52ch;color:var(--ink-2);font-size:15px}
-.hero-main .rule{height:1px;background:var(--line);margin-top:4px}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px}
-.tile{text-align:left;padding:12px 12px 11px;border-radius:var(--r-s);border:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:6px;min-width:0}
-.tile:hover{border-color:var(--accent-line)}
-.tile .lab{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2);font-weight:500}
-.tile .val{font-size:17px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+.hero{margin-top:28px;display:grid;grid-template-columns:minmax(0,560px);gap:20px}
 .sw{width:9px;height:9px;border-radius:3px;flex:none}
 .sw.income{background:var(--s-income)} .sw.exp{background:var(--s-exp)} .sw.abn{background:var(--s-abn)} .sw.wealth{background:var(--s-wealth)} .sw.ret{background:var(--s-ret)} .sw.debt{background:var(--s-debt)}
 .hero-side{padding:18px 20px;display:flex;flex-direction:column;gap:10px}
-.hero-side .donut-wrap{display:flex;align-items:center;gap:16px;flex:1}
+.hero-side .donut-wrap{display:flex;align-items:center;gap:16px;flex:1;cursor:pointer;border-radius:8px;padding:6px}
+.hero-side .click:hover .donut-wrap{background:var(--surface-2)}
 .hero-side svg{width:150px;height:150px;flex:none}
 .legend{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
 .legend .li{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:12.5px}
@@ -294,8 +285,6 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
 }
 @media (max-width:620px){
   .cols,.grid3,.bals,.perf{grid-template-columns:1fr}
-  .hero-main{padding:20px 18px}
-  .hero-main .figure{font-size:44px}
   h1{font-size:28px}
   .mhead h1{font-size:24px}
   .mhead .acts{margin-left:0;width:100%}
@@ -329,7 +318,6 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   .dlg-body{padding:14px 16px 18px}
   .tabs{padding:8px 12px 0;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
   .tab{white-space:nowrap}
-  .hero-main .figure{font-size:clamp(36px,11vw,44px)}
   .kcard .big{font-size:22px}
   .mhead .upd{margin-left:0}
   .perf .p .v{font-size:24px} .perf .p.hero .v{font-size:30px}
@@ -621,11 +609,6 @@ function renderHome() {
   }
   const cur = currentKey(), m = S.months[cur], c = calc(m);
   const prevKey = keys[keys.indexOf(cur)-1], pc = prevKey ? calc(S.months[prevKey]) : null;
-  const pctKept = c.net ? Math.round(c.retained / c.net * 100) : 0;
-  const lede = c.retained >= 0
-    ? `You kept <b>${fmt(c.retained)}</b> of the <b>${fmt(c.net)}</b> that came in — ${pctKept}% — after ${fmt(c.exp)} in expenses${c.abn?`, ${fmt(c.abn)} abnormal`:''} and ${fmt(c.wealth)} put toward wealth building.`
-    : `Spending and wealth building ran <b>${fmt(-c.retained)}</b> past the <b>${fmt(c.net)}</b> that came in — ${fmt(c.exp)} in expenses${c.abn?`, ${fmt(c.abn)} abnormal`:''} and ${fmt(c.wealth)} toward wealth building.`;
-  const isCurrent = cur === todayKey();
   const withBal = [...keys].reverse().find(k => (S.months[k].cards||[]).length || (S.months[k].accounts||[]).length || (S.months[k].savings||[]).length);
   const bm = withBal ? S.months[withBal] : null, bc = bm ? calc(bm) : null;
   const bPrev = withBal ? keys[keys.indexOf(withBal)-1] : null, bpc = bPrev && (S.months[bPrev].cards||[]).length ? calc(S.months[bPrev]) : null;
@@ -633,32 +616,16 @@ function renderHome() {
 
   app.innerHTML = `
   <section class="hero">
-    <div class="card hero-main">
-      <div class="eyebrow">${esc(monthLabel(cur))} · ${isCurrent?'this month':'latest month'}${m.updatedOn?` · updated ${esc(fmtDate(m.updatedOn))}`:''}</div>
-      <div>
-        <div class="muted" style="font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:8px"><span class="sw ret"></span>Income Retained</div>
-        <div class="figure num ${c.retained<0?'neg':''}">${fmt(c.retained)}</div>
-      </div>
-      <p class="lede" style="margin:0">${lede}</p>
-      <div class="rule"></div>
-      <div class="tiles">
-        ${COLS.map(col => `<button class="tile" data-act="chart" data-chart="${col.key}" data-key="${cur}" title="Open chart"><span class="lab"><span class="sw ${col.sw}"></span>${col.title}</span><span class="val num">${fmt(c[col.key==='income'?'net':col.key==='expenses'?'exp':col.key==='abnormal'?'abn':'wealth'])}</span></button>`).join('')}
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px">
-        <a class="btn primary" href="#/m/${cur}">Open ${esc(monthLabel(cur))}</a>
-        <button class="btn" data-act="new-month">${ICON.plus} New month</button>
-      </div>
-    </div>
-    <div class="card click hero-side" data-act="chart" data-chart="where" data-key="${cur}" role="button" tabindex="0">
-      <div class="eyebrow">Where the money went</div>
-      ${donutHTML(m, {size:150, compact:true})}
-      <div class="hint">${ICON.chart} Click to open the full chart</div>
+    <div class="card hero-side">
+      <div class="eyebrow">Where the money went · ${esc(monthLabel(cur))}</div>
+      <div class="click" data-act="chart" data-chart="where" data-key="${cur}" role="button" tabindex="0" title="Open the full chart">${donutHTML(m, {size:150, compact:true})}</div>
+      <a class="btn primary" href="#/m/${cur}" style="align-self:flex-start">Open ${esc(monthLabel(cur))}</a>
     </div>
   </section>
 
   <section class="section">
     <div class="sec-head"><h2>Months</h2><span class="muted">${keys.length} on record</span><span class="sp"></span><button class="btn sm" data-act="new-month">${ICON.plus} New month</button></div>
-    <div class="card pick"><label for="month-pick">Open a month</label>${monthSelect(cur, 'month-pick')}<a class="btn primary" href="#/m/${cur}">Open ${esc(shortMonth(cur))} ${cur.slice(0,4)}</a></div>
+    <div class="card pick"><label for="month-pick">Open a month</label>${monthSelect(cur, 'month-pick')}</div>
   </section>
 
   <section class="section">
