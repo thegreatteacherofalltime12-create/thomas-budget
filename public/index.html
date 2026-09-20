@@ -492,7 +492,7 @@ const Store = {
   async init() {
     if (FIREBASE_CONFIG && FIREBASE_CONFIG.projectId) {
       try { await this.initFirebase(); return; }
-      catch (e) { console.error(e); toast('Could not reach Firebase — working on this device only'); }
+      catch (e) { console.error(e); S.ready = true; setSync('bad', 'Offline'); app.innerHTML = '<div class="empty card" style="margin-top:40px"><h2>Can’t reach the budget right now</h2><p>Check your connection and reload.</p><button class="btn primary" onclick="location.reload()">Reload</button></div>'; return; }
     }
     S.mode = 'local'; this.loadLocal(); setSync('local', 'Saved on this device'); render();
   },
@@ -525,7 +525,7 @@ const Store = {
       else if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') toast('Sign-in failed: ' + (code || 'unknown'));
     }
   },
-  async signOut() { await this.flushAll(); try { await FB.A.signOut(FB.auth); } catch (e) {} },
+  async signOut() { await this.flushAll(); this.unsubscribe(); try { await FB.A.signOut(FB.auth); } catch (e) {} await this.wipeCache(); },
   unsubscribe() { this._unsubs.forEach(u => { try { u(); } catch (e) {} }); this._unsubs = []; },
   subscribe() {
     this.unsubscribe();
@@ -548,7 +548,7 @@ const Store = {
   },
   onError(err) {
     const code = err && err.code || 'unknown';
-    if (code === 'permission-denied') { S.denied = true; S.ready = true; this.unsubscribe(); setSync('bad', 'Not allowed'); render(); }
+    if (code === 'permission-denied') { S.denied = true; S.ready = true; this.unsubscribe(); setSync('bad', 'Not allowed'); render(); if (FB) { const { F, db } = FB; F.terminate(db).then(() => F.clearIndexedDbPersistence(db)).catch(() => {}); } }
     else { setSync('bad', 'Sync problem'); toast('Sync problem: ' + code); S.ready = true; requestRender(); }
   },
   loadLocal() {
@@ -557,9 +557,14 @@ const Store = {
   },
   saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, tx: S.tx, rules: S.rules })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
   markDirty(key) { dirty[key] = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
-  async write(fn, what) {
-    try { await fn(); return true; }
-    catch (e) { const code = e && e.code || 'unknown'; if (code === 'permission-denied') { S.denied = true; render(); } setSync('bad', 'Not saved'); toast(`Could not save ${what}: ${code}`); return false; }
+  write(fn, what) { // fire-and-forget: the SDK queues the write locally; report only failures
+    Promise.resolve().then(fn).then(() => { if (!Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced'); })
+      .catch(e => { const code = e && e.code || 'unknown'; if (code === 'permission-denied') { S.denied = true; this.wipeCache(); render(); } setSync('bad', 'Not saved'); toast(`Could not save ${what}: ${code}`); });
+  },
+  async wipeCache() { // the offline cache is per browser, not per account — never leave it for the next sign-in
+    if (!FB) return; const { F, db } = FB; FB = null;
+    try { await F.terminate(db); await F.clearIndexedDbPersistence(db); } catch (e) {}
+    location.reload();
   },
   async flush(key) {
     const doc = S.months[key]; dirty[key] = false; clearTimeout(timers[key]);
@@ -567,22 +572,22 @@ const Store = {
     if (S.mode === 'firebase') {
       const body = clone(doc); body.savedAt = new Date().toISOString(); body.savedBy = S.user ? S.user.email : '';
       const { F, db } = FB;
-      if (await this.write(() => F.setDoc(F.doc(db, 'months', key), body), monthLabel(key)) && !Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced');
+      this.write(() => F.setDoc(F.doc(db, 'months', key), body), monthLabel(key));
     } else { this.saveLocal(); }
   },
   async flushAll() { for (const k of Object.keys(dirty)) if (dirty[k]) await this.flush(k); },
   async saveMonthNow(key) { dirty[key] = true; await this.flush(key); },
   async deleteMonth(key) {
     delete S.months[key]; delete S.tx[key]; dirty[key] = false; clearTimeout(timers[key]);
-    if (S.mode === 'firebase') { const { F, db } = FB; await this.write(async () => { await F.deleteDoc(F.doc(db, 'months', key)); await F.deleteDoc(F.doc(db, 'transactions', key)); }, 'the deletion'); }
+    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => Promise.all([F.deleteDoc(F.doc(db, 'months', key)), F.deleteDoc(F.doc(db, 'transactions', key))]), 'the deletion'); }
     else this.saveLocal();
   },
   async saveTx(key) {
-    if (S.mode === 'firebase') { const { F, db } = FB; await this.write(() => F.setDoc(F.doc(db, 'transactions', key), { rows: S.tx[key] || [] }), 'transactions'); }
+    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'transactions', key), { rows: S.tx[key] || [] }), 'transactions'); }
     else this.saveLocal();
   },
   async saveRules() {
-    if (S.mode === 'firebase') { const { F, db } = FB; await this.write(() => F.setDoc(F.doc(db, 'settings', 'rules'), { rules: S.rules }), 'merchant rules'); }
+    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'rules'), { rules: S.rules }), 'merchant rules'); }
     else this.saveLocal();
   },
   /* ---- backup & restore (JSON) ---- */
@@ -594,7 +599,7 @@ const Store = {
     const monthList = Array.isArray(d) ? d : (d && d.months ? (Array.isArray(d.months) ? d.months : Object.values(d.months)) : null);
     if (!monthList) throw new Error('No months found in that file');
     for (const m of monthList) {
-      if (!m || !/^\d{4}-\d{2}$/.test(m.key || '')) continue;
+      if (!m || !/^\d{4}-(0[1-9]|1[0-2])$/.test(m.key || '')) continue;
       const doc = { key: m.key, label: m.label || monthLabel(m.key), year: +m.key.slice(0, 4), month: +m.key.slice(5, 7), updatedOn: m.updatedOn || null, notes: String(m.notes || ''), cards: [], savings: [], accounts: [] };
       for (const col of COLS) doc[col.key] = (Array.isArray(m[col.key]) ? m[col.key] : []).map(l => ({ id: safeId(l.id), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })) }));
       for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount) }));
@@ -616,9 +621,9 @@ const Store = {
   async restore(data) {
     setSync('busy', 'Restoring…');
     let n = 0;
-    for (const key of Object.keys(data.months).sort()) { S.months[key] = data.months[key]; await this.saveMonthNow(key); n++; }
-    for (const key of Object.keys(data.tx || {})) { if (Array.isArray(data.tx[key])) { S.tx[key] = data.tx[key]; await this.saveTx(key); } }
-    if (data.rules && Object.keys(data.rules).length) { S.rules = { ...S.rules, ...data.rules }; await this.saveRules(); }
+    for (const key of Object.keys(data.months).sort()) { S.months[key] = data.months[key]; this.saveMonthNow(key); n++; }
+    for (const key of Object.keys(data.tx || {})) { if (Array.isArray(data.tx[key])) { S.tx[key] = data.tx[key]; this.saveTx(key); } }
+    if (data.rules && Object.keys(data.rules).length) { S.rules = { ...S.rules, ...data.rules }; this.saveRules(); }
     S.dbEmpty = false; toast(`Restored ${n} month${n === 1 ? '' : 's'}`); render();
   }
 };
@@ -636,7 +641,7 @@ function currentKey() { const keys = sortedKeys(); if (!keys.length) return null
 
 function renderNav() {
   const who = $('#who'); if (!who) return;
-  if (S.mode === 'firebase' && S.user) who.innerHTML = `<button class="btn ghost sm" data-act="sign-out" title="Signed in as ${esc(S.user.email)}">${S.user.photo ? `<img src="${esc(S.user.photo)}" alt="" width="18" height="18" style="border-radius:50%" referrerpolicy="no-referrer">` : ''}<span class="hide-s">Sign out</span></button>`;
+  if (S.mode === 'firebase' && S.user) who.innerHTML = `<button class="btn ghost sm" data-act="sign-out" title="Signed in as ${esc(S.user.email)}">${S.user.photo ? `<img src="${esc(S.user.photo)}" alt="" width="18" height="18" style="border-radius:50%" referrerpolicy="no-referrer">` : ''}<span>Sign out</span></button>`;
   else who.innerHTML = '';
 }
 function renderSignIn() {
@@ -1311,7 +1316,9 @@ function renderReview() {
   });
 }
 async function commitImport() {
-  const { key, rows } = dialogCtx; const inc = rows.filter(t => t.include).map(t => ({ id:t.id, date:t.date, desc:t.desc, amount:t.amount, cat:t.cat, line:t.line }));
+  const { key, rows } = dialogCtx; if (!rows) return; dialogCtx.rows = null; // second click does nothing
+  const have = new Set((S.tx[key]||[]).map(t => t.id));
+  const inc = rows.filter(t => t.include && !have.has(t.id)).map(t => ({ id:t.id, date:t.date, desc:t.desc, amount:t.amount, cat:t.cat, line:t.line }));
   if (!inc.length) { toast('Nothing selected'); return; }
   S.tx[key] = [...(S.tx[key]||[]), ...inc];
   await Store.saveTx(key); await Store.saveRules();

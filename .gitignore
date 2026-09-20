@@ -1,6 +1,7 @@
 # real household data — never commit or deploy
 private/
 *.backup.json
+thomas-budget-*.json
 *.xlsx
 
 node_modules/
