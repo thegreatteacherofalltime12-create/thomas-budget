@@ -1,47 +1,70 @@
 # Thomas Budget
 
-A shared monthly household budget, built from the *Budgeting form 2026* spreadsheet.
-One record per month with the same four columns as the sheet — **Net Income**,
-**Expenses**, **Abnormal Expenses**, **Wealth Building** — plus breakdown items under
-any line (paychecks, grocery log, per-card payments), a balances block (credit cards,
-savings, 401K, mortgage), Chase CSV import with auto-categorization, charts that open
-in an overlay, and JSON backup/restore.
+A shared monthly household budget for two people, rebuilt as a web app from the
+spreadsheet we had been keeping by hand. Installable on a phone, syncs live between
+both of us, works offline, and keeps the spreadsheet's own vocabulary and math.
 
-## How it runs
+**Live:** https://shiny-mouse-ee83.prior-mixed-theme.workers.dev (sign-in required — the
+data is ours; the code is here for anyone.)
 
-| Piece | What | Where |
+## What it does
+
+- **One page per month** with the four columns from the original sheet — *Net Income,
+  Expenses, Abnormal Expenses, Wealth Building* — and the three figures we care about:
+  Month Performance, Excluding Abnormal Expenses, and **Income Retained**.
+- **Breakdown items** under any line (paychecks, a grocery log, per-card payments); the
+  line total is always the sum of its items.
+- **Balances block** — credit cards → total debt, cash savings, 401K and mortgage balances.
+- **Charts in an overlay** — where the month's money went, per-column bars, a nine-month
+  trend, and credit-card debt over time. Every chart has a table view.
+- **Chase CSV import** — download activity from Chase, import it into a month, and each
+  transaction is matched to a budget line (Chase's category, the merchant name, and rules
+  learned from earlier corrections). One click turns a line's transactions into its breakdown.
+- **New month** copies last month's structure, keeps the amounts that repeat (mortgage,
+  insurance, 401k), carries balances forward, and pre-fills "money left over".
+- **Backup / restore** as JSON.
+- **Phone-first**: single-column layout, large touch targets, full-screen overlays,
+  installable (web app manifest + service worker), offline via Firestore's local cache.
+
+## How it's built
+
+| Piece | Choice | Why |
 |---|---|---|
-| App | `public/index.html` — one self-contained page, no build step | this repo |
-| Hosting | Cloudflare Worker with static assets (`wrangler.jsonc`) | `https://shiny-mouse-ee83.prior-mixed-theme.workers.dev` |
-| Sign-in | Firebase Authentication, Google provider | Firebase project **Something** |
-| Data | Firestore — `months/{YYYY-MM}`, `transactions/{YYYY-MM}`, `settings/rules`; real-time sync, offline cache on phones | Firebase project **Something** |
-| Access | `firestore.rules` — only the two household Google accounts can read or write anything | Firestore rules |
+| App | One HTML file, vanilla JS, hand-drawn SVG charts (`public/index.html`) | No build step; the whole thing is readable in one sitting |
+| Hosting | Cloudflare Worker with static assets (`wrangler.jsonc`) | Free, global, one-command deploy |
+| Sign-in | Firebase Authentication, Google provider | Both of us already have Google accounts; no passwords to manage |
+| Data | Firestore — `months/{YYYY-MM}`, `transactions/{YYYY-MM}`, `settings/rules` | Real-time listeners for live sync, offline persistence on phones |
+| Access | `firestore.rules` allow-listing two Google accounts | The security boundary lives server-side, not in the page |
 
-The page itself is public on the Worker URL, but it contains no data: everything lives
-in Firestore behind the sign-in and the rules. Opened without a Firebase config (for
-example straight from disk) the page runs in a **this-device-only** mode using the
-browser's local storage.
+Editing model: inputs update in-memory state and recompute totals instantly; writes are
+debounced (700 ms) and the month document is replaced whole. Incoming snapshots never
+overwrite a month with unsaved local edits (a per-month dirty flag), and the two-device
+case falls back to last-writer-wins on the month document.
 
-## Deploying
+Charts follow a fixed, colorblind-checked palette: net income (blue), expenses (orange),
+wealth building (aqua), abnormal (yellow), retained (violet), debt (red) — the same identity
+in every chart and on every tile.
 
-```bash
-npx wrangler login          # once, opens the browser
-npx wrangler deploy         # every time public/ changes
-```
+## Privacy and security
 
-Firestore rules: paste `firestore.rules` into Firebase console → Firestore Database →
-Rules → **Publish** (or `firebase deploy --only firestore:rules`).
+- **No data in this repo or in the page.** The site's HTML is public; every figure lives in
+  Firestore and is only readable by the two allow-listed accounts. The Firebase web config in
+  the page is a public identifier by design; the rules are the boundary.
+- The committed `firestore.rules` uses placeholder addresses; the deployed copy has the real ones.
+- Security headers via `public/_headers`; `robots.txt` and `X-Robots-Tag` keep it out of search.
+- The `private/` folder (our backup files) is git-ignored and never deployed.
 
-## One-time Firebase setup (project **Something**)
+## Running your own copy
 
-1. **Authentication → Sign-in method** → enable **Google**. Leave Email/Password off.
-2. **Authentication → Settings → Authorized domains** → add
-   `shiny-mouse-ee83.prior-mixed-theme.workers.dev`.
-3. **Firestore Database** → create (production mode) → **Rules** → paste `firestore.rules`.
-4. **Project settings → General → Your apps** → Web app → copy the `firebaseConfig`
-   object into `FIREBASE_CONFIG` near the top of the script in `public/index.html`.
-5. Open the site, sign in, **Restore** the backup file (kept outside the repo in
-   `private/`) — that loads the 2026 months from the spreadsheet.
+1. Create a Firebase project → enable **Authentication → Google** → create a **Firestore**
+   database → paste `firestore.rules` with your two emails → **Publish**.
+2. Project settings → Your apps → Web app → copy the config into `FIREBASE_CONFIG` near the
+   top of the script in `public/index.html`.
+3. `npx wrangler login`, set your Worker name in `wrangler.jsonc`, `npx wrangler deploy`.
+4. Add the deployed domain under **Authentication → Settings → Authorized domains**.
+5. Open the site, sign in, and start a month (or **Restore** a backup).
+
+Without a `FIREBASE_CONFIG`, the page runs in a this-device-only mode using local storage.
 
 ## Month math (same as the sheet)
 
@@ -50,18 +73,3 @@ Rules → **Publish** (or `firebase deploy --only firestore:rules`).
 | Month Performance | Net Income − Expenses − Abnormal Expenses |
 | Excluding Abnormal Expenses | Net Income − Expenses |
 | Income Retained | Net Income − Expenses − Abnormal Expenses − Wealth Building |
-
-A line with breakdown items always equals the sum of its items.
-
-## Chase import
-
-Chase → account → *Account activity* → download → **Spreadsheet (Excel, CSV)**.
-Import it from a month's page; each row is matched to a line (Chase's category, the
-merchant name, and any rule learned from a previous correction). Assigning a merchant
-once is remembered for next time.
-
-## Backups
-
-**Back up** on the home page downloads a JSON file of every month, transaction and
-merchant rule. **Restore** loads one (months in the file replace months with the same
-name; others are kept). The `private/` folder is git-ignored and never deployed.
