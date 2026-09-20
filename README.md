@@ -21,6 +21,7 @@ data is ours; the code is here for anyone.)
   insurance, 401k), carries balances forward, and pre-fills "money left over".
 - **Budgets** — name a spending limit; it is tracked against the Expenses line with the same name (created for you if missing), with a meter that turns amber near the limit and red over it. Budgets carry forward into new months. Pick the category from a dropdown of your Expenses lines, or type a new one. An Expenses line whose amount is identical three months running is flagged a **standard monthly expense** and drops out of the budget meters automatically (no model, no network — plain arithmetic over the months already loaded).
 - **Amount boxes are calculators** — type `45+30.50` or `3*12.99`; totals update as you type, the box shows the result when you leave it, and breakdown items keep the formula as a note (like the sheet did).
+- **End-of-month outlook** — starts from what last month left over and assumes every income, expense and wealth-building line reaches at least its usual amount (average of the last three months it had a value); abnormal expenses count only as entered. Tap the card for the line-by-line breakdown.
 - **Backup / restore** as JSON.
 - **Month picker** on the home page and in the month header to jump anywhere in one tap.
 - **Update button** appears when a new version is deployed; one tap reloads to it.
