@@ -1016,7 +1016,7 @@ function openCharts(chart, key, keepTable) {
   if (chart === 'where') {
     title = 'Where the money went'; sub = `${monthLabel(key)} · ${fmt(c.net)} came in`;
     body = donutHTML(m, {size:300});
-    note = c.perf < 0 ? `Spending exceeded income by ${fmt(-c.perf)} this month, so nothing was left after expenses. The ring shows how the ${fmt(c.exp+c.abn)} that went out splits up.` : `The ring is the ${fmt(c.net)} of net income. “Left after expenses” is income minus expenses and abnormal expenses; wealth building (${fmt(c.wealth)} this month) is tracked under Balances.`;
+    note = c.retained < 0 ? `Spending plus wealth building exceeded income by ${fmt(-c.retained)} this month, so there is no retained slice. The ring shows how the money that went out splits up.` : `Income Retained is what is left of the ${fmt(c.net)} that came in after expenses, abnormal expenses and wealth building. Wealth building (${fmt(c.wealth)} this month) is set aside before it and is tracked under Balances, so it is not drawn here.`;
     const rows = donutSegments(m).map(s => [s.label, s.value, c.net ? Math.round(s.value/c.net*1000)/10 + '%' : '']);
     table = tableHTML(['Category','Amount','Share of income'], rows, ['Net Income', c.net, '100%']);
   } else if (barCol) {
@@ -1081,7 +1081,7 @@ function donutSegments(m) {
   const segs = [
     {label:'Expenses', value:c.exp, color:'var(--s-exp)'},
     {label:'Abnormal Expenses', value:c.abn, color:'var(--s-abn)'},
-    {label:'Left after expenses', value:Math.max(0,c.perf), color:'var(--s-ret)'},
+    {label:'Income Retained', value:Math.max(0,c.retained), color:'var(--s-ret)'},
   ];
   return segs;
 }
@@ -1102,14 +1102,15 @@ function donutHTML(m, {size=260, compact=false}={}) {
     if (a1 > a0) paths += `<path class="donut-seg" d="${arcPath(cx,cy,r0,r1,a0,a1)}" fill="${s.color}" data-tip="${esc(s.label)}|${esc(fmt(s.value))} · ${Math.round(s.value/total*100)}%"></path>`;
     a += span;
   });
+  if (segs.length === 1) paths = `<circle class="donut-seg" cx="${cx}" cy="${cy}" r="${(r0+r1)/2}" fill="none" stroke="${segs[0].color}" stroke-width="${r1-r0}" data-tip="${esc(segs[0].label)}|${esc(fmt(segs[0].value))} · 100%"></circle>`; // a lone slice is a full ring; an arc can't draw that
   if (!segs.length) paths = `<circle cx="${cx}" cy="${cy}" r="${(r0+r1)/2}" fill="none" stroke="var(--surface-3)" stroke-width="${r1-r0}"/>`;
-  const centerBig = c.perf < 0 ? fmt(c.exp+c.abn, {cents:false}) : fmt(c.net, {cents:false});
-  const centerLab = c.perf < 0 ? 'went out' : 'came in';
+  const centerBig = c.retained < 0 ? fmt(c.exp+c.abn+c.wealth, {cents:false}) : fmt(c.net, {cents:false});
+  const centerLab = c.retained < 0 ? 'went out' : 'came in';
   const svg = `<svg class="donut" viewBox="0 0 ${size} ${size}" role="img" aria-label="Where the money went">${paths}
     <text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="${compact?15:24}" font-weight="600" class="num">${centerBig}</text>
     <text x="${cx}" y="${cy+(compact?14:20)}" text-anchor="middle" font-size="${compact?10:12}" class="ctr-l">${centerLab}</text></svg>`;
   const legend = `<div class="legend">${donutSegments(m).map(s => `<div class="li"><span class="sw" style="background:${s.color}"></span><span class="muted">${s.label}</span>${compact?'':`<span class="pct num">${c.net>0?Math.round(s.value/Math.max(c.net,1)*100)+'%':'—'}</span>`}<span class="v num">${fmt(s.value)}</span></div>`).join('')}
-    ${c.perf<0?`<div class="li" style="color:var(--bad)"><span class="sw" style="background:var(--bad)"></span><span>Overspent</span>${compact?'':'<span></span>'}<span class="v num">${fmt(-c.perf)}</span></div>`:''}</div>`;
+    ${c.retained<0?`<div class="li" style="color:var(--bad)"><span class="sw" style="background:var(--bad)"></span><span>Overspent</span>${compact?'':'<span></span>'}<span class="v num">${fmt(-c.retained)}</span></div>`:''}</div>`;
   return compact ? `<div class="donut-wrap">${svg}${legend}</div>` : `<div class="donut-lg">${svg}${legend}</div>`;
 }
 function hbarsHTML(rows, color, total) {
