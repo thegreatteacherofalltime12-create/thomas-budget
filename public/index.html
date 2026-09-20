@@ -2,6 +2,11 @@
 <title>Thomas Budget</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f6e56">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Thomas Budget">
 <meta name="description" content="Monthly household budget for the Thomas family — income, expenses, wealth building, balances and charts, shared between the two of you.">
@@ -584,17 +589,27 @@ const Store = {
   backupJSON() { return JSON.stringify({ app: 'thomas-budget', version: 1, exportedAt: new Date().toISOString(), months: S.months, tx: S.tx, rules: S.rules }, null, 1); },
   parseBackup(text) {
     let d; try { d = JSON.parse(text); } catch (e) { throw new Error('That file is not valid JSON'); }
+    const safeId = id => (typeof id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(id)) ? id : uid();
     const months = {}; let tx = {}, rules = {};
     const monthList = Array.isArray(d) ? d : (d && d.months ? (Array.isArray(d.months) ? d.months : Object.values(d.months)) : null);
     if (!monthList) throw new Error('No months found in that file');
     for (const m of monthList) {
       if (!m || !/^\d{4}-\d{2}$/.test(m.key || '')) continue;
       const doc = { key: m.key, label: m.label || monthLabel(m.key), year: +m.key.slice(0, 4), month: +m.key.slice(5, 7), updatedOn: m.updatedOn || null, notes: String(m.notes || ''), cards: [], savings: [], accounts: [] };
-      for (const col of COLS) doc[col.key] = (Array.isArray(m[col.key]) ? m[col.key] : []).map(l => ({ id: l.id || uid(), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: i.id || uid(), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })) }));
-      for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: r.id || uid(), label: String(r.label || ''), amount: r2(r.amount) }));
+      for (const col of COLS) doc[col.key] = (Array.isArray(m[col.key]) ? m[col.key] : []).map(l => ({ id: safeId(l.id), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })) }));
+      for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount) }));
       months[m.key] = doc;
     }
-    if (d && !Array.isArray(d)) { if (d.tx && typeof d.tx === 'object') tx = d.tx; if (d.rules && typeof d.rules === 'object') rules = d.rules; }
+    if (d && !Array.isArray(d)) {
+      if (d.tx && typeof d.tx === 'object') for (const [k, rows] of Object.entries(d.tx)) {
+        if (!/^\d{4}-\d{2}$/.test(k) || !Array.isArray(rows)) continue;
+        tx[k] = rows.filter(t => t && typeof t === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(String(t.date || ''))).map(t => ({ id: safeId(t.id), date: String(t.date), desc: String(t.desc || '').slice(0, 200), amount: r2(t.amount), cat: String(t.cat || '').slice(0, 60), line: /^(income|expenses|abnormal|wealth):[A-Za-z0-9_-]{1,40}$|^skip$/.test(String(t.line || '')) ? String(t.line) : '' }));
+      }
+      if (d.rules && typeof d.rules === 'object') for (const [k, v] of Object.entries(d.rules)) {
+        if (typeof k !== 'string' || k.length > 60 || !v || typeof v !== 'object') continue;
+        if (v.skip === true) rules[k] = { skip: true }; else if (COLS.some(c => c.key === v.col) && typeof v.label === 'string') rules[k] = { col: v.col, label: v.label.slice(0, 80) };
+      }
+    }
     if (!Object.keys(months).length) throw new Error('No months found in that file');
     return { months, tx, rules };
   },
@@ -900,7 +915,7 @@ app.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.matches('tr[data-act="open"], .card[role="button"], .p[role="button"]')) e.target.click();
 });
 
-app.addEventListener('click', async e => {
+async function onAction(e) {
   const t = e.target.closest('[data-act]'); if (!t) return;
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key;
@@ -917,17 +932,19 @@ app.addEventListener('click', async e => {
     case 'import': openImport(t.dataset.key || key); break;
     case 'delete-month': confirmDelete(t.dataset.key || key); break;
     case 'add-line': { const col = t.dataset.col; m[col] = m[col]||[]; const l = {id:uid(), label:'', amount:0, items:[]}; m[col].push(l); Store.markDirty(key); render(); const inp = $('#f-'+l.id+'-label'); if (inp) inp.focus(); break; }
-    case 'del-line': { const row = t.closest('[data-line]'); const col = row.dataset.col; const l = findLine(key, col, row.dataset.line); if (!l) break; if ((lineAmt(l) || l.label) && !(await ask(`Remove “${l.label||'this line'}”${lineAmt(l)?` (${fmt(lineAmt(l))})`:''} from ${COLS.find(c=>c.key===col).title}?`, 'Remove'))) break; m[col] = m[col].filter(x=>x.id!==l.id); Store.markDirty(key); render(); break; }
+    case 'del-line': { const row = t.closest('[data-line]'); const col = row.dataset.col; const l = findLine(key, col, row.dataset.line); if (!l) break; if ((lineAmt(l) || l.label) && !(await ask(`Remove “${l.label||'this line'}”${lineAmt(l)?` (${fmt(lineAmt(l))})`:''} from ${COLS.find(c=>c.key===col).title}?`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur[col] = (cur[col]||[]).filter(x=>x.id!==l.id); Store.markDirty(key); render(); break; }
     case 'toggle-items': { const row = t.closest('[data-line]'); const l = findLine(key, row.dataset.col, row.dataset.line); if (!l) break; S.view[l.id] = !S.view[l.id]; if (S.view[l.id] && !(l.items&&l.items.length) && l.amount) { l.items = [{id:uid(), label:'', amount:l.amount}]; Store.markDirty(key); } render(); break; }
     case 'add-item': { const wrap = t.closest('[data-items]'); const col = t.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) break; l.items = l.items||[]; const it = {id:uid(), label:'', amount:0}; l.items.push(it); Store.markDirty(key); render(); const inp = $('#f-'+it.id+'-label'); if (inp) inp.focus(); break; }
     case 'del-item': { const wrap = t.closest('[data-items]'), row = t.closest('[data-item]'); const col = t.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) break; l.items = l.items.filter(x=>x.id!==row.dataset.item); if (!l.items.length) { l.amount = 0; } Store.markDirty(key); render(); break; }
     case 'add-bal': { const b = t.dataset.bal; m[b] = m[b]||[]; const r = {id:uid(), label:'', amount:0}; m[b].push(r); Store.markDirty(key); render(); const inp = $('#f-'+r.id+'-label'); if (inp) inp.focus(); break; }
-    case 'del-bal': { const row = t.closest('[data-brow]'); const b = row.dataset.bal; const r = (m[b]||[]).find(x=>x.id===row.dataset.brow); if (r && (r.amount||r.label) && !(await ask(`Remove “${r.label||'this balance'}”?`, 'Remove'))) break; m[b] = (m[b]||[]).filter(x=>x.id!==row.dataset.brow); Store.markDirty(key); render(); break; }
+    case 'del-bal': { const row = t.closest('[data-brow]'); const b = row.dataset.bal; const r = (m[b]||[]).find(x=>x.id===row.dataset.brow); if (r && (r.amount||r.label) && !(await ask(`Remove “${r.label||'this balance'}”?`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur[b] = (cur[b]||[]).filter(x=>x.id!==row.dataset.brow); Store.markDirty(key); render(); break; }
     case 'use-tx': { const col = t.dataset.col, l = findLine(key, col, t.dataset.line); if (!l) break; const rows = (S.tx[key]||[]).filter(x => x.line === col+':'+l.id); if (!rows.length) break; l.items = rows.sort((a,b)=>a.date<b.date?-1:1).map(x => ({id:uid(), label:`${x.date.slice(5).replace('-','/')} ${shortDesc(x.desc)}`, amount: r2(col==='income'? x.amount : -x.amount)})); S.view[l.id] = true; Store.markDirty(key); toast(`“${l.label}” is now ${fmt(lineAmt(l))} from ${rows.length} transactions`); render(); break; }
     case 'toggle-group': { const g = t.dataset.group; const vk = 'g:'+key+':'+g; S.view[vk] = !(t.closest('.txg').classList.contains('open')); t.closest('.txg').classList.toggle('open'); break; }
     case 'clear-tx': { if (!(await ask(`Remove all ${(S.tx[key]||[]).length} imported transactions from ${monthLabel(key)}? Line amounts you already filled in stay as they are.`, 'Clear'))) break; S.tx[key] = []; await Store.saveTx(key); render(); break; }
   }
-});
+}
+app.addEventListener('click', onAction);
+$('.top').addEventListener('click', onAction);
 
 /* ---------- overlay ---------- */
 const dlg = $('#dlg');
@@ -1334,4 +1351,5 @@ function openRestore() {
 /* ---------- boot ---------- */
 render();
 Store.init();
+if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('/sw.js').catch(() => {}); }
 </script>
