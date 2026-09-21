@@ -1019,10 +1019,10 @@ function openTrends(key) {
   if (!S.months[key]) key = currentKey(); if (!key) return;
   const t = trendsFacts(key), yo = yearOutlook(), cm = S.months[key], nCards = (cm.cards||[]).filter(x => x.amount).length, nBal = (cm.cards||[]).length + (cm.savings||[]).length + (cm.accounts||[]).length;
   const rows = [
+    { act: 'chart', chart: 'trend', sw: 'wealth', title: 'Trends data', sub: `net income, expenses, retained, savings in cash and wealth building · month by month in ${key.slice(0, 4)}`, v: `${yearKeys(key).length} mo` },
     { act: 'chart', chart: 'trend', sw: 'ret', title: 'Income retained by month', sub: t.pc ? `${fmt(t.c.retained - t.pc.retained, {sign:true})} vs ${shortMonth(t.prevKey)}` : 'first month on record', v: fmt(t.c.retained), cls: signCls(t.c.retained) },
     { act: 'year', sw: 'ret', title: `${yo.year} outlook`, sub: `kept by year end · ${yo.entered} of 12 months in`, v: fmt(yo.kept), cls: signCls(yo.kept) },
     { act: 'chart', chart: 'debt', sw: 'debt', title: 'Total credit card debt', sub: t.bc ? `${t.bpc ? fmt(t.bc.cc - t.bpc.cc, {sign:true}) + ' since ' + shortMonth(t.bPrev) + ' · ' : ''}as of ${monthLabel(t.withBal)}` : 'add card balances in a month to track this', v: t.bc ? fmt(t.bc.cc) : '—' },
-    { act: 'chart', chart: 'savings', sw: 'wealth', title: 'Savings & wealth building', sub: `in cash · ${fmt(t.c.wealth)} to wealth building this month · ${fmt(t.ytdWealth)} in ${key.slice(0, 4)}`, v: fmt(t.c.cash) },
     { act: 'balances', sw: 'income', title: `Balances · ${monthLabel(key)}`, sub: nBal ? `${nCards} card${nCards === 1 ? '' : 's'} with a balance · ${(cm.savings||[]).length} savings · ${(cm.accounts||[]).length} other · tap to edit` : `nothing recorded yet for ${shortMonth(key)} · tap to add`, v: '' },
   ];
   dialogCtx = { key, sec: 'trends' };
@@ -1045,7 +1045,7 @@ function openBalances(key) {
   if (!S.months[key]) return; const via = cameFromTrends() ? 'trends' : null; dialogCtx = { key, sec: 'balances', back: via, via };
   openOverlay(`<div class="dlg-head">${trendsBack(key) || pageBack()}<div class="ttl"><h2>Balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · where things stand at month end</span></div></div>
     <div class="dlg-body editor">${balancesBody(key)}</div>
-    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="savings" data-key="${key}">${ICON.chart} Savings</button></div>`);
+    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="trend" data-key="${key}">${ICON.chart} Savings & wealth</button></div>`);
   dlg.style.maxWidth = '640px';
 }
 function openEditor(key, sec) {
@@ -1232,10 +1232,10 @@ function dialogAction(t, e) {
 /* ---------- charts ---------- */
 const CHART_TABS = [
   {id:'where', label:'Where it went'}, {id:'expenses', label:'Expenses'}, {id:'income', label:'Income'},
-  {id:'wealth', label:'Wealth Building'}, {id:'abnormal', label:'Abnormal'}, {id:'trend', label:'Trend'}, {id:'debt', label:'Debt'}, {id:'savings', label:'Savings & wealth'},
+  {id:'wealth', label:'Wealth Building'}, {id:'abnormal', label:'Abnormal'}, {id:'trend', label:'Trend'}, {id:'debt', label:'Debt'},
 ];
 function openCharts(chart, key, keepTable) {
-  if (!key || !S.months[key]) key = currentKey(); if (!key) return;
+  if (!key || !S.months[key]) key = currentKey(); if (!key) return; if (chart === 'savings') chart = 'trend';
   if (!keepTable) { const p = dialogCtx, back = p.sec === 'trends' ? 'trends' : p.sec === 'balances' ? 'balances' : SECTIONS.some(s => s.key === p.sec) ? 'editor:' + p.sec : 'page';
     dialogCtx = { back, via: cameFromTrends() ? 'trends' : null, from: p.from || null }; }
   dialogCtx.chart = chart; dialogCtx.key = key;
@@ -1257,27 +1257,19 @@ function openCharts(chart, key, keepTable) {
     table = tableHTML([barCol.title, 'Amount'], rows.map(r=>[r.label, r.value]), ['Total', total]);
   } else if (chart === 'trend') {
     const keys = yearKeys(key);
-    title = 'Month by month'; sub = `${key.slice(0,4)} · ${keys.length} month${keys.length===1?'':'s'} · net income, expenses and what was retained`;
+    title = 'Month by month'; sub = `${key.slice(0,4)} · ${keys.length} month${keys.length===1?'':'s'} · income, expenses, retained, savings and wealth building`;
+    const cs = keys.map(k => calc(S.months[k]));
     const series = [
-      {name:'Net Income', color:'var(--s-income)', values: keys.map(k=>calc(S.months[k]).net)},
-      {name:'Expenses', color:'var(--s-exp)', values: keys.map(k=>calc(S.months[k]).exp)},
-      {name:'Income Retained', color:'var(--s-ret)', values: keys.map(k=>calc(S.months[k]).retained)},
+      {name:'Net Income', color:'var(--s-income)', values: cs.map(c=>c.net)},
+      {name:'Expenses', color:'var(--s-exp)', values: cs.map(c=>c.exp)},
+      {name:'Income Retained', color:'var(--s-ret)', values: cs.map(c=>c.retained)},
+      {name:'Savings in cash', color:'var(--accent)', values: cs.map(c=>c.cash)},
+      {name:'Wealth building', color:'var(--s-wealth)', values: cs.map(c=>c.wealth)},
     ];
     body = keys.length > 1 ? lineChartHTML(series, keys.map(shortMonth)) : `<div class="empty">Add a second month in ${key.slice(0,4)} to see a trend.</div>`;
-    const kept = keys.filter(k=>calc(S.months[k]).retained>=0).length;
-    note = `${kept} of ${keys.length} months ended with money retained. Abnormal expenses and wealth building are included in the retained figure, so a big one-off month dips below zero even when regular expenses were covered.`;
-    table = tableHTML(['Month', ...series.map(s=>s.name)], keys.map((k,i)=>[monthLabel(k), ...series.map(s=>s.values[i])]));
-  } else if (chart === 'savings') {
-    const keys = yearKeys(key);
-    title = 'Savings & wealth building'; sub = `${key.slice(0,4)} · cash savings balance and monthly wealth building`;
-    const series = [
-      {name:'Savings in cash', color:'var(--s-income)', values: keys.map(k=>calc(S.months[k]).cash)},
-      {name:'Wealth building (monthly)', color:'var(--s-wealth)', values: keys.map(k=>calc(S.months[k]).wealth)},
-    ];
-    body = keys.length > 1 ? lineChartHTML(series, keys.map(shortMonth)) : `<div class="empty">Add a second month in ${key.slice(0,4)} to see a trend.</div>`;
-    const ytd = r2(keys.reduce((s,k)=>s+calc(S.months[k]).wealth,0));
-    note = `${fmt(ytd)} put toward wealth building so far in ${key.slice(0,4)}. Cash savings is the balance recorded under Balances each month.`;
-    table = tableHTML(['Month', ...series.map(s=>s.name)], keys.map((k,i)=>[monthLabel(k), ...series.map(s=>s.values[i])]), ['Wealth building total', '', ytd]);
+    const kept = cs.filter(c=>c.retained>=0).length, ytd = r2(cs.reduce((s,c)=>s+c.wealth,0)), sum = f => r2(cs.reduce((s,c)=>s+f(c),0));
+    note = `${kept} of ${keys.length} months ended with money retained; abnormal expenses and wealth building are included in that figure, so a big one-off month dips below zero even when regular expenses were covered. ${fmt(ytd)} has gone to wealth building so far in ${key.slice(0,4)}. Savings in cash is the balance recorded under Balances each month.`;
+    table = tableHTML(['Month', ...series.map(s=>s.name)], keys.map((k,i)=>[monthLabel(k), ...series.map(s=>s.values[i])]), [`${key.slice(0,4)} total`, sum(c=>c.net), sum(c=>c.exp), sum(c=>c.retained), '', ytd]);
   } else if (chart === 'debt') {
     const keys = yearKeys(key).filter(k => (S.months[k].cards||[]).length);
     const bk = keys.includes(key) ? key : keys[keys.length-1];
@@ -1297,7 +1289,7 @@ function openCharts(chart, key, keepTable) {
     <div class="dlg-head">${chartBack(key)}<div class="ttl"><h2>${esc(title)}</h2><span class="muted" style="font-size:13px">${esc(sub)}</span></div></div>
     <div class="tabs">${CHART_TABS.map(t => `<button class="tab ${t.id===chart?'on':''}" data-dact="tab" data-chart="${t.id}">${t.label}</button>`).join('')}</div>
     <div class="dlg-body"><div class="chart-area">${body}</div>${note?`<p class="chart-note">${note}</p>`:''}${dialogCtx.table ? table : ''}</div>
-    <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','debt','savings'].includes(chart) ? key.slice(0,4) + ' · resets each January' : esc(monthLabel(key))}</span><span class="sp"></span><button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button></div>`);
+    <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','debt'].includes(chart) ? key.slice(0,4) + ' · resets each January' : esc(monthLabel(key))}</span><span class="sp"></span><button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button></div>`);
   attachChartHover();
 }
 function tableHTML(head, rows, total) {
