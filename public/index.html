@@ -180,7 +180,8 @@ h3{font-size:16px;font-weight:700}
 .chrow{grid-template-columns:118px minmax(0,1fr) 92px auto 22px}
 .chrow input[type=date]{font-size:13px;padding:5px 4px}
 .chrow .paid{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);white-space:nowrap} .chrow .paid input{width:16px;height:16px;margin:0}
-.kcard.church{text-align:left;color:var(--ink)}
+.kcard.church,.kcard.year{text-align:left;color:var(--ink)}
+.year-t tr.pred td{color:var(--ink-2)} .year-t td.basis{font-size:11.5px;color:var(--ink-3);text-align:left;white-space:nowrap}
 @media (max-width:620px){ .chrow{grid-template-columns:minmax(0,1fr) 96px 36px;grid-template-areas:"label amt del" "date paid paid"} .chrow input[type=date]{grid-area:date} .chrow input[data-f=ch-label]{grid-area:label} .chrow .amtw{grid-area:amt} .chrow .paid{grid-area:paid;justify-content:flex-end} .chrow .icon{grid-area:del} }
 .yrow{display:flex;align-items:stretch;border-bottom:1px solid var(--line)} .yrow:last-child{border-bottom:0} .yrow .lrow{border-bottom:0;flex:1;min-width:0}
 .yrow .del{width:44px;height:auto;border-radius:0;color:var(--ink-3)} .yrow .del:hover{color:var(--bad);background:var(--bad-soft)}
@@ -702,6 +703,12 @@ function renderHome() {
         <div class="delta">${pc ? `${fmt(c.retained - pc.retained, {sign:true})} vs ${esc(shortMonth(prevKey))}` : 'first month on record'}</div>
         ${sparkline(retSeries, 'var(--s-ret)')}
       </div>
+      ${(() => { const yo = yearOutlook(); return `<button class="card click kcard year" data-act="year">
+        <div class="eyebrow">${yo.year} outlook</div>
+        <div class="big num ${signCls(yo.kept)}">${fmt(yo.kept)}</div>
+        <div class="delta">kept by year end · ${fmt(yo.net, {cents:false})} net income · ${yo.entered} of 12 months in${yo.last ? ` · ${fmt(yo.kept - yo.last.kept, {sign:true})} vs ${yo.prevYear}` : ''}</div>
+        ${sparkline(yo.cumKept, 'var(--s-ret)')}
+      </button>`; })()}
       <div class="card click kcard" data-act="chart" data-chart="debt" data-key="${withBal||cur}" role="button" tabindex="0">
         <div class="eyebrow">Total credit card debt</div>
         ${bm ? `<div class="big num">${fmt(bc.cc)}</div>
@@ -898,6 +905,74 @@ function openOutlook(key) {
     <div class="dlg-foot"><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
   dlg.style.maxWidth = '600px';
 }
+/* ---------- year outlook: what the calendar year will bring in and keep ----------
+   Months already entered count as they are; the current month uses its end-of-month outlook; each remaining
+   month starts from the same month last year, scaled by how this year's income and spending are running
+   against last year over the months both years have. Money carried over from the previous month is not
+   income made, so it is left out. Nothing is stored: it is recomputed from the month data on every draw. */
+const isCarry = l => /left over|carry|carried/i.test(l.label || '');
+function fig(net, exp, abn, wealth) { net = r2(net); exp = r2(exp); abn = r2(abn); wealth = r2(wealth); return { net, exp, abn, wealth, out: r2(exp + abn + wealth), kept: r2(net - exp - abn - wealth) }; }
+function yearFigures(m) {
+  const c = calc(m), carry = r2((m.income || []).filter(isCarry).reduce((s, l) => s + lineAmt(l), 0));
+  return fig(c.net - carry, c.exp, c.abn, c.wealth);
+}
+function currentFigures(key) { const o = outlook(key); return fig(o.g.income.filter(r => !isCarry(r)).reduce((s, r) => s + r.expected, 0), o.exp, o.abn, o.wl); }
+const avgFig = pool => { const n = pool.length || 1, s = k => pool.reduce((t, f) => t + f[k], 0) / n; return fig(s('net'), s('exp'), s('abn'), s('wealth')); };
+function yearOutlook(year = String(new Date().getFullYear())) {
+  const prevYear = String(+year - 1), curKey = todayKey(), mk = (y, mth) => `${y}-${String(mth).padStart(2, '0')}`;
+  const prevF = mth => S.months[mk(prevYear, mth)] ? yearFigures(S.months[mk(prevYear, mth)]) : null;
+  const months = [];
+  for (let mth = 1; mth <= 12; mth++) { const k = mk(year, mth), m = S.months[k];
+    if (m && k === curKey) months.push({ key: k, kind: 'current', f: currentFigures(k), sofar: yearFigures(m), basis: 'this month’s outlook' });
+    else if (m) months.push({ key: k, kind: 'actual', f: yearFigures(m), sofar: yearFigures(m), basis: 'entered' });
+    else months.push({ key: k, kind: 'predicted', f: null, sofar: null, basis: '' }); }
+  // how this year is running against the same months last year
+  let tin = 0, lin = 0, tout = 0, lout = 0;
+  for (const x of months) if (x.kind === 'actual') { const p = prevF(+x.key.slice(5)); if (p) { tin += x.f.net; lin += p.net; tout += x.f.out; lout += p.out; } }
+  const clamp = r => Math.min(2, Math.max(.5, r));
+  const rIn = lin > 0 ? clamp(tin / lin) : 1, rOut = lout > 0 ? clamp(tout / lout) : 1, matched = lin > 0 || lout > 0;
+  const pool = months.filter(x => x.kind === 'actual').map(x => x.f); if (!pool.length) { const c = months.find(x => x.kind === 'current'); if (c) pool.push(c.f); }
+  const lastMonths = Array.from({ length: 12 }, (_, i) => prevF(i + 1)).filter(Boolean);
+  const fallback = pool.length ? { f: avgFig(pool), basis: `${year} average` } : lastMonths.length ? { f: avgFig(lastMonths), basis: `${prevYear} average` } : { f: fig(0, 0, 0, 0), basis: 'no data yet' };
+  for (const x of months) if (x.kind === 'predicted') { const p = prevF(+x.key.slice(5));
+    if (p) { x.f = fig(p.net * rIn, p.exp * rOut, p.abn * rOut, p.wealth * rOut); x.basis = `from ${shortMonth(x.key)} ${prevYear}`; } else { x.f = fallback.f; x.basis = fallback.basis; }
+    if (x.key < curKey) x.basis = 'no record · ' + x.basis; }
+  const sum = (arr, k) => r2(arr.reduce((s, x) => s + (x ? x[k] : 0), 0));
+  const figs = months.map(x => x.f), sofar = months.map(x => x.sofar).filter(Boolean);
+  let run = 0; const cumKept = figs.map(f => run = r2(run + f.kept));
+  let lrun = 0; const lastCum = lastMonths.length ? Array.from({ length: 12 }, (_, i) => { const p = prevF(i + 1); return lrun = r2(lrun + (p ? p.kept : 0)); }) : null;
+  const last = lastMonths.length ? { net: sum(lastMonths, 'net'), exp: sum(lastMonths, 'exp'), abn: sum(lastMonths, 'abn'), wealth: sum(lastMonths, 'wealth'), kept: sum(lastMonths, 'kept'), n: lastMonths.length } : null;
+  const firstPred = months.findIndex(x => x.kind !== 'actual');
+  return { year, prevYear, months, net: sum(figs, 'net'), exp: sum(figs, 'exp'), abn: sum(figs, 'abn'), wealth: sum(figs, 'wealth'), kept: sum(figs, 'kept'),
+    sofar: { net: sum(sofar, 'net'), exp: sum(sofar, 'exp'), abn: sum(sofar, 'abn'), wealth: sum(sofar, 'wealth'), kept: sum(sofar, 'kept') },
+    entered: months.filter(x => x.kind !== 'predicted').length, rIn, rOut, matched, last, cumKept, lastCum, dashFrom: firstPred < 0 ? 12 : firstPred };
+}
+function openYearOutlook() {
+  const yo = yearOutlook(), pct = r => `${r >= 1 ? '+' : '−'}${Math.round(Math.abs(r - 1) * 100)}%`; dialogCtx = { sec: 'year-outlook' };
+  const series = [{ name: `${yo.year} kept (running total)`, color: 'var(--s-ret)', values: yo.cumKept, dashFrom: yo.dashFrom }];
+  if (yo.lastCum) series.push({ name: `${yo.prevYear} kept`, color: 'var(--ink-3)', values: yo.lastCum });
+  const labels = yo.months.map(x => shortMonth(x.key));
+  openOverlay(`<div class="dlg-head"><div class="ttl"><h2>${yo.year} outlook</h2><span class="muted" style="font-size:13px">January to December · ${yo.entered} of 12 months in · resets each January</span></div><button class="icon x" data-dact="close">${ICON.x}</button></div>
+    <div class="dlg-body">
+      <div class="okv num">
+        <span class="k">Net income so far</span><span class="v">${fmt(yo.sofar.net)}</span>
+        <span class="k">Kept so far</span><span class="v ${signCls(yo.sofar.kept)}">${fmt(yo.sofar.kept)}</span>
+        <span class="k" style="margin-top:8px">Projected net income for ${yo.year}</span><span class="v" style="margin-top:8px">+ ${fmt(yo.net)}</span>
+        <span class="k">Projected expenses${yo.abn ? ' (incl. abnormal)' : ''}</span><span class="v">− ${fmt(r2(yo.exp + yo.abn))}</span>
+        <span class="k">Projected wealth building</span><span class="v">− ${fmt(yo.wealth)}</span>
+        <span class="k tot">Projected kept by year end</span><span class="v tot ${signCls(yo.kept)}">${fmt(yo.kept)}</span>
+        ${yo.last ? `<span class="k faint">${yo.prevYear}: ${fmt(yo.last.net)} net income, ${fmt(yo.last.kept)} kept${yo.last.n < 12 ? ` (${yo.last.n} months)` : ''}</span><span class="v faint ${signCls(yo.kept - yo.last.kept)}">${fmt(yo.kept - yo.last.kept, {sign:true})}</span>` : ''}
+      </div>
+      <p class="chart-note">${yo.matched ? `Against the same months of ${yo.prevYear}, income is running ${pct(yo.rIn)} and spending ${pct(yo.rOut)}; the months still to come start from last year's figures scaled by that.` : yo.last ? `No month of ${yo.year} has a matching month in ${yo.prevYear} yet, so remaining months use last year's figures as they were.` : `There is no ${yo.prevYear} data, so the months still to come use this year's monthly average.`} The current month uses its end-of-month outlook. Money left over from the previous month is not counted as income.</p>
+      <div class="chart-area">${lineChartHTML(series, labels, { height: 260 })}</div>
+      <div class="tscroll"><table class="vtable year-t"><thead><tr><th>Month</th><th>Net income</th><th>Expenses</th><th>Wealth</th><th>Kept</th><th style="text-align:left">Basis</th></tr></thead><tbody>
+        ${yo.months.map(x => `<tr class="${x.kind === 'actual' ? '' : 'pred'}"><td>${shortMonth(x.key)}</td><td>${fmt(x.f.net)}</td><td>${fmt(r2(x.f.exp + x.f.abn))}</td><td>${fmt(x.f.wealth)}</td><td class="${signCls(x.f.kept)}">${fmt(x.f.kept)}</td><td class="basis">${esc(x.basis)}</td></tr>`).join('')}
+        <tr style="font-weight:600"><td>${yo.year}</td><td>${fmt(yo.net)}</td><td>${fmt(r2(yo.exp + yo.abn))}</td><td>${fmt(yo.wealth)}</td><td class="${signCls(yo.kept)}">${fmt(yo.kept)}</td><td class="basis">${yo.entered} entered · ${12 - yo.entered} predicted</td></tr>
+      </tbody></table></div>
+    </div>
+    <div class="dlg-foot"><span class="muted" style="font-size:12px">Updates as soon as anything in a month changes.</span><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
+  dlg.style.maxWidth = '680px'; attachChartHover();
+}
 const BAL_GROUPS = [
   { key: 'cards',    title: 'Credit card balances',       sw: 'debt',   sub: m => `${(m.cards||[]).filter(x=>x.amount).length} with a balance` },
   { key: 'savings',  title: 'Savings in cash',            sw: 'income', sub: m => `${(m.savings||[]).length} account${(m.savings||[]).length===1?'':'s'}` },
@@ -1012,7 +1087,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del','undo'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del','undo','year'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && act !== 'chart') return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': if (dlg.open) closeOverlay(); location.hash = '#/m/' + t.dataset.key; break;
@@ -1020,6 +1095,7 @@ async function onAction(e) {
     case 'outlook': openOutlook(key); break;
     case 'balances': openBalances(t.dataset.key || key); break;
     case 'church': openChurch(); break;
+    case 'year': openYearOutlook(); break;
     case 'undo': undoAmount(t.dataset.for); break;
     case 'ch-add': { S.church = S.church || []; const r = { id: uid(), date: today(), label: '', amount: 0, paid: false }; S.church.push(r); Store.markChurch(); refreshEditor(); const inp = $('#f-' + r.id + '-label'); if (inp) inp.focus(); break; }
     case 'ch-del': { const row = t.closest('[data-ch]'); const r = (S.church || []).find(x => x.id === row.dataset.ch); if (!r) break; if ((r.amount || r.label) && !(await ask(`Remove “${r.label || 'this expense'}” (${fmt(r.amount)})?`, 'Remove'))) break; S.church = S.church.filter(x => x.id !== r.id); Store.markChurch(); refreshEditor(); break; }
@@ -1212,8 +1288,10 @@ function lineChartHTML(series, labels, {height=300}={}) {
   const n = labels.length; const x = i => ml + (n>1 ? i/(n-1) : .5) * (W-ml-mr); const y = v => mt + (1 - (v-lo)/((hi-lo)||1)) * (H-mt-mb);
   const grid = ticks.map(t => `<line class="${t===0?'zero':''}" x1="${ml}" x2="${W-mr}" y1="${y(t)}" y2="${y(t)}"/><text x="${ml-8}" y="${y(t)+4}" text-anchor="end">${t===0?'0':fmt(t,{cents:false}).replace('−','−')}</text>`).join('');
   const xl = labels.map((l,i) => `<text x="${x(i)}" y="${H-8}" text-anchor="middle">${esc(l)}</text>`).join('');
-  const paths = series.map((s,si) => { const d = s.values.map((v,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' '); const last = s.values.length-1;
-    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  const paths = series.map((s,si) => { const pt = i => `${x(i).toFixed(1)},${y(s.values[i]).toFixed(1)}`, last = s.values.length-1, df = s.dashFrom ?? s.values.length;
+    const seg = (a, b) => a < b ? s.values.slice(a, b + 1).map((v,i)=>`${i?'L':'M'}${pt(a + i)}`).join(' ') : '';
+    const d = seg(0, Math.min(df - 1, last)), dd = df <= last ? seg(Math.max(df - 1, 0), last) : '';
+    return `${d?`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`:''}${dd?`<path d="${dd}" fill="none" stroke="${s.color}" stroke-width="2" stroke-dasharray="6 5" stroke-linejoin="round" stroke-linecap="round"/>`:''}
       <circle class="mk" cx="${x(last)}" cy="${y(last)}" r="4.5" fill="${s.color}"/>
       ${series.length<=4?`<text class="endlab" x="${x(last)+10}" y="${y(last)+4}">${esc(s.name.replace('Income Retained','Retained').replace('Net Income','Net income'))}</text>`:''}
       ${s.values.map((v,i)=>`<circle class="mk hl" data-hl="${i}" cx="${x(i)}" cy="${y(v)}" r="4" fill="${s.color}"/>`).join('')}`; }).join('');
