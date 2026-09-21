@@ -26,6 +26,7 @@ data is ours; the code is here for anyone.)
 - **End-of-month outlook** — starts from what last month left over and assumes every income, expense and wealth-building line reaches at least its usual amount (average of the last three months it had a value); abnormal expenses count only as entered. Tap the card for the line-by-line breakdown.
 - **LDS church expenses** — a separate reimbursable ledger at the bottom of the home page (date, description, amount, paid), with a graph of spend per month; a pencil in its window renames it. Stored on its own and never counted in any budget figure.
 - **Backup / restore** as JSON.
+- **Rename the budget** — tap its name in the header; the name is shared (Firestore ). The header stays quiet: no sync pill unless something failed to save.
 - **Month picker** on the home page and in the month header to jump anywhere in one tap.
 - **Update button** appears when a new version is deployed; one tap reloads to it.
 - **Phone-first**: single-column layout, large touch targets, full-screen overlays,

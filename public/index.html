@@ -70,8 +70,8 @@ a{color:var(--accent)}
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .top .wrap{display:flex;align-items:center;gap:18px;padding-block:12px}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)}
-.brand .mark{width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:16px;letter-spacing:-.02em}
-.brand .name{font-family:var(--display);font-weight:800;font-size:19px;letter-spacing:-.02em;font-variation-settings:"opsz" 96}
+.brand .name{font-family:var(--display);font-weight:800;font-size:19px;letter-spacing:-.02em;font-variation-settings:"opsz" 96;background:none;border:0;padding:0;color:inherit;cursor:pointer;text-align:left}
+.app-title-inp{font-family:var(--display);font-weight:800;font-size:19px;letter-spacing:-.02em;padding:2px 6px;border:1px solid var(--accent-line);border-radius:6px;width:min(60vw,260px);min-width:0}
 .top nav{display:flex;gap:4px;margin-left:auto;align-items:center}
 .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);white-space:nowrap}
 .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-3)}
@@ -368,9 +368,9 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
 </style>
 
 <header class="top"><div class="wrap">
-  <span class="brand"><span class="mark">TB</span><span class="name">Thomas Budget</span></span>
+  <span class="brand"><button class="name" id="brand" data-act="rename-app" title="Tap to rename the budget">Thomas Budget</button></span>
   <nav>
-    <span class="pill local" id="sync"><span class="dot"></span><span id="sync-t">Connecting…</span></span>
+    <span class="pill local" id="sync" hidden><span class="dot"></span><span id="sync-t">Connecting…</span></span>
     <button id="upd" class="btn primary sm" hidden title="A new version is ready">Update</button>
     <span id="who"></span>
   </nav>
@@ -421,7 +421,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], churchTitle:'', ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', title:'', ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -472,7 +472,7 @@ function calc(m) {
   return { net, exp, abn, wealth, perf:r2(net-exp-abn), exAbn:r2(net-exp), retained:r2(net-exp-abn-wealth), cc:sumFlat(m.cards), cash:sumFlat(m.savings) };
 }
 function toast(msg, ms=2200) { const t=$('#toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('on'), ms); }
-function setSync(state, text) { const p=$('#sync'); p.className='pill '+state; $('#sync-t').textContent=text; }
+function setSync(state, text) { const p=$('#sync'); p.className='pill '+state; p.hidden = state !== 'bad'; $('#sync-t').textContent=text; }
 const ICON = {
   chart: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 13h12M4 10V7M8 10V4M12 10V6"/></svg>',
   undo: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L2.5 7 6 10.5"/><path d="M2.5 7h7a3.5 3.5 0 0 1 0 7H8"/></svg>',
@@ -496,7 +496,7 @@ const Store = {
       try { await this.initFirebase(); return; }
       catch (e) { console.error(e); S.ready = true; setSync('bad', 'Offline'); app.innerHTML = '<div class="empty card" style="margin-top:40px"><h2>Can’t reach the budget right now</h2><p>Check your connection and reload.</p><button class="btn primary" onclick="location.reload()">Reload</button></div>'; return; }
     }
-    S.mode = 'local'; this.loadLocal(); setSync('local', 'Saved on this device'); render(); ensureCurrentMonth();
+    S.mode = 'local'; this.loadLocal(); setSync('local', 'Saved on this device'); renderBrand(); render(); ensureCurrentMonth();
   },
   async initFirebase() {
     S.mode = 'firebase'; setSync('busy', 'Connecting…');
@@ -543,9 +543,14 @@ const Store = {
       requestRender();
       if (!snap.metadata.fromCache) ensureCurrentMonth();
     }, err => this.onError(err)));
+    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; renderBrand(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.doc(db, 'ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; S.churchTitle = snap.exists() ? String(snap.data().title || '') : ''; requestRender(); }, err => this.onError(err)));
   },
   markChurch() { this._churchDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._churchTimer); this._churchTimer = setTimeout(() => this.saveChurch(), 700); },
+  saveTitle() {
+    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { title: S.title || '' }, { merge: true }), 'the budget name'); }
+    else this.saveLocal();
+  },
   saveChurch() {
     this._churchDirty = false; clearTimeout(this._churchTimer);
     if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'ledgers', 'church'), { rows: S.church, title: S.churchTitle || '' }), 'church expenses'); }
@@ -557,10 +562,10 @@ const Store = {
     else { setSync('bad', 'Sync problem'); toast('Sync problem: ' + code); S.ready = true; requestRender(); }
   },
   loadLocal() {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; } } catch (e) {}
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; } } catch (e) {}
     S.ready = true;
   },
-  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
+  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
   markDirty(key) { dirty[key] = true; const mm = S.months[key]; if (mm) { mm.updatedOn = today(); $$('[data-updated]').forEach(el => { el.textContent = 'Updated ' + fmtDate(mm.updatedOn); }); } setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
   write(fn, what) { // fire-and-forget: the SDK queues the write locally; report only failures
     Promise.resolve().then(fn).then(() => { if (!Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced'); })
@@ -588,7 +593,7 @@ const Store = {
     else this.saveLocal();
   },
   /* ---- backup & restore (JSON) ---- */
-  backupJSON() { return JSON.stringify({ app: 'thomas-budget', version: 1, exportedAt: new Date().toISOString(), months: S.months, church: S.church, churchTitle: S.churchTitle }, null, 1); },
+  backupJSON() { return JSON.stringify({ app: 'thomas-budget', version: 1, exportedAt: new Date().toISOString(), months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title }, null, 1); },
   parseBackup(text) {
     let d; try { d = JSON.parse(text); } catch (e) { throw new Error('That file is not valid JSON'); }
     const safeId = id => (typeof id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(id)) ? id : uid();
@@ -606,12 +611,14 @@ const Store = {
     if (!Object.keys(months).length) throw new Error('No months found in that file');
     const church = (d && !Array.isArray(d) && Array.isArray(d.church) ? d.church : []).filter(r => r && /^\d{4}-\d{2}-\d{2}$/.test(String(r.date || ''))).map(r => ({ id: safeId(r.id), date: String(r.date), label: String(r.label || '').slice(0, 120), amount: r2(r.amount), paid: !!r.paid }));
     const churchTitle = d && !Array.isArray(d) && typeof d.churchTitle === 'string' ? d.churchTitle.slice(0, 60) : '';
-    return { months, church, churchTitle };
+    const title = d && !Array.isArray(d) && typeof d.title === 'string' ? d.title.slice(0, 40) : '';
+    return { months, church, churchTitle, title };
   },
   async restore(data) {
     setSync('busy', 'Restoring…');
     let n = 0;
     for (const key of Object.keys(data.months).sort()) { S.months[key] = data.months[key]; this.saveMonthNow(key); n++; }
+    if (data.title) { S.title = data.title; this.saveTitle(); renderBrand(); }
     if ((data.church && data.church.length) || data.churchTitle) { if (data.church.length) S.church = data.church; if (data.churchTitle) S.churchTitle = data.churchTitle; this.saveChurch(); }
     S.dbEmpty = false; if (S.mode !== 'firebase') setSync('local', 'Saved on this device'); toast(`Restored ${n} month${n === 1 ? '' : 's'}`); render();
   }
@@ -631,19 +638,19 @@ function currentKey() { const keys = sortedKeys(); if (!keys.length) return null
 
 function renderNav() {
   const who = $('#who'); if (!who) return;
-  if (S.mode === 'firebase' && S.user) who.innerHTML = `<button class="btn ghost sm" data-act="sign-out" title="Signed in as ${esc(S.user.email)}">${S.user.photo ? `<img src="${esc(S.user.photo)}" alt="" width="18" height="18" style="border-radius:50%" referrerpolicy="no-referrer">` : ''}<span>Sign out</span></button>`;
+  if (S.mode === 'firebase' && S.user) who.innerHTML = `<button class="btn sm" data-act="sign-out" title="Signed in as ${esc(S.user.email)}">${S.user.photo ? `<img src="${esc(S.user.photo)}" alt="" width="18" height="18" style="border-radius:50%" referrerpolicy="no-referrer">` : ''}<span>Sign out</span></button>`;
   else who.innerHTML = '';
 }
 function renderSignIn() {
   app.innerHTML = `<div class="empty card" style="margin-top:40px;max-width:460px;margin-inline:auto">
-    <div class="eyebrow">Thomas Budget</div><h2 style="margin-top:6px">Sign in to open the budget</h2>
+    <div class="eyebrow">${esc(appTitle())}</div><h2 style="margin-top:6px">Sign in to open the budget</h2>
     <p style="max-width:40ch;margin:8px auto 18px">Use the Google account that has been given access. Everything you enter is shared live with the other person on the budget.</p>
     <button class="btn primary" data-act="sign-in" style="font-size:15px;padding:12px 20px"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.6 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.8 6C12.3 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.8-6A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.7-4.1-13.6-9.9l-7.8 6C6.5 42.6 14.6 48 24 48z"/></svg> Sign in with Google</button>
   </div>`;
 }
 function renderDenied() {
   app.innerHTML = `<div class="empty card" style="margin-top:40px;max-width:460px;margin-inline:auto">
-    <div class="eyebrow">Thomas Budget</div><h2 style="margin-top:6px">This account isn’t on the budget</h2>
+    <div class="eyebrow">${esc(appTitle())}</div><h2 style="margin-top:6px">This account isn’t on the budget</h2>
     <p style="max-width:42ch;margin:8px auto 18px">You’re signed in as <b>${esc(S.user ? S.user.email : '')}</b>, but only the two accounts listed in the budget’s security rules can open it. Try the other Google account, or ask to have this one added.</p>
     <button class="btn" data-act="sign-out">Switch account</button>
   </div>`;
@@ -669,7 +676,7 @@ function renderHome() {
   const keys = sortedKeys();
   if (!keys.length) {
     app.innerHTML = `<div class="empty card" style="margin-top:40px">
-      <div class="eyebrow">Welcome</div><h2 style="margin-top:6px">Thomas Budget</h2>
+      <div class="eyebrow">Welcome</div><h2 style="margin-top:6px">${esc(appTitle())}</h2>
       <p>One page per month: what came in, what went out, what went to building wealth, and what you kept.</p>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px">
         <button class="btn primary" data-act="restore">Restore from a backup file</button>
@@ -715,7 +722,7 @@ function renderHome() {
       ${t.months.length > 1 ? sparkline(t.months.map(x=>x.total), 'var(--s-wealth)') : ''}
     </button>`; })()}
   </section>
-  <footer class="foot"><span>Thomas Budget</span><button class="btn ghost sm" data-act="backup">Back up</button><button class="btn ghost sm" data-act="restore">Restore</button><span class="sp"></span><span>${S.mode==='firebase'?`Shared live · signed in as ${esc(S.user?S.user.email:'')}`:'Data is stored in this browser only'}</span></footer>`;
+  <footer class="foot"><span>${esc(appTitle())}</span><button class="btn ghost sm" data-act="backup">Back up</button><button class="btn ghost sm" data-act="restore">Restore</button><span class="sp"></span><span>${S.mode==='firebase'?`Shared live · signed in as ${esc(S.user?S.user.email:'')}`:'Data is stored in this browser only'}</span></footer>`;
 }
 
 /* ----- month view ----- */
@@ -883,6 +890,8 @@ function openOutlook(key) {
    month starts from the same month last year, scaled by how this year's income and spending are running
    against last year over the months both years have. Money carried over from the previous month is not
    income made, so it is left out. Nothing is stored: it is recomputed from the month data on every draw. */
+const appTitle = () => (S.title || '').trim() || 'Thomas Budget';
+function renderBrand() { const b = $('#brand'); if (b) b.textContent = appTitle(); document.title = appTitle(); }
 const churchTitle = () => (S.churchTitle || '').trim() || 'LDS church expenses';
 const isCarry = l => /left over|carry|carried/i.test(l.label || '');
 function fig(net, exp, abn, wealth) { net = r2(net); exp = r2(exp); abn = r2(abn); wealth = r2(wealth); return { net, exp, abn, wealth, out: r2(exp + abn + wealth), kept: r2(net - exp - abn - wealth) }; }
@@ -1096,7 +1105,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del','ch-rename','undo','year','trends'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del','ch-rename','rename-app','undo','year','trends'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': if (dlg.open) closeOverlay(); location.hash = '#/m/' + t.dataset.key; break;
@@ -1107,6 +1116,12 @@ async function onAction(e) {
     case 'year': openYearOutlook(); break;
     case 'trends': openTrends(t.dataset.key || key); break;
     case 'undo': undoAmount(t.dataset.for); break;
+    case 'rename-app': { const b = $('#brand'); if (!b || b.tagName === 'INPUT') break;
+      const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'app-title-inp'; inp.maxLength = 40; inp.value = appTitle(); inp.setAttribute('aria-label', 'Budget name'); inp.autocomplete = 'off';
+      const done = () => { S.title = inp.value.trim().slice(0, 40); const nb = document.createElement('button'); nb.className = 'name'; nb.id = 'brand'; nb.dataset.act = 'rename-app'; nb.title = 'Tap to rename the budget'; inp.replaceWith(nb); renderBrand(); Store.saveTitle(); if (!viewKey()) render(); };
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); inp.blur(); } });
+      inp.addEventListener('blur', done, { once: true });
+      b.replaceWith(inp); inp.focus(); inp.select(); break; }
     case 'ch-rename': { const span = $('[data-church-title]'); if (!span) break; const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'ch-title-inp'; inp.dataset.f = 'ch-title'; inp.maxLength = 60; inp.value = churchTitle(); inp.setAttribute('aria-label', 'Name'); inp.autocomplete = 'off'; span.replaceWith(inp); inp.focus(); inp.select(); break; }
     case 'ch-add': { S.church = S.church || []; const r = { id: uid(), date: today(), label: '', amount: 0, paid: false }; S.church.push(r); Store.markChurch(); refreshEditor(); const inp = $('#f-' + r.id + '-label'); if (inp) inp.focus(); break; }
     case 'ch-del': { const row = t.closest('[data-ch]'); const r = (S.church || []).find(x => x.id === row.dataset.ch); if (!r) break; if ((r.amount || r.label) && !(await ask(`Remove “${r.label || 'this expense'}” (${fmt(r.amount)})?`, 'Remove'))) break; S.church = S.church.filter(x => x.id !== r.id); Store.markChurch(); refreshEditor(); break; }
