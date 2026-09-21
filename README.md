@@ -24,7 +24,7 @@ data is ours; the code is here for anyone.)
 - **Undo on every amount box** — each box remembers what it held before each edit; a small ↶ appears inside it after a change and steps back one edit at a time, in every section (income, expenses, budgets, balances, breakdown items, the church ledger).
 - **Year outlook** — projects net income and money kept by December 31. Entered months count as they are, the current month uses its end-of-month outlook, and each remaining month starts from the same month last year scaled by how this year is running against it (falling back to this year's average). Compared with last year, charted as a running total with the predicted part dashed; resets every January and recomputes on every edit.
 - **End-of-month outlook** — starts from what last month left over and assumes every income, expense and wealth-building line reaches at least its usual amount (average of the last three months it had a value); abnormal expenses count only as entered. Tap the card for the line-by-line breakdown.
-- **LDS church expenses** — a separate reimbursable ledger at the bottom of the home page (date, description, amount, paid), with a graph of spend per month. Stored on its own and never counted in any budget figure.
+- **LDS church expenses** — a separate reimbursable ledger at the bottom of the home page (date, description, amount, paid), with a graph of spend per month; a pencil in its window renames it. Stored on its own and never counted in any budget figure.
 - **Backup / restore** as JSON.
 - **Month picker** on the home page and in the month header to jump anywhere in one tap.
 - **Update button** appears when a new version is deployed; one tap reloads to it.

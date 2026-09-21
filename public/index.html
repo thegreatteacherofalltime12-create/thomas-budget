@@ -180,6 +180,8 @@ h3{font-size:16px;font-weight:700}
 .chrow{grid-template-columns:118px minmax(0,1fr) 92px auto 22px}
 .chrow input[type=date]{font-size:13px;padding:5px 4px}
 .chrow .paid{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);white-space:nowrap} .chrow .paid input{width:16px;height:16px;margin:0}
+.ch-title{display:flex;align-items:center;gap:6px;min-width:0} .ch-title .pencil{width:26px;height:26px;color:var(--ink-3);flex:none} .ch-title .pencil:hover{color:var(--accent);background:var(--accent-soft)}
+.ch-title-inp{font:inherit;font-size:19px;font-weight:600;padding:2px 6px;border:1px solid var(--accent-line);border-radius:6px;min-width:0;width:min(100%,280px)}
 .kcard.church,.kcard.year,.kcard.trends{text-align:left;color:var(--ink);width:100%}
 .year-t tr.pred td{color:var(--ink-2)} .year-t td.basis{font-size:11.5px;color:var(--ink-3);text-align:left;white-space:nowrap}
 @media (max-width:620px){ .chrow{grid-template-columns:minmax(0,1fr) 96px 36px;grid-template-areas:"label amt del" "date paid paid"} .chrow input[type=date]{grid-area:date} .chrow input[data-f=ch-label]{grid-area:label} .chrow .amtw{grid-area:amt} .chrow .paid{grid-area:paid;justify-content:flex-end} .chrow .icon{grid-area:del} }
@@ -419,7 +421,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -474,6 +476,7 @@ function setSync(state, text) { const p=$('#sync'); p.className='pill '+state; $
 const ICON = {
   chart: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 13h12M4 10V7M8 10V4M12 10V6"/></svg>',
   undo: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L2.5 7 6 10.5"/><path d="M2.5 7h7a3.5 3.5 0 0 1 0 7H8"/></svg>',
+  pencil: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11.3 2.7l2 2L5.5 12.5H3.5v-2z"/><path d="M9.8 4.2l2 2"/></svg>',
   x: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
   plus: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
   chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l5 5-5 5"/></svg>',
@@ -540,12 +543,12 @@ const Store = {
       requestRender();
       if (!snap.metadata.fromCache) ensureCurrentMonth();
     }, err => this.onError(err)));
-    this._unsubs.push(F.onSnapshot(F.doc(db, 'ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; requestRender(); }, err => this.onError(err)));
+    this._unsubs.push(F.onSnapshot(F.doc(db, 'ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; S.churchTitle = snap.exists() ? String(snap.data().title || '') : ''; requestRender(); }, err => this.onError(err)));
   },
   markChurch() { this._churchDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._churchTimer); this._churchTimer = setTimeout(() => this.saveChurch(), 700); },
   saveChurch() {
     this._churchDirty = false; clearTimeout(this._churchTimer);
-    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'ledgers', 'church'), { rows: S.church }), 'church expenses'); }
+    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'ledgers', 'church'), { rows: S.church, title: S.churchTitle || '' }), 'church expenses'); }
     else this.saveLocal();
   },
   onError(err) {
@@ -554,10 +557,10 @@ const Store = {
     else { setSync('bad', 'Sync problem'); toast('Sync problem: ' + code); S.ready = true; requestRender(); }
   },
   loadLocal() {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; } } catch (e) {}
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; } } catch (e) {}
     S.ready = true;
   },
-  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
+  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
   markDirty(key) { dirty[key] = true; const mm = S.months[key]; if (mm) { mm.updatedOn = today(); $$('[data-updated]').forEach(el => { el.textContent = 'Updated ' + fmtDate(mm.updatedOn); }); } setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
   write(fn, what) { // fire-and-forget: the SDK queues the write locally; report only failures
     Promise.resolve().then(fn).then(() => { if (!Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced'); })
@@ -585,7 +588,7 @@ const Store = {
     else this.saveLocal();
   },
   /* ---- backup & restore (JSON) ---- */
-  backupJSON() { return JSON.stringify({ app: 'thomas-budget', version: 1, exportedAt: new Date().toISOString(), months: S.months, church: S.church }, null, 1); },
+  backupJSON() { return JSON.stringify({ app: 'thomas-budget', version: 1, exportedAt: new Date().toISOString(), months: S.months, church: S.church, churchTitle: S.churchTitle }, null, 1); },
   parseBackup(text) {
     let d; try { d = JSON.parse(text); } catch (e) { throw new Error('That file is not valid JSON'); }
     const safeId = id => (typeof id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(id)) ? id : uid();
@@ -602,13 +605,14 @@ const Store = {
     }
     if (!Object.keys(months).length) throw new Error('No months found in that file');
     const church = (d && !Array.isArray(d) && Array.isArray(d.church) ? d.church : []).filter(r => r && /^\d{4}-\d{2}-\d{2}$/.test(String(r.date || ''))).map(r => ({ id: safeId(r.id), date: String(r.date), label: String(r.label || '').slice(0, 120), amount: r2(r.amount), paid: !!r.paid }));
-    return { months, church };
+    const churchTitle = d && !Array.isArray(d) && typeof d.churchTitle === 'string' ? d.churchTitle.slice(0, 60) : '';
+    return { months, church, churchTitle };
   },
   async restore(data) {
     setSync('busy', 'Restoring…');
     let n = 0;
     for (const key of Object.keys(data.months).sort()) { S.months[key] = data.months[key]; this.saveMonthNow(key); n++; }
-    if (data.church && data.church.length) { S.church = data.church; this.saveChurch(); }
+    if ((data.church && data.church.length) || data.churchTitle) { if (data.church.length) S.church = data.church; if (data.churchTitle) S.churchTitle = data.churchTitle; this.saveChurch(); }
     S.dbEmpty = false; if (S.mode !== 'firebase') setSync('local', 'Saved on this device'); toast(`Restored ${n} month${n === 1 ? '' : 's'}`); render();
   }
 };
@@ -705,7 +709,7 @@ function renderHome() {
 
   <section class="section">
     ${(() => { const t = churchTotals(); return `<button class="card click kcard church" data-act="church">
-      <div class="eyebrow">LDS church expenses · ${t.year}</div>
+      <div class="eyebrow">${esc(churchTitle())} · ${t.year}</div>
       <div class="big num">${fmt(t.spent)}</div>
       <div class="delta">${t.outstanding ? `${fmt(t.outstanding)} awaiting reimbursement` : t.count ? 'all reimbursed' : 'nothing recorded yet'} · ${t.count} entr${t.count===1?'y':'ies'} · kept separate from the budget</div>
       ${t.months.length > 1 ? sparkline(t.months.map(x=>x.total), 'var(--s-wealth)') : ''}
@@ -831,7 +835,7 @@ function churchTotals(year = String(new Date().getFullYear())) {
 }
 function churchChart() {
   const t = churchTotals();
-  return t.months.length > 1 ? lineChartHTML([{ name: 'Spent per month', color: 'var(--s-wealth)', values: t.months.map(x => x.total) }], t.months.map(x => shortMonth(x.key)), { height: 220 }) : '<div class="faint" style="padding:8px">The graph appears from February on.</div>';
+  return t.months.length > 1 && t.spent ? lineChartHTML([{ name: 'Spent per month', color: 'var(--s-wealth)', values: t.months.map(x => x.total) }], t.months.map(x => shortMonth(x.key)), { height: 220 }) : `<div class="faint" style="padding:8px">${t.spent ? 'The graph appears from February on.' : 'The graph appears once an expense is recorded.'}</div>`;
 }
 function churchBody() {
   const t = churchTotals(); const rows = [...(S.church || [])].sort((a, b) => a.date < b.date ? 1 : -1);
@@ -846,7 +850,7 @@ function churchBody() {
 }
 function openChurch() {
   dialogCtx = { sec: 'church' };
-  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>LDS church expenses</h2><span class="muted" style="font-size:13px">Reimbursable — not part of the budget figures</span></div></div>
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2 class="ch-title"><span data-church-title>${esc(churchTitle())}</span><button class="icon pencil" data-act="ch-rename" title="Rename" aria-label="Rename">${ICON.pencil}</button></h2><span class="muted" style="font-size:13px">Reimbursable — not part of the budget figures</span></div></div>
     <div class="dlg-body editor">${churchBody()}</div>
     <div class="dlg-foot"><button class="btn sm" data-act="ch-add">${ICON.plus} Add expense</button></div>`);
   dlg.style.maxWidth = '640px';
@@ -879,6 +883,7 @@ function openOutlook(key) {
    month starts from the same month last year, scaled by how this year's income and spending are running
    against last year over the months both years have. Money carried over from the previous month is not
    income made, so it is left out. Nothing is stored: it is recomputed from the month data on every draw. */
+const churchTitle = () => (S.churchTitle || '').trim() || 'LDS church expenses';
 const isCarry = l => /left over|carry|carried/i.test(l.label || '');
 function fig(net, exp, abn, wealth) { net = r2(net); exp = r2(exp); abn = r2(abn); wealth = r2(wealth); return { net, exp, abn, wealth, out: r2(exp + abn + wealth), kept: r2(net - exp - abn - wealth) }; }
 function yearFigures(m) {
@@ -1051,6 +1056,7 @@ function updateTotals(key) {
 
 function onInput(e) {
   const el = e.target, f = el.dataset.f;
+  if (f === 'ch-title') { S.churchTitle = el.value.slice(0, 60); Store.markChurch(); return; }
   if (f && f.startsWith('ch-')) { const row = el.closest('[data-ch]'); const r = (S.church || []).find(x => x.id === row.dataset.ch); if (!r) return;
     if (f === 'ch-date') { if (/^\d{4}-\d{2}-\d{2}$/.test(el.value)) r.date = el.value; } else if (f === 'ch-label') r.label = el.value; else if (f === 'ch-amount') r.amount = amtOr(el.value, r.amount); else if (f === 'ch-paid') r.paid = el.checked;
     updateChurch(); Store.markChurch(); return; }
@@ -1081,6 +1087,7 @@ async function onChange(e) {
 function onKey(e) {
   if (e.key === 'Enter' && e.target.matches('.row input')) { e.preventDefault(); const rows = $$('.row input', e.target.closest('.col-body, .items')); const i = rows.indexOf(e.target); if (rows[i+2]) rows[i+2].focus(); else e.target.blur(); }
   if (e.key === 'Enter' && e.target.matches('tr[data-act="open"], .card[role="button"], .p[role="button"]')) e.target.click();
+  if (e.key === 'Enter' && e.target.matches('.ch-title-inp')) { e.preventDefault(); e.target.blur(); }
 }
 for (const el of [app, $('#dlg')]) { el.addEventListener('input', onInput); el.addEventListener('change', onChange); el.addEventListener('keydown', onKey); }
 
@@ -1089,7 +1096,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del','undo','year','trends'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del','ch-rename','undo','year','trends'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': if (dlg.open) closeOverlay(); location.hash = '#/m/' + t.dataset.key; break;
@@ -1100,6 +1107,7 @@ async function onAction(e) {
     case 'year': openYearOutlook(); break;
     case 'trends': openTrends(t.dataset.key || key); break;
     case 'undo': undoAmount(t.dataset.for); break;
+    case 'ch-rename': { const span = $('[data-church-title]'); if (!span) break; const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'ch-title-inp'; inp.dataset.f = 'ch-title'; inp.maxLength = 60; inp.value = churchTitle(); inp.setAttribute('aria-label', 'Name'); inp.autocomplete = 'off'; span.replaceWith(inp); inp.focus(); inp.select(); break; }
     case 'ch-add': { S.church = S.church || []; const r = { id: uid(), date: today(), label: '', amount: 0, paid: false }; S.church.push(r); Store.markChurch(); refreshEditor(); const inp = $('#f-' + r.id + '-label'); if (inp) inp.focus(); break; }
     case 'ch-del': { const row = t.closest('[data-ch]'); const r = (S.church || []).find(x => x.id === row.dataset.ch); if (!r) break; if ((r.amount || r.label) && !(await ask(`Remove “${r.label || 'this expense'}” (${fmt(r.amount)})?`, 'Remove'))) break; S.church = S.church.filter(x => x.id !== r.id); Store.markChurch(); refreshEditor(); break; }
     case 'copy-bal': { const src = S.months[t.dataset.from]; if (!src) break; for (const b of BALS) m[b.key] = (src[b.key]||[]).map(r => ({ id: uid(), label: r.label, amount: r.amount })); Store.markDirty(key); render(); break; }
@@ -1433,6 +1441,7 @@ function showCalcbar(inp) {
 }
 function hideCalcbar() { if (calcbar) { calcbar.remove(); calcbar = null; } }
 document.addEventListener('focusin', e => { const t = e.target; if (!t.matches || !t.matches('input.amt')) return; amtStart = t.id ? fmtIn(parseNum(t.value)) : null; if (parseNum(t.value) === 0) t.value = ''; else setTimeout(() => { try { t.select(); } catch (err) {} }, 0); if (isTouch()) showCalcbar(t); });
+document.addEventListener('focusout', e => { const t = e.target; if (t.matches && t.matches('.ch-title-inp')) { const span = document.createElement('span'); span.dataset.churchTitle = ''; span.textContent = churchTitle(); t.replaceWith(span); } });
 document.addEventListener('focusout', e => { const t = e.target; if (!t.matches || !t.matches('input.amt')) return; if (t.value.trim() === '') t.value = '0'; recordUndo(t); });
 document.addEventListener('click', e => { if (isTouch() && e.target.matches && e.target.matches('input.amt') && !(calcbar && calcbar.previousElementSibling && calcbar.previousElementSibling.contains(e.target))) showCalcbar(e.target); });
 document.addEventListener('focusout', e => { if (e.target.matches && e.target.matches('input.amt')) setTimeout(() => { if (!document.activeElement || !document.activeElement.matches('input.amt')) hideCalcbar(); }, 80); });
