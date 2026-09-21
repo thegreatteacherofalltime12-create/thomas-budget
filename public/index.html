@@ -816,9 +816,9 @@ function outlook(key) {
 function openYear(year) {
   const keys = sortedKeys().filter(k => k.startsWith(year)).reverse(); if (!keys.length) return;
   dialogCtx = { sec: 'year', year };
-  openOverlay(`<div class="dlg-head"><div class="ttl"><h2>${esc(year)}</h2><span class="muted" style="font-size:13px">${keys.length} month${keys.length===1?'':'s'} · tap one to open it</span></div><button class="icon x" data-dact="close">${ICON.x}</button></div>
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>${esc(year)}</h2><span class="muted" style="font-size:13px">${keys.length} month${keys.length===1?'':'s'} · tap one to open it</span></div></div>
     <div class="dlg-body editor"><div class="list" style="margin:0">${keys.map(k => { const c = calc(S.months[k]); return `<div class="yrow"><button class="lrow" data-act="open" data-key="${k}"><span class="sw ${c.retained>=0?'ret':'debt'}"></span><span class="t">${esc(monthLabel(k))}${k===todayKey()?' · now':''}<span class="n">updated ${esc(fmtDate(S.months[k].updatedOn))}</span></span><span class="v num ${signCls(c.retained)}">${fmt(c.retained)}</span>${ICON.chev}</button><button class="icon del" data-act="delete-month" data-key="${k}" title="Delete ${esc(monthLabel(k))}">${ICON.x}</button></div>`; }).join('')}</div></div>
-    <div class="dlg-foot"><span class="muted" style="font-size:12px">The × deletes a month for both of you, after a confirmation.</span><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
+    <div class="dlg-foot"><span class="muted" style="font-size:12px">The × on a row deletes that month for both of you, after a confirmation.</span></div>`);
   dlg.style.maxWidth = '560px';
 }
 /* LDS church expenses: a reimbursable ledger, deliberately outside every budget figure. */
@@ -846,9 +846,9 @@ function churchBody() {
 }
 function openChurch() {
   dialogCtx = { sec: 'church' };
-  openOverlay(`<div class="dlg-head"><div class="ttl"><h2>LDS church expenses</h2><span class="muted" style="font-size:13px">Reimbursable — not part of the budget figures</span></div><button class="icon x" data-dact="close" title="Done">${ICON.x}</button></div>
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>LDS church expenses</h2><span class="muted" style="font-size:13px">Reimbursable — not part of the budget figures</span></div></div>
     <div class="dlg-body editor">${churchBody()}</div>
-    <div class="dlg-foot"><button class="btn sm" data-act="ch-add">${ICON.plus} Add expense</button><span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
+    <div class="dlg-foot"><button class="btn sm" data-act="ch-add">${ICON.plus} Add expense</button></div>`);
   dlg.style.maxWidth = '640px';
 }
 function updateChurch() { // live: totals and graph, without rebuilding the rows being typed in
@@ -921,7 +921,7 @@ function openYearOutlook() {
   const series = [{ name: `${yo.year} kept (running total)`, color: 'var(--s-ret)', values: yo.cumKept, dashFrom: yo.dashFrom }];
   if (yo.lastCum) series.push({ name: `${yo.prevYear} kept`, color: 'var(--ink-3)', values: yo.lastCum });
   const labels = yo.months.map(x => shortMonth(x.key));
-  openOverlay(`<div class="dlg-head">${trendsBack(currentKey())}<div class="ttl"><h2>${yo.year} outlook</h2><span class="muted" style="font-size:13px">January to December · ${yo.entered} of 12 months in · resets each January</span></div>${headX()}</div>
+  openOverlay(`<div class="dlg-head">${trendsBack(currentKey()) || pageBack()}<div class="ttl"><h2>${yo.year} outlook</h2><span class="muted" style="font-size:13px">January to December · ${yo.entered} of 12 months in · resets each January</span></div></div>
     <div class="dlg-body">
       <div class="okv num">
         <span class="k">Net income so far</span><span class="v">${fmt(yo.sofar.net)}</span>
@@ -939,7 +939,7 @@ function openYearOutlook() {
         <tr style="font-weight:600"><td>${yo.year}</td><td>${fmt(yo.net)}</td><td>${fmt(r2(yo.exp + yo.abn))}</td><td>${fmt(yo.wealth)}</td><td class="${signCls(yo.kept)}">${fmt(yo.kept)}</td><td class="basis">${yo.entered} entered · ${12 - yo.entered} predicted</td></tr>
       </tbody></table></div>
     </div>
-    <div class="dlg-foot"><span class="muted" style="font-size:12px">Updates as soon as anything in a month changes.</span><span class="sp"></span>${fromTrends() ? '' : '<button class="btn sm" data-dact="close">Close</button>'}</div>`);
+    <div class="dlg-foot"><span class="muted" style="font-size:12px">Updates as soon as anything in a month changes.</span></div>`);
   dlg.style.maxWidth = '680px'; attachChartHover();
 }
 const BAL_GROUPS = [
@@ -973,14 +973,12 @@ function openTrends(key) {
     { act: 'balances', sw: 'income', title: `Balances · ${monthLabel(key)}`, sub: nBal ? `${nCards} card${nCards === 1 ? '' : 's'} with a balance · ${(cm.savings||[]).length} savings · ${(cm.accounts||[]).length} other · tap to edit` : `nothing recorded yet for ${shortMonth(key)} · tap to add`, v: '' },
   ];
   dialogCtx = { key, sec: 'trends' };
-  openOverlay(`<div class="dlg-head"><div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · tap one to open it</span></div><button class="icon x" data-dact="close">${ICON.x}</button></div>
-    <div class="dlg-body editor"><div class="list" style="margin:0">${rows.map(r => `<button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button>`).join('')}</div></div>
-    <div class="dlg-foot"><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · tap one to open it</span></div></div>
+    <div class="dlg-body editor"><div class="list" style="margin:0">${rows.map(r => `<button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button>`).join('')}</div></div>`);
   dlg.style.maxWidth = '560px';
 }
 const fromTrends = () => dialogCtx.back === 'trends';
 const trendsBack = key => fromTrends() ? `<button class="btn sm ghost back" data-act="trends" data-key="${key}">${ICON.left} Trends</button>` : '';
-const headX = (title = 'Close') => fromTrends() ? '' : `<button class="icon x" data-dact="close" title="${title}">${ICON.x}</button>`;
 const cameFromTrends = () => dialogCtx.sec === 'trends' || dialogCtx.via === 'trends';
 const pageBack = () => `<button class="btn sm ghost back" data-dact="close">${ICON.left} ${viewKey() ? esc(monthLabel(viewKey())) : 'Home'}</button>`;
 function chartBack(key) { // where the chart was opened from
@@ -992,9 +990,9 @@ function chartBack(key) { // where the chart was opened from
 }
 function openBalances(key) {
   if (!S.months[key]) return; const via = cameFromTrends() ? 'trends' : null; dialogCtx = { key, sec: 'balances', back: via, via };
-  openOverlay(`<div class="dlg-head">${trendsBack(key)}<div class="ttl"><h2>Balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · where things stand at month end</span></div>${headX('Done')}</div>
+  openOverlay(`<div class="dlg-head">${trendsBack(key) || pageBack()}<div class="ttl"><h2>Balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · where things stand at month end</span></div></div>
     <div class="dlg-body editor">${balancesBody(key)}</div>
-    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="savings" data-key="${key}">${ICON.chart} Savings</button><span class="sp"></span>${fromTrends() ? '' : '<button class="btn primary sm" data-dact="close">Done</button>'}</div>`);
+    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="savings" data-key="${key}">${ICON.chart} Savings</button></div>`);
   dlg.style.maxWidth = '640px';
 }
 function openEditor(key, sec) {
@@ -1003,9 +1001,9 @@ function openEditor(key, sec) {
   const fromBalances = dialogCtx.sec === 'balances' || dialogCtx.from === 'balances';
   dialogCtx = { key, sec, from: fromBalances ? 'balances' : null, via: dialogCtx.via || null };
   const chart = s.kind === 'lines' ? sec : (sec === 'cards' ? 'debt' : null);
-  openOverlay(`<div class="dlg-head">${fromBalances ? `<button class="btn sm ghost back" data-act="balances" data-key="${key}">${ICON.left} Balances</button>` : ''}<div class="ttl"><h2 style="display:flex;align-items:center;gap:8px">${s.sw?`<span class="sw ${s.sw}"></span>`:''}${s.title}</h2><span class="muted num" style="font-size:13px">${esc(monthLabel(key))} · <b data-total="${sec}">${sec==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, sec))}</b></span></div>${fromBalances ? '' : `<button class="icon x" data-dact="close" title="Done">${ICON.x}</button>`}</div>
+  openOverlay(`<div class="dlg-head">${fromBalances ? `<button class="btn sm ghost back" data-act="balances" data-key="${key}">${ICON.left} Balances</button>` : pageBack()}<div class="ttl"><h2 style="display:flex;align-items:center;gap:8px">${s.sw?`<span class="sw ${s.sw}"></span>`:''}${s.title}</h2><span class="muted num" style="font-size:13px">${esc(monthLabel(key))} · <b data-total="${sec}">${sec==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, sec))}</b></span></div></div>
     <div class="dlg-body editor">${editorBody(key, sec)}</div>
-    <div class="dlg-foot">${s.kind==='budgets' ? `<button class="btn sm" data-act="bud-new" title="New budget">${ICON.plus} Budget</button>` : s.kind==='lines' ? `<button class="btn sm" data-act="add-line" data-col="${sec}">${ICON.plus} Add line</button>` : `<button class="btn sm" data-act="add-bal" data-bal="${sec}">${ICON.plus} Add</button>`}${chart?`<button class="chartbtn" data-act="chart" data-chart="${chart}" data-key="${key}">${ICON.chart} Chart</button>`:''}<span class="sp"></span>${fromBalances ? `<button class="btn primary sm" data-act="balances" data-key="${key}">Done</button>` : '<button class="btn primary sm" data-dact="close">Done</button>'}</div>`);
+    <div class="dlg-foot">${s.kind==='budgets' ? `<button class="btn sm" data-act="bud-new" title="New budget">${ICON.plus} Budget</button>` : s.kind==='lines' ? `<button class="btn sm" data-act="add-line" data-col="${sec}">${ICON.plus} Add line</button>` : `<button class="btn sm" data-act="add-bal" data-bal="${sec}">${ICON.plus} Add</button>`}${chart?`<button class="chartbtn" data-act="chart" data-chart="${chart}" data-key="${key}">${ICON.chart} Chart</button>`:''}</div>`);
   dlg.style.maxWidth = '640px';
 }
 function refreshEditor() {
