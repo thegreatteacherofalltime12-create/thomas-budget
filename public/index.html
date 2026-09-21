@@ -239,6 +239,7 @@ dialog::backdrop{background:rgba(10,14,10,.55);backdrop-filter:blur(6px)}
 .dlg-head .ttl{display:flex;flex-direction:column;gap:2px;min-width:0}
 .dlg-head h2{font-size:19px}
 .dlg-head .x{margin-left:auto}
+.dlg-head .back{flex:none;margin-top:1px}
 .dlg-body{padding:16px 18px 18px;overflow:auto}
 .dlg-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .dlg-foot .sp{flex:1}
@@ -921,7 +922,7 @@ function openYearOutlook() {
   const series = [{ name: `${yo.year} kept (running total)`, color: 'var(--s-ret)', values: yo.cumKept, dashFrom: yo.dashFrom }];
   if (yo.lastCum) series.push({ name: `${yo.prevYear} kept`, color: 'var(--ink-3)', values: yo.lastCum });
   const labels = yo.months.map(x => shortMonth(x.key));
-  openOverlay(`<div class="dlg-head"><div class="ttl"><h2>${yo.year} outlook</h2><span class="muted" style="font-size:13px">January to December · ${yo.entered} of 12 months in · resets each January</span></div><button class="icon x" data-dact="close">${ICON.x}</button></div>
+  openOverlay(`<div class="dlg-head">${trendsBack(currentKey())}<div class="ttl"><h2>${yo.year} outlook</h2><span class="muted" style="font-size:13px">January to December · ${yo.entered} of 12 months in · resets each January</span></div>${headX()}</div>
     <div class="dlg-body">
       <div class="okv num">
         <span class="k">Net income so far</span><span class="v">${fmt(yo.sofar.net)}</span>
@@ -939,7 +940,7 @@ function openYearOutlook() {
         <tr style="font-weight:600"><td>${yo.year}</td><td>${fmt(yo.net)}</td><td>${fmt(r2(yo.exp + yo.abn))}</td><td>${fmt(yo.wealth)}</td><td class="${signCls(yo.kept)}">${fmt(yo.kept)}</td><td class="basis">${yo.entered} entered · ${12 - yo.entered} predicted</td></tr>
       </tbody></table></div>
     </div>
-    <div class="dlg-foot">${backToTrends(currentKey())}<span class="muted" style="font-size:12px">Updates as soon as anything in a month changes.</span><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
+    <div class="dlg-foot"><span class="muted" style="font-size:12px">Updates as soon as anything in a month changes.</span><span class="sp"></span>${fromTrends() ? '' : '<button class="btn sm" data-dact="close">Close</button>'}</div>`);
   dlg.style.maxWidth = '680px'; attachChartHover();
 }
 const BAL_GROUPS = [
@@ -978,13 +979,15 @@ function openTrends(key) {
     <div class="dlg-foot"><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
   dlg.style.maxWidth = '560px';
 }
-const backToTrends = key => dialogCtx.back === 'trends' ? `<button class="btn sm ghost" data-act="trends" data-key="${key}">${ICON.left} Trends</button>` : '';
+const fromTrends = () => dialogCtx.back === 'trends';
+const trendsBack = key => fromTrends() ? `<button class="btn sm ghost back" data-act="trends" data-key="${key}">${ICON.left} Trends</button>` : '';
+const headX = (title = 'Close') => fromTrends() ? '' : `<button class="icon x" data-dact="close" title="${title}">${ICON.x}</button>`;
 const cameFromTrends = () => dialogCtx.sec === 'trends' || dialogCtx.back === 'trends';
 function openBalances(key) {
   if (!S.months[key]) return; dialogCtx = { key, sec: 'balances', back: cameFromTrends() ? 'trends' : null };
-  openOverlay(`<div class="dlg-head"><div class="ttl"><h2>Balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · where things stand at month end</span></div><button class="icon x" data-dact="close" title="Done">${ICON.x}</button></div>
+  openOverlay(`<div class="dlg-head">${trendsBack(key)}<div class="ttl"><h2>Balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · where things stand at month end</span></div>${headX('Done')}</div>
     <div class="dlg-body editor">${balancesBody(key)}</div>
-    <div class="dlg-foot">${backToTrends(key)}<button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="savings" data-key="${key}">${ICON.chart} Savings</button><span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
+    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="savings" data-key="${key}">${ICON.chart} Savings</button><span class="sp"></span>${fromTrends() ? '' : '<button class="btn primary sm" data-dact="close">Done</button>'}</div>`);
   dlg.style.maxWidth = '640px';
 }
 function openEditor(key, sec) {
@@ -993,9 +996,9 @@ function openEditor(key, sec) {
   const fromBalances = dialogCtx.sec === 'balances' || dialogCtx.from === 'balances';
   dialogCtx = { key, sec, from: fromBalances ? 'balances' : null, back: dialogCtx.back || null };
   const chart = s.kind === 'lines' ? sec : (sec === 'cards' ? 'debt' : null);
-  openOverlay(`<div class="dlg-head"><div class="ttl"><h2 style="display:flex;align-items:center;gap:8px">${s.sw?`<span class="sw ${s.sw}"></span>`:''}${s.title}</h2><span class="muted num" style="font-size:13px">${esc(monthLabel(key))} · <b data-total="${sec}">${sec==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, sec))}</b></span></div><button class="icon x" data-dact="close" title="Done">${ICON.x}</button></div>
+  openOverlay(`<div class="dlg-head">${fromBalances ? `<button class="btn sm ghost back" data-act="balances" data-key="${key}">${ICON.left} Balances</button>` : ''}<div class="ttl"><h2 style="display:flex;align-items:center;gap:8px">${s.sw?`<span class="sw ${s.sw}"></span>`:''}${s.title}</h2><span class="muted num" style="font-size:13px">${esc(monthLabel(key))} · <b data-total="${sec}">${sec==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, sec))}</b></span></div>${fromBalances ? '' : `<button class="icon x" data-dact="close" title="Done">${ICON.x}</button>`}</div>
     <div class="dlg-body editor">${editorBody(key, sec)}</div>
-    <div class="dlg-foot">${fromBalances ? `<button class="btn sm ghost" data-act="balances" data-key="${key}">${ICON.left} Balances</button>` : ''}${s.kind==='budgets' ? `<button class="btn sm" data-act="bud-new" title="New budget">${ICON.plus} Budget</button>` : s.kind==='lines' ? `<button class="btn sm" data-act="add-line" data-col="${sec}">${ICON.plus} Add line</button>` : `<button class="btn sm" data-act="add-bal" data-bal="${sec}">${ICON.plus} Add</button>`}${chart?`<button class="chartbtn" data-act="chart" data-chart="${chart}" data-key="${key}">${ICON.chart} Chart</button>`:''}<span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
+    <div class="dlg-foot">${s.kind==='budgets' ? `<button class="btn sm" data-act="bud-new" title="New budget">${ICON.plus} Budget</button>` : s.kind==='lines' ? `<button class="btn sm" data-act="add-line" data-col="${sec}">${ICON.plus} Add line</button>` : `<button class="btn sm" data-act="add-bal" data-bal="${sec}">${ICON.plus} Add</button>`}${chart?`<button class="chartbtn" data-act="chart" data-chart="${chart}" data-key="${key}">${ICON.chart} Chart</button>`:''}<span class="sp"></span>${fromBalances ? `<button class="btn primary sm" data-act="balances" data-key="${key}">Done</button>` : '<button class="btn primary sm" data-dact="close">Done</button>'}</div>`);
   dlg.style.maxWidth = '640px';
 }
 function refreshEditor() {
@@ -1216,10 +1219,10 @@ function openCharts(chart, key, keepTable) {
     }
   }
   openOverlay(`
-    <div class="dlg-head"><div class="ttl"><h2>${esc(title)}</h2><span class="muted" style="font-size:13px">${esc(sub)}</span></div><button class="icon x" data-dact="close" title="Close (Esc)">${ICON.x}</button></div>
+    <div class="dlg-head">${trendsBack(key)}<div class="ttl"><h2>${esc(title)}</h2><span class="muted" style="font-size:13px">${esc(sub)}</span></div>${headX('Close (Esc)')}</div>
     <div class="tabs">${CHART_TABS.map(t => `<button class="tab ${t.id===chart?'on':''}" data-dact="tab" data-chart="${t.id}">${t.label}</button>`).join('')}</div>
     <div class="dlg-body"><div class="chart-area">${body}</div>${note?`<p class="chart-note">${note}</p>`:''}${dialogCtx.table ? table : ''}</div>
-    <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','debt','savings'].includes(chart) ? key.slice(0,4) + ' · resets each January' : esc(monthLabel(key))}</span>${backToTrends(key)}<span class="sp"></span><button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button><button class="btn sm" data-dact="close">Close</button></div>`);
+    <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','debt','savings'].includes(chart) ? key.slice(0,4) + ' · resets each January' : esc(monthLabel(key))}</span><span class="sp"></span><button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button>${fromTrends() ? '' : '<button class="btn sm" data-dact="close">Close</button>'}</div>`);
   attachChartHover();
 }
 function tableHTML(head, rows, total) {
