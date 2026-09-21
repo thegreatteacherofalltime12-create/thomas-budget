@@ -27,6 +27,7 @@ data is ours; the code is here for anyone.)
 - **LDS church expenses** — a separate reimbursable ledger at the bottom of the home page (date, description, amount, paid), with a graph of spend per month; a pencil in its window renames it. Stored on its own and never counted in any budget figure.
 - **Backup / restore** as JSON.
 - **Rename the budget** — tap its name in the header; the name is shared (Firestore `settings/app`). The header stays quiet: no sync pill unless something failed to save.
+- **Suggestions & bugs** — a card at the bottom of the home page opens a window where anyone on the budget can send a bug report or an idea (Firestore `feedback/<id>`). Whoever first claims it becomes the administrator (`settings/app.admin`), sees every note with who sent it, and marks them fixed; others see only their own notes and their status.
 - **Month picker** on the home page and in the month header to jump anywhere in one tap.
 - **Update button** appears when a new version is deployed; one tap reloads to it.
 - **Phone-first**: single-column layout, large touch targets, full-screen overlays,

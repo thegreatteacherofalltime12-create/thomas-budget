@@ -182,6 +182,12 @@ h3{font-size:16px;font-weight:700}
 .chrow .paid{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);white-space:nowrap} .chrow .paid input{width:16px;height:16px;margin:0}
 .ch-title{display:flex;align-items:center;gap:6px;min-width:0} .ch-title .pencil{width:26px;height:26px;color:var(--ink-3);flex:none} .ch-title .pencil:hover{color:var(--accent);background:var(--accent-soft)}
 .ch-title-inp{font:inherit;font-size:19px;font-weight:600;padding:2px 6px;border:1px solid var(--accent-line);border-radius:6px;min-width:0;width:min(100%,280px)}
+.kcard.feedback{text-align:left;color:var(--ink);width:100%}
+.fb-form{display:grid;gap:8px;padding:10px;background:var(--surface-2);border-radius:var(--r-s);margin:0 0 12px} .fb-form textarea{min-height:84px;font:inherit;font-size:15px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;resize:vertical;background:var(--surface)} .fb-form .row2{display:flex;gap:8px;align-items:center} .fb-form .sel{flex:1;min-width:0}
+.fbrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;padding:10px 6px;border-bottom:1px solid var(--line);align-items:start} .fbrow:last-child{border-bottom:0}
+.fbrow .kind{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);white-space:nowrap;margin-top:2px} .fbrow .kind.bug{background:var(--bad-soft);color:var(--bad)} .fbrow .kind.idea{background:var(--accent-soft);color:var(--accent)}
+.fbrow .txt{font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere} .fbrow .meta{grid-column:2;font-size:11.5px;color:var(--ink-3)} .fbrow .acts{display:flex;gap:4px;align-items:center} .fbrow.done .txt{color:var(--ink-3);text-decoration:line-through}
+.fb-admin{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--ink-2);padding:8px 6px 2px}
 .kcard.church,.kcard.year,.kcard.trends{text-align:left;color:var(--ink);width:100%}
 .year-t tr.pred td{color:var(--ink-2)} .year-t td.basis{font-size:11.5px;color:var(--ink-3);text-align:left;white-space:nowrap}
 @media (max-width:620px){ .chrow{grid-template-columns:minmax(0,1fr) 96px 36px;grid-template-areas:"label amt del" "date paid paid"} .chrow input[type=date]{grid-area:date} .chrow input[data-f=ch-label]{grid-area:label} .chrow .amtw{grid-area:amt} .chrow .paid{grid-area:paid;justify-content:flex-end} .chrow .icon{grid-area:del} }
@@ -421,7 +427,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], churchTitle:'', title:'', ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -543,10 +549,14 @@ const Store = {
       requestRender();
       if (!snap.metadata.fromCache) ensureCurrentMonth();
     }, err => this.onError(err)));
-    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; renderBrand(); }, err => this.onError(err)));
+    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.admin = snap.exists() ? String(snap.data().admin || '') : ''; renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
+    this._unsubs.push(F.onSnapshot(F.collection(db, 'feedback'), snap => { S.feedback = snap.docs.map(d => d.data()).filter(x => x && x.text); requestRender(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.doc(db, 'ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; S.churchTitle = snap.exists() ? String(snap.data().title || '') : ''; requestRender(); }, err => this.onError(err)));
   },
   markChurch() { this._churchDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._churchTimer); this._churchTimer = setTimeout(() => this.saveChurch(), 700); },
+  saveFeedback(item) { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'feedback', item.id), item), 'the note'); } else this.saveLocal(); },
+  deleteFeedback(id) { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.deleteDoc(F.doc(db, 'feedback', id)), 'the removal'); } else this.saveLocal(); },
+  saveAdmin() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { admin: S.admin || '' }, { merge: true }), 'the administrator'); } else this.saveLocal(); },
   saveTitle() {
     if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { title: S.title || '' }, { merge: true }), 'the budget name'); }
     else this.saveLocal();
@@ -562,10 +572,10 @@ const Store = {
     else { setSync('bad', 'Sync problem'); toast('Sync problem: ' + code); S.ready = true; requestRender(); }
   },
   loadLocal() {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; } } catch (e) {}
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; S.feedback = Array.isArray(d.feedback) ? d.feedback : []; } } catch (e) {}
     S.ready = true;
   },
-  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
+  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title, feedback: S.feedback })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
   markDirty(key) { dirty[key] = true; const mm = S.months[key]; if (mm) { mm.updatedOn = today(); $$('[data-updated]').forEach(el => { el.textContent = 'Updated ' + fmtDate(mm.updatedOn); }); } setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
   write(fn, what) { // fire-and-forget: the SDK queues the write locally; report only failures
     Promise.resolve().then(fn).then(() => { if (!Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced'); })
@@ -722,6 +732,15 @@ function renderHome() {
       ${t.months.length > 1 ? sparkline(t.months.map(x=>x.total), 'var(--s-wealth)') : ''}
     </button>`; })()}
   </section>
+
+  <section class="section">
+    ${(() => { const open = S.feedback.filter(f => f.status !== 'done').length, mine = myFeedback().length; return `<button class="card click kcard feedback" data-act="feedback">
+      <div class="eyebrow">Suggestions & bugs</div>
+      ${isAdmin() ? `<div class="big num">${open}</div><div class="delta">${open === 1 ? 'note' : 'notes'} waiting for you · ${S.feedback.length - open} fixed · you are the administrator</div>`
+                 : `<div class="delta" style="font-size:14px;color:var(--ink)">Found a bug or have an idea? Send it to the administrator.</div><div class="delta">${mine ? `${mine} sent${myFeedback().some(f => f.status === 'done') ? ` · ${myFeedback().filter(f => f.status === 'done').length} fixed` : ''}` : 'nothing sent yet'}</div>`}
+      <div class="hint" style="font-size:12px;color:var(--accent);font-weight:600">Tap to open</div>
+    </button>`; })()}
+  </section>
   <footer class="foot"><span>${esc(appTitle())}</span><button class="btn ghost sm" data-act="backup">Back up</button><button class="btn ghost sm" data-act="restore">Restore</button><span class="sp"></span><span>${S.mode==='firebase'?`Shared live · signed in as ${esc(S.user?S.user.email:'')}`:'Data is stored in this browser only'}</span></footer>`;
 }
 
@@ -865,6 +884,26 @@ function openChurch() {
 function updateChurch() { // live: totals and graph, without rebuilding the rows being typed in
   const t = churchTotals(); const set = (k, v) => { const el = $(`[data-church="${k}"]`); if (el) el.textContent = fmt(v); };
   set('spent', t.spent); set('paid', t.paid); set('outstanding', t.outstanding); const c = $('#church-chart'); if (c) c.innerHTML = churchChart();
+}
+/* Suggestions & bugs: anyone on the budget can send a note; the administrator sees them all and marks them fixed.
+   The administrator is whoever claimed it first (settings/app.admin); with no Firebase (local mode) the device is the admin. */
+const isAdmin = () => S.mode !== 'firebase' || !!(S.user && S.admin && S.user.email.toLowerCase() === S.admin.toLowerCase());
+const myFeedback = () => S.feedback.filter(f => S.mode !== 'firebase' || (S.user && f.by === S.user.email));
+function feedbackBody() {
+  const admin = isAdmin(), list = (admin ? S.feedback : myFeedback()).slice().sort((a, b) => (a.status === 'done') - (b.status === 'done') || (a.date < b.date ? 1 : -1));
+  const claim = S.mode === 'firebase' && S.user && !S.admin ? `<div class="fb-admin"><span>No administrator yet.</span><button class="btn sm" data-act="fb-admin">Make this account the administrator</button></div>` : S.admin && S.mode === 'firebase' ? `<div class="fb-admin"><span>Administrator: ${esc(S.admin)}${admin ? ' (you)' : ''}</span></div>` : '';
+  return `<div class="fb-form"><div class="row2"><select id="fb-kind" class="sel" aria-label="Type"><option value="bug">Bug — something is wrong</option><option value="idea">Suggestion — an idea or a fix</option></select></div>
+      <textarea id="fb-text" placeholder="What happened, or what would help? Say which screen it was on." maxlength="1000"></textarea>
+      <div class="row2"><span class="muted" style="font-size:12px;flex:1">${admin ? 'Goes on the list below for you to track.' : 'Goes straight to the administrator.'}</span><button class="btn primary sm" data-act="fb-send">Send</button></div></div>
+    <div class="col-body">${list.map(f => `<div class="fbrow ${f.status === 'done' ? 'done' : ''}" data-fb="${esc(f.id)}"><span class="kind ${esc(f.kind)}">${f.kind === 'bug' ? 'Bug' : 'Idea'}</span><div class="txt">${esc(f.text)}</div>
+      <div class="acts">${admin ? `<button class="btn sm ghost" data-act="fb-done" title="${f.status === 'done' ? 'Reopen' : 'Mark fixed'}">${f.status === 'done' ? 'Reopen' : 'Fixed'}</button>` : ''}${admin || f.status !== 'done' ? `<button class="icon" data-act="fb-del" title="Remove">${ICON.x}</button>` : ''}</div>
+      <div class="meta">${admin && f.by ? esc(f.by) + ' · ' : ''}${esc(fmtDate(f.date))}${f.status === 'done' ? ' · fixed' : ''}</div></div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${admin ? 'Nothing has been sent yet.' : 'You have not sent anything yet.'}</div>`}</div>${claim}`;
+}
+function openFeedback() {
+  dialogCtx = { sec: 'feedback' };
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Suggestions & bugs</h2><span class="muted" style="font-size:13px">${isAdmin() ? 'Notes from everyone on the budget' : 'Tell the administrator about a bug or an idea'}</span></div></div>
+    <div class="dlg-body editor">${feedbackBody()}</div>`);
+  dlg.style.maxWidth = '600px';
 }
 function openOutlook(key) {
   const o = outlook(key), m = S.months[key]; dialogCtx = { key };
@@ -1023,7 +1062,7 @@ function openEditor(key, sec) {
 function refreshEditor() {
   if (!dialogCtx.sec || !dlg.open) return;
   const body = $('.dlg-body.editor', dlg); if (!body) return;
-  const st = body.scrollTop; body.innerHTML = dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
+  const st = body.scrollTop; body.innerHTML = dialogCtx.sec === 'feedback' ? feedbackBody() : dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
 }
 function lineHTML(key, colKey, l) {
   const hasItems = l.items && l.items.length;
@@ -1105,7 +1144,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del','ch-rename','rename-app','undo','year','trends'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': if (dlg.open) closeOverlay(); location.hash = '#/m/' + t.dataset.key; break;
@@ -1113,6 +1152,13 @@ async function onAction(e) {
     case 'outlook': openOutlook(key); break;
     case 'balances': openBalances(t.dataset.key || key); break;
     case 'church': openChurch(); break;
+    case 'feedback': openFeedback(); break;
+    case 'fb-send': { const ta = $('#fb-text'), text = (ta && ta.value || '').trim(); if (!text) { if (ta) ta.focus(); break; }
+      const item = { id: uid(), kind: $('#fb-kind').value === 'idea' ? 'idea' : 'bug', text: text.slice(0, 1000), by: S.user ? S.user.email : 'this device', date: today(), status: 'open' };
+      S.feedback = [...S.feedback, item]; Store.saveFeedback(item); refreshEditor(); toast(isAdmin() ? 'Added to the list' : 'Sent to the administrator'); break; }
+    case 'fb-done': { if (!isAdmin()) break; const id = t.closest('[data-fb]').dataset.fb, f = S.feedback.find(x => x.id === id); if (!f) break; f.status = f.status === 'done' ? 'open' : 'done'; Store.saveFeedback(f); refreshEditor(); break; }
+    case 'fb-del': { const id = t.closest('[data-fb]').dataset.fb, f = S.feedback.find(x => x.id === id); if (!f || !(isAdmin() || (S.user && f.by === S.user.email))) break; if (!(await ask('Remove this note?', 'Remove'))) break; S.feedback = S.feedback.filter(x => x.id !== id); Store.deleteFeedback(id); refreshEditor(); break; }
+    case 'fb-admin': { if (S.admin || !S.user) break; S.admin = S.user.email; Store.saveAdmin(); refreshEditor(); toast('You are the administrator'); break; }
     case 'year': openYearOutlook(); break;
     case 'trends': openTrends(t.dataset.key || key); break;
     case 'undo': undoAmount(t.dataset.for); break;
