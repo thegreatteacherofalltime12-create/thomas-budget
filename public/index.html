@@ -180,7 +180,7 @@ h3{font-size:16px;font-weight:700}
 .chrow{grid-template-columns:118px minmax(0,1fr) 92px auto 22px}
 .chrow input[type=date]{font-size:13px;padding:5px 4px}
 .chrow .paid{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);white-space:nowrap} .chrow .paid input{width:16px;height:16px;margin:0}
-.kcard.church,.kcard.year{text-align:left;color:var(--ink)}
+.kcard.church,.kcard.year,.kcard.trends{text-align:left;color:var(--ink);width:100%}
 .year-t tr.pred td{color:var(--ink-2)} .year-t td.basis{font-size:11.5px;color:var(--ink-3);text-align:left;white-space:nowrap}
 @media (max-width:620px){ .chrow{grid-template-columns:minmax(0,1fr) 96px 36px;grid-template-areas:"label amt del" "date paid paid"} .chrow input[type=date]{grid-area:date} .chrow input[data-f=ch-label]{grid-area:label} .chrow .amtw{grid-area:amt} .chrow .paid{grid-area:paid;justify-content:flex-end} .chrow .icon{grid-area:del} }
 .yrow{display:flex;align-items:stretch;border-bottom:1px solid var(--line)} .yrow:last-child{border-bottom:0} .yrow .lrow{border-bottom:0;flex:1;min-width:0}
@@ -673,12 +673,7 @@ function renderHome() {
     return;
   }
   const cur = currentKey(), m = S.months[cur], c = calc(m);
-  const prevKey = keys[keys.indexOf(cur)-1], pc = prevKey ? calc(S.months[prevKey]) : null;
-  const withBal = [...keys].reverse().find(k => (S.months[k].cards||[]).length || (S.months[k].accounts||[]).length || (S.months[k].savings||[]).length);
-  const bm = withBal ? S.months[withBal] : null, bc = bm ? calc(bm) : null;
-  const bPrev = withBal ? keys[keys.indexOf(withBal)-1] : null, bpc = bPrev && (S.months[bPrev].cards||[]).length ? calc(S.months[bPrev]) : null;
-  const yk = yearKeys(cur);
-  const retSeries = yk.map(k => calc(S.months[k]).retained);
+  const yo = yearOutlook(), tb = trendsFacts(cur);
 
   app.innerHTML = `
   <section class="hero">
@@ -695,42 +690,16 @@ function renderHome() {
   </section>
 
   <section class="section">
-    <div class="sec-head"><h2>Trends & balances</h2><span class="muted">click a card for the chart</span></div>
-    <div class="grid3">
-      <div class="card click kcard" data-act="chart" data-chart="trend" data-key="${cur}" role="button" tabindex="0">
-        <div class="eyebrow">Income retained by month</div>
-        <div class="big num ${signCls(c.retained)}">${fmt(c.retained)}</div>
-        <div class="delta">${pc ? `${fmt(c.retained - pc.retained, {sign:true})} vs ${esc(shortMonth(prevKey))}` : 'first month on record'}</div>
-        ${sparkline(retSeries, 'var(--s-ret)')}
+    <button class="card click kcard trends" data-act="trends" data-key="${cur}">
+      <div class="eyebrow">Trends & balances</div>
+      <div class="kv num">
+        <span class="k">Income retained · ${esc(shortMonth(cur))}</span><span class="v ${signCls(c.retained)}">${fmt(c.retained)}</span>
+        <span class="k">${yo.year} outlook · kept by year end</span><span class="v ${signCls(yo.kept)}">${fmt(yo.kept)}</span>
+        <span class="k">Credit card debt</span><span class="v">${tb.bc ? fmt(tb.bc.cc) : '—'}</span>
+        <span class="k">Savings in cash</span><span class="v">${fmt(c.cash)}</span>
       </div>
-      ${(() => { const yo = yearOutlook(); return `<button class="card click kcard year" data-act="year">
-        <div class="eyebrow">${yo.year} outlook</div>
-        <div class="big num ${signCls(yo.kept)}">${fmt(yo.kept)}</div>
-        <div class="delta">kept by year end · ${fmt(yo.net, {cents:false})} net income · ${yo.entered} of 12 months in${yo.last ? ` · ${fmt(yo.kept - yo.last.kept, {sign:true})} vs ${yo.prevYear}` : ''}</div>
-        ${sparkline(yo.cumKept, 'var(--s-ret)')}
-      </button>`; })()}
-      <div class="card click kcard" data-act="chart" data-chart="debt" data-key="${withBal||cur}" role="button" tabindex="0">
-        <div class="eyebrow">Total credit card debt</div>
-        ${bm ? `<div class="big num">${fmt(bc.cc)}</div>
-        <div class="delta">${bpc ? `${fmt(bc.cc - bpc.cc, {sign:true})} since ${esc(shortMonth(bPrev))}` : ''} · as of ${esc(monthLabel(withBal))}</div>
-        ${sparkline(yk.filter(k=>(S.months[k].cards||[]).length).map(k=>calc(S.months[k]).cc), 'var(--s-debt)')}` : `<div class="big">—</div><div class="delta">Add card balances in a month to track this</div>`}
-      </div>
-      <div class="card click kcard" data-act="chart" data-chart="savings" data-key="${cur}" role="button" tabindex="0">
-        <div class="eyebrow">Savings & wealth building</div>
-        <div class="big num">${fmt(c.cash)}</div>
-        <div class="delta">in cash · ${fmt(c.wealth)} to wealth building this month · ${fmt(r2(yk.reduce((s,k)=>s+calc(S.months[k]).wealth,0)))} so far in ${cur.slice(0,4)}</div>
-        ${sparkline(yk.map(k=>calc(S.months[k]).wealth), 'var(--s-wealth)')}
-      </div>
-      <button class="card click kcard" data-act="balances" data-key="${cur}">
-        <div class="eyebrow">Balances · ${esc(monthLabel(cur))}</div>
-        ${(() => { const cm = S.months[cur], cc = calc(cm); const n = (cm.cards||[]).length + (cm.savings||[]).length + (cm.accounts||[]).length; return n ? `<div class="kv num">
-          <span class="k">Credit cards (${(cm.cards||[]).filter(x=>x.amount).length} with a balance)</span><span class="v">${fmt(cc.cc)}</span>
-          <span class="k">Savings in cash</span><span class="v">${fmt(cc.cash)}</span>
-          ${(cm.accounts||[]).map(a=>`<span class="k">${esc(a.label)}</span><span class="v">${fmt(a.amount)}</span>`).join('')}
-        </div>` : `<div class="delta">Nothing recorded yet for ${esc(shortMonth(cur))}.</div>`; })()}
-        <div class="hint" style="font-size:12px;color:var(--accent);font-weight:600">Tap to edit balances</div>
-      </button>
-    </div>
+      <div class="hint" style="font-size:12px;color:var(--accent);font-weight:600">Tap for the charts, the year outlook and balances</div>
+    </button>
   </section>
 
   <section class="section">
@@ -948,7 +917,7 @@ function yearOutlook(year = String(new Date().getFullYear())) {
     entered: months.filter(x => x.kind !== 'predicted').length, rIn, rOut, matched, last, cumKept, lastCum, dashFrom: firstPred < 0 ? 12 : firstPred };
 }
 function openYearOutlook() {
-  const yo = yearOutlook(), pct = r => `${r >= 1 ? '+' : '−'}${Math.round(Math.abs(r - 1) * 100)}%`; dialogCtx = { sec: 'year-outlook' };
+  const yo = yearOutlook(), pct = r => `${r >= 1 ? '+' : '−'}${Math.round(Math.abs(r - 1) * 100)}%`; dialogCtx = { sec: 'year-outlook', back: cameFromTrends() ? 'trends' : null };
   const series = [{ name: `${yo.year} kept (running total)`, color: 'var(--s-ret)', values: yo.cumKept, dashFrom: yo.dashFrom }];
   if (yo.lastCum) series.push({ name: `${yo.prevYear} kept`, color: 'var(--ink-3)', values: yo.lastCum });
   const labels = yo.months.map(x => shortMonth(x.key));
@@ -970,7 +939,7 @@ function openYearOutlook() {
         <tr style="font-weight:600"><td>${yo.year}</td><td>${fmt(yo.net)}</td><td>${fmt(r2(yo.exp + yo.abn))}</td><td>${fmt(yo.wealth)}</td><td class="${signCls(yo.kept)}">${fmt(yo.kept)}</td><td class="basis">${yo.entered} entered · ${12 - yo.entered} predicted</td></tr>
       </tbody></table></div>
     </div>
-    <div class="dlg-foot"><span class="muted" style="font-size:12px">Updates as soon as anything in a month changes.</span><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
+    <div class="dlg-foot">${backToTrends(currentKey())}<span class="muted" style="font-size:12px">Updates as soon as anything in a month changes.</span><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
   dlg.style.maxWidth = '680px'; attachChartHover();
 }
 const BAL_GROUPS = [
@@ -986,18 +955,43 @@ function balancesBody(key) {
   return (empty && prevHas ? `<div class="bud-form" style="grid-template-columns:1fr auto;align-items:center;margin:8px"><span class="muted" style="font-size:13px">Start from ${esc(monthLabel(prev))}’s balances?</span><button class="btn sm" data-act="copy-bal" data-from="${prev}">Copy them</button></div>` : '') +
     `<div class="list" style="margin:0">${BAL_GROUPS.map(g => `<button class="lrow" data-act="edit" data-sec="${g.key}"><span class="sw ${g.sw}"></span><span class="t">${g.title}<span class="n">${esc(g.sub(m))}</span></span><span class="v num" data-total="${g.key}">${fmt(secTotal(m, g.key))}</span>${ICON.chev}</button>`).join('')}</div>`;
 }
+/* Trends & balances: the home card opens this list; each row opens its own window, which can come back here. */
+function trendsFacts(key) {
+  const keys = sortedKeys(), c = calc(S.months[key]), prevKey = keys[keys.indexOf(key) - 1], pc = prevKey ? calc(S.months[prevKey]) : null;
+  const withBal = [...keys].reverse().find(k => (S.months[k].cards||[]).length || (S.months[k].accounts||[]).length || (S.months[k].savings||[]).length);
+  const bc = withBal ? calc(S.months[withBal]) : null, bPrev = withBal ? keys[keys.indexOf(withBal) - 1] : null, bpc = bPrev && (S.months[bPrev].cards||[]).length ? calc(S.months[bPrev]) : null;
+  return { c, prevKey, pc, withBal, bc, bPrev, bpc, ytdWealth: r2(yearKeys(key).reduce((s, k) => s + calc(S.months[k]).wealth, 0)) };
+}
+function openTrends(key) {
+  if (!S.months[key]) key = currentKey(); if (!key) return;
+  const t = trendsFacts(key), yo = yearOutlook(), cm = S.months[key], nCards = (cm.cards||[]).filter(x => x.amount).length, nBal = (cm.cards||[]).length + (cm.savings||[]).length + (cm.accounts||[]).length;
+  const rows = [
+    { act: 'chart', chart: 'trend', sw: 'ret', title: 'Income retained by month', sub: t.pc ? `${fmt(t.c.retained - t.pc.retained, {sign:true})} vs ${shortMonth(t.prevKey)}` : 'first month on record', v: fmt(t.c.retained), cls: signCls(t.c.retained) },
+    { act: 'year', sw: 'ret', title: `${yo.year} outlook`, sub: `kept by year end · ${yo.entered} of 12 months in`, v: fmt(yo.kept), cls: signCls(yo.kept) },
+    { act: 'chart', chart: 'debt', sw: 'debt', title: 'Total credit card debt', sub: t.bc ? `${t.bpc ? fmt(t.bc.cc - t.bpc.cc, {sign:true}) + ' since ' + shortMonth(t.bPrev) + ' · ' : ''}as of ${monthLabel(t.withBal)}` : 'add card balances in a month to track this', v: t.bc ? fmt(t.bc.cc) : '—' },
+    { act: 'chart', chart: 'savings', sw: 'wealth', title: 'Savings & wealth building', sub: `in cash · ${fmt(t.c.wealth)} to wealth building this month · ${fmt(t.ytdWealth)} in ${key.slice(0, 4)}`, v: fmt(t.c.cash) },
+    { act: 'balances', sw: 'income', title: `Balances · ${monthLabel(key)}`, sub: nBal ? `${nCards} card${nCards === 1 ? '' : 's'} with a balance · ${(cm.savings||[]).length} savings · ${(cm.accounts||[]).length} other · tap to edit` : `nothing recorded yet for ${shortMonth(key)} · tap to add`, v: '' },
+  ];
+  dialogCtx = { key, sec: 'trends' };
+  openOverlay(`<div class="dlg-head"><div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · tap one to open it</span></div><button class="icon x" data-dact="close">${ICON.x}</button></div>
+    <div class="dlg-body editor"><div class="list" style="margin:0">${rows.map(r => `<button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button>`).join('')}</div></div>
+    <div class="dlg-foot"><span class="sp"></span><button class="btn sm" data-dact="close">Close</button></div>`);
+  dlg.style.maxWidth = '560px';
+}
+const backToTrends = key => dialogCtx.back === 'trends' ? `<button class="btn sm ghost" data-act="trends" data-key="${key}">${ICON.left} Trends</button>` : '';
+const cameFromTrends = () => dialogCtx.sec === 'trends' || dialogCtx.back === 'trends';
 function openBalances(key) {
-  if (!S.months[key]) return; dialogCtx = { key, sec: 'balances' };
+  if (!S.months[key]) return; dialogCtx = { key, sec: 'balances', back: cameFromTrends() ? 'trends' : null };
   openOverlay(`<div class="dlg-head"><div class="ttl"><h2>Balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · where things stand at month end</span></div><button class="icon x" data-dact="close" title="Done">${ICON.x}</button></div>
     <div class="dlg-body editor">${balancesBody(key)}</div>
-    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="savings" data-key="${key}">${ICON.chart} Savings</button><span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
+    <div class="dlg-foot">${backToTrends(key)}<button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="savings" data-key="${key}">${ICON.chart} Savings</button><span class="sp"></span><button class="btn primary sm" data-dact="close">Done</button></div>`);
   dlg.style.maxWidth = '640px';
 }
 function openEditor(key, sec) {
   const m = S.months[key], s = SECTIONS.find(x => x.key === sec); if (!m || !s) return;
   S.view = {}; // breakdown panels start collapsed
   const fromBalances = dialogCtx.sec === 'balances' || dialogCtx.from === 'balances';
-  dialogCtx = { key, sec, from: fromBalances ? 'balances' : null };
+  dialogCtx = { key, sec, from: fromBalances ? 'balances' : null, back: dialogCtx.back || null };
   const chart = s.kind === 'lines' ? sec : (sec === 'cards' ? 'debt' : null);
   openOverlay(`<div class="dlg-head"><div class="ttl"><h2 style="display:flex;align-items:center;gap:8px">${s.sw?`<span class="sw ${s.sw}"></span>`:''}${s.title}</h2><span class="muted num" style="font-size:13px">${esc(monthLabel(key))} · <b data-total="${sec}">${sec==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, sec))}</b></span></div><button class="icon x" data-dact="close" title="Done">${ICON.x}</button></div>
     <div class="dlg-body editor">${editorBody(key, sec)}</div>
@@ -1087,8 +1081,8 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del','undo','year'].includes(act)) return;
-  if (t.closest('#dlg') && !dialogCtx.sec && act !== 'chart') return; // only the editor dialog carries edit actions
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del','undo','year','trends'].includes(act)) return;
+  if (t.closest('#dlg') && !dialogCtx.sec && act !== 'chart' && act !== 'trends') return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': if (dlg.open) closeOverlay(); location.hash = '#/m/' + t.dataset.key; break;
     case 'edit': openEditor(key, t.dataset.sec); break;
@@ -1096,6 +1090,7 @@ async function onAction(e) {
     case 'balances': openBalances(t.dataset.key || key); break;
     case 'church': openChurch(); break;
     case 'year': openYearOutlook(); break;
+    case 'trends': openTrends(t.dataset.key || key); break;
     case 'undo': undoAmount(t.dataset.for); break;
     case 'ch-add': { S.church = S.church || []; const r = { id: uid(), date: today(), label: '', amount: 0, paid: false }; S.church.push(r); Store.markChurch(); refreshEditor(); const inp = $('#f-' + r.id + '-label'); if (inp) inp.focus(); break; }
     case 'ch-del': { const row = t.closest('[data-ch]'); const r = (S.church || []).find(x => x.id === row.dataset.ch); if (!r) break; if ((r.amount || r.label) && !(await ask(`Remove “${r.label || 'this expense'}” (${fmt(r.amount)})?`, 'Remove'))) break; S.church = S.church.filter(x => x.id !== r.id); Store.markChurch(); refreshEditor(); break; }
@@ -1164,7 +1159,7 @@ const CHART_TABS = [
 ];
 function openCharts(chart, key, keepTable) {
   if (!key || !S.months[key]) key = currentKey(); if (!key) return;
-  if (!keepTable) dialogCtx = {};
+  if (!keepTable) dialogCtx = { back: cameFromTrends() ? 'trends' : null };
   dialogCtx.chart = chart; dialogCtx.key = key;
   const m = S.months[key], c = calc(m);
   let title = '', sub = '', body = '', note = '', table = '';
@@ -1224,7 +1219,7 @@ function openCharts(chart, key, keepTable) {
     <div class="dlg-head"><div class="ttl"><h2>${esc(title)}</h2><span class="muted" style="font-size:13px">${esc(sub)}</span></div><button class="icon x" data-dact="close" title="Close (Esc)">${ICON.x}</button></div>
     <div class="tabs">${CHART_TABS.map(t => `<button class="tab ${t.id===chart?'on':''}" data-dact="tab" data-chart="${t.id}">${t.label}</button>`).join('')}</div>
     <div class="dlg-body"><div class="chart-area">${body}</div>${note?`<p class="chart-note">${note}</p>`:''}${dialogCtx.table ? table : ''}</div>
-    <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','debt','savings'].includes(chart) ? key.slice(0,4) + ' · resets each January' : esc(monthLabel(key))}</span><span class="sp"></span><button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button><button class="btn sm" data-dact="close">Close</button></div>`);
+    <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','debt','savings'].includes(chart) ? key.slice(0,4) + ' · resets each January' : esc(monthLabel(key))}</span>${backToTrends(key)}<span class="sp"></span><button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button><button class="btn sm" data-dact="close">Close</button></div>`);
   attachChartHover();
 }
 function tableHTML(head, rows, total) {
