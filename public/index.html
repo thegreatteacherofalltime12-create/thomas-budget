@@ -1172,27 +1172,32 @@ function trendsFacts(key) {
   const bc = withBal ? calc(S.months[withBal]) : null, bPrev = withBal ? keys[keys.indexOf(withBal) - 1] : null, bpc = bPrev && (S.months[bPrev].cards||[]).length ? calc(S.months[bPrev]) : null;
   return { c, prevKey, pc, withBal, bc, bPrev, bpc, ytdWealth: r2(yearKeys(key).reduce((s, k) => s + calc(S.months[k]).wealth, 0)) };
 }
-/* Hold a row in Trends & balances for two seconds and it lifts off the list; drag it where you want it
+/* Swipe a row in Trends & balances to the right and it lifts off the list; drag it where you want it
    and let go. The order is kept with the budget, so it follows you to any device. */
 let arranging = false;
 function wireArrange() {
   const list = $('.trends-list', dlg); if (!list) return;
-  let timer = null, held = null, x0 = 0, y0 = 0;
-  const cancel = () => { clearTimeout(timer); timer = null; if (held) held.classList.remove('holding'); held = null; };
+  let press = null;
+  const clear = () => { if (press) { press.row.style.transform = ''; press.row.classList.remove('holding'); } press = null; };
   list.addEventListener('pointerdown', e => {
     const row = e.target.closest('[data-arr]'); if (!row || arranging) return;
-    held = row; x0 = e.clientX; y0 = e.clientY; row.classList.add('holding');
-    timer = setTimeout(() => { const r = held; cancel(); if (r) lift(r, list); }, 2000);
+    press = { row, x: e.clientX, y: e.clientY };
   });
-  list.addEventListener('pointermove', e => { if (timer && (Math.abs(e.clientX - x0) > 10 || Math.abs(e.clientY - y0) > 10)) cancel(); });
-  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) list.addEventListener(ev, cancel);
-  list.addEventListener('scroll', cancel, true);
+  list.addEventListener('pointermove', e => {
+    if (!press || arranging) return;
+    const dx = e.clientX - press.x, dy = e.clientY - press.y;
+    if (Math.abs(dy) > 24 || dx < -10) { clear(); return; } // they are scrolling, not swiping
+    if (dx > 6) { press.row.classList.add('holding'); press.row.style.transform = `translateX(${Math.min(dx, 56)}px)`; }
+    if (dx > 44) { const row = press.row; clear(); lift(row, list); }
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) list.addEventListener(ev, clear);
+  list.addEventListener('scroll', clear, true);
   list.addEventListener('click', e => { if (arranging) { e.preventDefault(); e.stopPropagation(); } }, true);
 }
 function lift(row, list) {
   arranging = true; row.classList.add('dragging'); list.classList.add('arranging');
   try { if (navigator.vibrate) navigator.vibrate(25); } catch (e) {}
-  toast('Drag it where you want it', 2600);
+  toast('Now drag it where you want it', 2600);
   const hold = e => e.preventDefault(); // keep the page still while the row is being carried
   const move = e => {
     const over = document.elementFromPoint(e.clientX, e.clientY), tgt = over && over.closest('[data-arr]');
@@ -1227,7 +1232,7 @@ function openTrends(key) {
   const ord = Array.isArray(S.trendsOrder) ? S.trendsOrder : []; // whatever order was arranged; anything new stays where it was added
   rows.sort((a, b) => { const i = ord.indexOf(a.id), j = ord.indexOf(b.id); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j); });
   dialogCtx = { key, sec: 'trends' };
-  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · tap one to open it · hold one to move it</span></div></div>
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · tap one to open it · swipe one right to move it</span></div></div>
     <div class="dlg-body editor"><div class="list trends-list" style="margin:0">${rows.map(r => `<button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-arr="${r.id}" data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button>`).join('')}</div></div>`);
   dlg.style.maxWidth = '560px'; wireArrange();
 }
@@ -1360,7 +1365,7 @@ async function onAction(e) {
     case 'edit': openEditor(key, t.dataset.sec); break;
     case 'outlook': openOutlook(key); break;
     case 'balances': openBalances(t.dataset.key || key); break;
-    case 'nav-back': history.back(); break;
+    case 'nav-back': navBack(); break;
     case 'retire': openRetire(); break;
     case 'church': openChurch(); break;
     case 'feedback': openFeedback(); break;
@@ -1419,23 +1424,34 @@ $('#dlg').addEventListener('click', onAction);
 const dlg = $('#dlg');
 /* Each window takes a history entry of its own, so the phone's back button walks back through them
    one at a time instead of leaving the page. The in-app back buttons go through the same door. */
-const navStack = []; let navLock = false, navAfter = null;
-function navOpen(fn, args) { if (navLock) { fn(...args); return; } navStack.push([fn, args]); history.pushState({ dlg: navStack.length }, ''); fn(...args); }
-function navDrop(after) { const n = navStack.length; navStack.length = 0; if (n) { navAfter = after || null; history.go(-n); } else if (after) after(); }
+const navStack = []; let navLock = false, navAfter = null, navGuard = false, navIgnore = 0, navAt = 0;
+const navHold = () => { if (!navGuard) { navGuard = true; try { history.pushState({ dlg: 1 }, ''); } catch (e) { navGuard = false; } } };
+function navOpen(fn, args) { if (navLock) { fn(...args); return; } navStack.push([fn, args]); navHold(); fn(...args); }
+function navStep() { // one window back, closing the last one
+  navAt = Date.now(); navStack.pop();
+  const top = navStack[navStack.length - 1];
+  if (top) { navLock = true; try { top[0](...top[1]); } finally { navLock = false; } } else closeOverlay();
+}
+const navBack = () => { if (navStack.length) navStep(); };
+function navDrop(after) { // every window left behind: give the one entry back
+  navStack.length = 0;
+  if (navGuard) { navGuard = false; navIgnore++; navAfter = after || null; history.back(); }
+  else if (after) after();
+}
 window.addEventListener('popstate', () => {
-  const after = navAfter; navAfter = null;
-  if (navStack.length) {
-    navStack.pop(); const top = navStack[navStack.length - 1];
-    if (top) { navLock = true; try { top[0](...top[1]); } finally { navLock = false; } } else closeOverlay();
-  }
-  if (after) after();
+  if (navIgnore > 0) { navIgnore--; const a = navAfter; navAfter = null; if (a) a(); return; }
+  const justStepped = Date.now() - navAt < 350; // some phones both close the dialog and pop: only step once
+  navGuard = false;
+  if (!navStack.length) return;
+  if (!justStepped) navStep();
+  if (navStack.length) navHold();
 });
 function openOverlay(html) { dlg.innerHTML = `<div class="dlg">${html}</div>`; if (!dlg.open) dlg.showModal(); dlg.scrollTop = 0; }
 function closeOverlay(after) { const wasEdit = !!dialogCtx.sec; dialogCtx.sec = null; dlg.style.maxWidth = ''; if (dlg.open) dlg.close(); dlg.innerHTML = ''; hideTip(); navDrop(after); if (wasEdit && !viewKey()) render(); }
 dlg.addEventListener('click', e => { if (e.target === dlg) closeOverlay(); const t = e.target.closest('[data-dact]'); if (t) dialogAction(t, e); });
 /* A phone's back button (and Escape) reaches an open modal dialog as a close request, which would
    otherwise dismiss the whole stack at once: take one step back through the windows instead. */
-dlg.addEventListener('cancel', e => { e.preventDefault(); if (navStack.length) history.back(); else closeOverlay(); });
+dlg.addEventListener('cancel', e => { e.preventDefault(); if (navStack.length) navBack(); else closeOverlay(); });
 dlg.addEventListener('close', () => { if (dlg.open) return; const wasEdit = !!dialogCtx.sec; dialogCtx.sec = null; dlg.style.maxWidth = ''; dlg.innerHTML = ''; hideTip(); navDrop(); if (wasEdit && !viewKey()) render(); });
 const askDlg = $('#askdlg');
 function ask(msg, okLabel='OK') {
