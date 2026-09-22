@@ -263,9 +263,6 @@ h3{font-size:16px;font-weight:700}
 .bud-form input{border:1px solid var(--line-2);background:var(--surface);border-radius:var(--r-s);padding:8px 10px;font-size:15px;min-width:0}
 .bud-form .amt{text-align:right}
 .bud-form .sel{padding:8px 10px;font-size:15px;min-height:0}
-.std{margin:10px 6px 4px;padding-top:10px;border-top:1px dashed var(--line)}
-.std-row{display:flex;justify-content:space-between;padding:6px 2px;border-bottom:1px solid var(--line);font-size:14px}
-.std-row:last-child{border-bottom:0}
 .row{display:grid;grid-template-columns:minmax(0,1fr) 92px 22px 22px;align-items:center;gap:4px;padding:2px 2px 2px 6px;border-radius:6px}
 .row:hover{background:var(--surface-2)}
 .row input{border:0;background:transparent;padding:5px 6px;border-radius:4px;min-width:0;width:100%}
@@ -952,7 +949,7 @@ function editorBody(key, sec) {
   if (s.kind === 'budgets') return `<div class="col-body" data-budgets>
     <div class="bud-form" id="bud-form" hidden><select id="bud-name" class="sel" aria-label="Category">${(() => { const std = standardExpenses(key), taken = new Set((m.budgets||[]).map(b => norm(b.label))); const opts = (m.expenses||[]).filter(l => l.label.trim() && !taken.has(norm(l.label)) && !std.has(norm(l.label))); return `<option value="">Choose a category…</option>${opts.map(l => `<option value="${esc(l.label)}">${esc(l.label)}</option>`).join('')}<option value="__new__">Other — type a new one…</option>`; })()}</select><input type="text" id="bud-name-new" placeholder="New category name" autocomplete="off" hidden><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="bud-limit" placeholder="Don’t go over"><button class="btn primary sm" data-act="bud-add">Add</button></div>
     ${rows.filter(b => !isStandard(m, b.label)).map(b => `<div class="bud" data-bud="${b.id}"><div class="row bud-row"><input type="text" id="f-${b.id}-label" data-f="bud-label" value="${esc(b.label)}" placeholder="Name" autocomplete="off"><span class="faint" style="font-size:12px;white-space:nowrap">limit</span><span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${b.id}-limit" data-f="bud-limit" value="${fmtIn(b.limit)}" aria-label="Limit" autocomplete="off">${undoBtn(`f-${b.id}-limit`)}</span><button class="icon" data-act="del-bud" title="Remove budget">${ICON.x}</button></div>${meterHTML(b, m)}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Tap + to add one.</div>`}
-    ${(() => { const std = [...standardExpenses(key).values()]; if (!std.length) return ''; return `<div class="std"><div class="eyebrow">Standard monthly expenses</div><div class="faint" style="font-size:12px;margin:2px 0 6px">Same amount three months running — tracked here instead of as budgets.</div>${std.map(x => `<div class="std-row num"><span>${esc(x.label)}</span><span>${fmt(x.amount)}</span></div>`).join('')}</div>`; })()}</div>`;
+    </div>`;
   if (s.kind === 'lines') return `<div class="col-body" data-col="${sec}">${rows.map(l => lineHTML(key, sec, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Add a line below.</div>`}</div>`;
   const app = sec === 'accounts';
   return `${app ? appreciationHead(key) : ''}<div class="col-body bal" data-bal="${sec}">${rows.map(r => `<div class="row ${app ? 'arow' : ''}" data-brow="${r.id}" data-bal="${sec}">
