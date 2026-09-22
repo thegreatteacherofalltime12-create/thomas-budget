@@ -182,11 +182,27 @@ h3{font-size:16px;font-weight:700}
 .chrow .paid{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);white-space:nowrap} .chrow .paid input{width:16px;height:16px;margin:0}
 .ch-title{display:flex;align-items:center;gap:6px;min-width:0} .ch-title .pencil{width:26px;height:26px;color:var(--ink-3);flex:none} .ch-title .pencil:hover{color:var(--accent);background:var(--accent-soft)}
 .ch-title-inp{font:inherit;font-size:19px;font-weight:600;padding:2px 6px;border:1px solid var(--accent-line);border-radius:6px;min-width:0;width:min(100%,280px)}
+.arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
+.arow:last-child{border-bottom:0}
+.arow>input[data-f=blabel]{grid-area:label} .arow .amtw{grid-area:amt} .arow>.icon{grid-area:del}
+.arow .tags{grid-area:tags;display:flex;gap:6px;flex-wrap:wrap;padding:2px 0 0 4px}
+.tag{font-size:11.5px;font-weight:600;letter-spacing:.02em;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-3);cursor:pointer}
+.tag.value{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.tag.owed{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.tag.mark.on{background:var(--s-wealth);color:#fff;border-color:transparent}
 .rt-form{display:grid;grid-template-columns:minmax(0,1fr) 86px auto;gap:8px 10px;align-items:center;padding:10px;background:var(--surface-2);border-radius:var(--r-s);margin:0 0 14px;font-size:14px}
 .rt-form label{display:contents} .rt-form label>span:first-child{color:var(--ink-2)}
 .rt-form input{text-align:right;font-variant-numeric:tabular-nums;font-size:16px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);width:100%;min-width:0;font-family:inherit}
 .rt-form label>span:last-child{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden}
-@media (max-width:420px){ .rt-form{grid-template-columns:minmax(0,1fr) 76px} .rt-form label>span:last-child{grid-column:2;text-align:right;margin-top:-6px} }
+@media (max-width:420px){ .arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
+.arow:last-child{border-bottom:0}
+.arow>input[data-f=blabel]{grid-area:label} .arow .amtw{grid-area:amt} .arow>.icon{grid-area:del}
+.arow .tags{grid-area:tags;display:flex;gap:6px;flex-wrap:wrap;padding:2px 0 0 4px}
+.tag{font-size:11.5px;font-weight:600;letter-spacing:.02em;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-3);cursor:pointer}
+.tag.value{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.tag.owed{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.tag.mark.on{background:var(--s-wealth);color:#fff;border-color:transparent}
+.rt-form{grid-template-columns:minmax(0,1fr) 76px} .rt-form label>span:last-child{grid-column:2;text-align:right;margin-top:-6px} }
 .kcard.feedback{text-align:left;color:var(--ink);width:100%}
 .fb-form{display:grid;gap:8px;padding:10px;background:var(--surface-2);border-radius:var(--r-s);margin:0 0 12px} .fb-form textarea{min-height:84px;font:inherit;font-size:15px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;resize:vertical;background:var(--surface)} .fb-form .row2{display:flex;gap:8px;align-items:center} .fb-form .sel{flex:1;min-width:0}
 .fbrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;padding:10px 6px;border-bottom:1px solid var(--line);align-items:start} .fbrow:last-child{border-bottom:0}
@@ -412,7 +428,7 @@ const COLS = [
 const BALS = [
   {key:'cards',    title:'Credit card balances', total:'Total CC debt'},
   {key:'savings',  title:'Savings in cash',      total:'Total savings'},
-  {key:'accounts', title:'Other balances',       total:null},
+  {key:'accounts', title:'Appreciation assets', total:null},
 ];
 const DEFAULT_LINES = {
   income:   ['Paycheck 1','Paycheck 2','Money left over from last month'],
@@ -621,7 +637,7 @@ const Store = {
       if (!m || !/^\d{4}-(0[1-9]|1[0-2])$/.test(m.key || '')) continue;
       const doc = { key: m.key, label: m.label || monthLabel(m.key), year: +m.key.slice(0, 4), month: +m.key.slice(5, 7), updatedOn: m.updatedOn || null, notes: String(m.notes || ''), cards: [], savings: [], accounts: [] };
       for (const col of COLS) doc[col.key] = (Array.isArray(m[col.key]) ? m[col.key] : []).map(l => ({ id: safeId(l.id), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })) }));
-      for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount) }));
+      for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount), ...(['value','owed','other'].includes(r.kind) ? { kind: r.kind } : {}), ...(r.principal ? { principal: true } : {}), ...(r.applied ? { applied: r2(r.applied) } : {}) }));
       doc.budgets = (Array.isArray(m.budgets) ? m.budgets : []).map(b => ({ id: safeId(b.id), label: String(b.label || '').slice(0, 80), limit: r2(b.limit) }));
       months[m.key] = doc;
     }
@@ -788,9 +804,53 @@ const SECTIONS = [
   ...COLS.map(c => ({ key: c.key, title: c.title, sw: c.sw, kind: 'lines', hint: c.hint })),
   { key: 'cards',    title: 'Credit card balances', kind: 'bal', hint: 'Each card and what is owed on it' },
   { key: 'savings',  title: 'Savings in cash',      kind: 'bal', hint: 'Cash savings, HSA cash' },
-  { key: 'accounts', title: 'Other balances',       kind: 'bal', hint: '401K balance, mortgage balance' },
+  { key: 'accounts', title: 'Appreciation assets',  kind: 'bal', hint: 'What the home is worth and the mortgages against it' },
 ];
-function secTotal(m, k) { if (k === 'budgets') return budgetStats(m).spent; const c = calc(m); return k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:sumFlat(m.accounts); }
+/* Appreciation assets: what the home is worth, the mortgages against it, and the equity in between.
+   The Home equity line under wealth building is the principal paid, so entering it comes straight off the
+   mortgage marked “principal” — the balance, the equity and the year's equity build always agree.
+   Each row is marked worth / owed / other; only worth and owed make up the equity. */
+const rowKind = r => ['value', 'owed', 'other'].includes(r.kind) ? r.kind : (OWED_LIKE.test(r.label || '') ? 'owed' : /home|house|property|condo|land|cabin/i.test(r.label || '') ? 'value' : 'other');
+const KIND_LABEL = { value: 'worth', owed: 'owed', other: 'other' };
+const homeEquityAmt = m => r2(((m && m.wealth) || []).filter(l => /equity/i.test(l.label || '')).reduce((s, l) => s + lineAmt(l), 0));
+function equityStats(m) {
+  let value = 0, owed = 0, other = 0, nOwed = 0, nValue = 0;
+  for (const r of (m && m.accounts) || []) { const k = rowKind(r), a = +r.amount || 0;
+    if (k === 'value') { value += a; nValue++; } else if (k === 'owed') { owed += a; nOwed++; } else other += a; }
+  value = r2(value); owed = r2(owed); other = r2(other);
+  return { value, owed, other, nOwed, nValue, equity: r2(value - owed), net: r2(value - owed + other), has: nValue > 0 || nOwed > 0 };
+}
+const accountsNet = m => equityStats(m).net;
+const principalRow = m => { const rows = ((m && m.accounts) || []).filter(r => rowKind(r) === 'owed'); return rows.find(r => r.principal) || rows[0] || null; };
+function syncEquityIn(m) { // the month's home-equity principal, taken off the marked mortgage exactly once
+  const tgt = principalRow(m); if (!tgt) return false;
+  const p = homeEquityAmt(m), d = r2(p - (+tgt.applied || 0)); if (!d) return false;
+  tgt.amount = r2((+tgt.amount || 0) - d); tgt.applied = p; return true;
+}
+function rewireEquity(m) { // after a row changes role: give back what was taken, then take it off the new one
+  for (const r of (m && m.accounts) || []) if (r.applied) { r.amount = r2((+r.amount || 0) + r.applied); delete r.applied; }
+  syncEquityIn(m);
+}
+function equityYTD(key) {
+  const keys = yearKeys(key).filter(k => k <= key), m = S.months[key];
+  const paid = r2(keys.reduce((s, k) => s + homeEquityAmt(S.months[k]), 0));
+  const first = keys[0] && keys[0] !== key ? equityStats(S.months[keys[0]]) : null, now = equityStats(m);
+  const appr = first && first.value && now.value ? r2(now.value - first.value) : 0;
+  return { paid, appr, total: r2(paid + appr), from: keys[0] };
+}
+function appreciationHead(key) {
+  const m = S.months[key], e = equityStats(m), y = equityYTD(key), tgt = principalRow(m), p = homeEquityAmt(m);
+  if (!e.has) return '<div class="faint" style="padding:8px 6px 10px;font-size:12.5px">Add what the home is worth and the mortgages against it, then mark each row below.</div>';
+  return `<div class="okv num" style="margin:2px 6px 12px">
+      <span class="k">Worth</span><span class="v">${fmt(e.value)}</span>
+      <span class="k">Owed${e.nOwed > 1 ? ` · ${e.nOwed} mortgages` : ''}</span><span class="v">− ${fmt(e.owed)}</span>
+      ${e.other ? `<span class="k">Other</span><span class="v">${fmt(e.other)}</span>` : ''}
+      <span class="k tot">Equity${e.value ? ` · ${Math.round(e.equity / e.value * 100)}% of value` : ''}</span><span class="v tot ${signCls(e.equity)}">${fmt(e.equity)}</span>
+      <span class="k faint">Built so far in ${key.slice(0, 4)}</span><span class="v faint">${fmt(y.total)}${y.appr ? ` · ${fmt(y.paid)} paid down + ${fmt(y.appr)} value` : ''}</span>
+    </div>
+    ${p ? `<p class="chart-note" style="margin:0 6px 10px">${fmt(p)} of home equity this month has already come off ${esc((tgt && tgt.label) || 'the mortgage')}.</p>` : ''}`;
+}
+function secTotal(m, k) { if (k === 'budgets') return budgetStats(m).spent; const c = calc(m); return k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:accountsNet(m); }
 /* Budgets: a name and a limit; spending is whatever the Expenses line with the same name adds up to. */
 const norm = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 function expenseFor(m, label) { const n = norm(label); return (m.expenses || []).find(l => norm(l.label) === n) || null; }
@@ -829,10 +889,12 @@ function editorBody(key, sec) {
     ${rows.filter(b => !isStandard(m, b.label)).map(b => `<div class="bud" data-bud="${b.id}"><div class="row bud-row"><input type="text" id="f-${b.id}-label" data-f="bud-label" value="${esc(b.label)}" placeholder="Name" autocomplete="off"><span class="faint" style="font-size:12px;white-space:nowrap">limit</span><span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${b.id}-limit" data-f="bud-limit" value="${fmtIn(b.limit)}" aria-label="Limit" autocomplete="off">${undoBtn(`f-${b.id}-limit`)}</span><button class="icon" data-act="del-bud" title="Remove budget">${ICON.x}</button></div>${meterHTML(b, m)}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Tap + to add one.</div>`}
     ${(() => { const std = [...standardExpenses(key).values()]; if (!std.length) return ''; return `<div class="std"><div class="eyebrow">Standard monthly expenses</div><div class="faint" style="font-size:12px;margin:2px 0 6px">Same amount three months running — tracked here instead of as budgets.</div>${std.map(x => `<div class="std-row num"><span>${esc(x.label)}</span><span>${fmt(x.amount)}</span></div>`).join('')}</div>`; })()}</div>`;
   if (s.kind === 'lines') return `<div class="col-body" data-col="${sec}">${rows.map(l => lineHTML(key, sec, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Add a line below.</div>`}</div>`;
-  return `<div class="col-body bal" data-bal="${sec}">${rows.map(r => `<div class="row" data-brow="${r.id}" data-bal="${sec}">
-      <input type="text" id="f-${r.id}-label" data-f="blabel" value="${esc(r.label)}" placeholder="${sec==='cards'?'Card name':sec==='savings'?'Account':'e.g. 401K balance'}" enterkeyhint="next" autocomplete="off">
+  const app = sec === 'accounts', tgt = app ? principalRow(m) : null;
+  return `${app ? appreciationHead(key) : ''}<div class="col-body bal" data-bal="${sec}">${rows.map(r => `<div class="row ${app ? 'arow' : ''}" data-brow="${r.id}" data-bal="${sec}">
+      <input type="text" id="f-${r.id}-label" data-f="blabel" value="${esc(r.label)}" placeholder="${sec==='cards'?'Card name':sec==='savings'?'Account':'e.g. Home value, Mortgage'}" enterkeyhint="next" autocomplete="off">
       <span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${r.id}-amount" data-f="bamount" value="${fmtIn(r.amount)}" aria-label="Balance" enterkeyhint="next" autocomplete="off">${undoBtn(`f-${r.id}-amount`)}</span>
-      <button class="icon" data-act="del-bal" title="Remove">${ICON.x}</button></div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}.</div>`}</div>`;
+      <button class="icon" data-act="del-bal" title="Remove">${ICON.x}</button>
+      ${app ? `<span class="tags"><button class="tag ${rowKind(r)}" data-act="bal-kind" title="What this row is — tap to change">${KIND_LABEL[rowKind(r)]}</button>${rowKind(r) === 'owed' ? `<button class="tag mark ${tgt === r ? 'on' : ''}" data-act="bal-principal" title="Home equity payments come off this mortgage">${tgt === r ? '↓ principal goes here' : 'principal here?'}</button>` : ''}</span>` : ''}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}.</div>`}</div>`;
 }
 /* End-of-month outlook. Start from what last month left over; assume every income, expense and
    wealth-building line reaches at least its usual amount (average of the last three months in which it
@@ -925,7 +987,7 @@ function retirePlan() {
   const bm = balKey ? S.months[balKey] : null, parts = [], skipped = [];
   if (bm) {
     for (const r of bm.savings || []) if (r.amount) parts.push({ label: r.label || 'Savings in cash', amount: r.amount });
-    for (const r of bm.accounts || []) { if (!r.amount) continue; if (r.amount < 0 || OWED_LIKE.test(r.label || '')) skipped.push(r.label || 'Other balance'); else parts.push({ label: r.label || 'Other balance', amount: r.amount }); }
+    for (const r of bm.accounts || []) { if (!r.amount) continue; const k = rowKind(r); if (k !== 'other' || r.amount < 0) skipped.push(r.label || (k === 'owed' ? 'Mortgage' : 'Home')); else parts.push({ label: r.label || 'Other balance', amount: r.amount }); }
   }
   const pot = r2(parts.reduce((s, x) => s + x.amount, 0));
   const cur = currentKey(), yw = (cur ? yearKeys(cur) : []).map(k => calc(S.months[k]).wealth).filter(v => v > 0), nowW = cur ? calc(S.months[cur]).wealth : 0;
@@ -951,7 +1013,7 @@ function retireChart() {
 }
 function retireNote() {
   const pl = retirePlan(), inc = pl.parts.length ? pl.parts.map(x => `${esc(x.label)} ${fmt(x.amount)}`).join(', ') : 'nothing recorded yet';
-  return `Counted as the pot today (${pl.balKey ? esc(monthLabel(pl.balKey)) : 'no balances yet'}): ${inc}.${pl.skipped.length ? ` Left out as money owed: ${pl.skipped.map(esc).join(', ')}.` : ''}
+  return `Counted as the pot today (${pl.balKey ? esc(monthLabel(pl.balKey)) : 'no balances yet'}): ${inc}.${pl.skipped.length ? ` Left out (the house and what is owed on it): ${pl.skipped.map(esc).join(', ')}.` : ''}
     The pot grows at ${pl.p.growth}% a year with ${fmt(pl.contrib)} added each month, then pays out for ${pl.p.lasts} years while what is left earns ${pl.p.growthRet}%, ending at zero in ${pl.endYear}. This is arithmetic on the figures above, not financial advice — real returns vary.`;
 }
 function retireFigures() {
@@ -1085,7 +1147,7 @@ const BAL_GROUPS = [
   { key: 'cards',    title: 'Credit card balances',       sw: 'debt',   sub: m => `${(m.cards||[]).filter(x=>x.amount).length} with a balance` },
   { key: 'savings',  title: 'Savings in cash',            sw: 'income', sub: m => `${(m.savings||[]).length} account${(m.savings||[]).length===1?'':'s'}` },
   { key: 'wealth',   title: 'Wealth building this month', sw: 'wealth', sub: m => `${(m.wealth||[]).length} line${(m.wealth||[]).length===1?'':'s'}` },
-  { key: 'accounts', title: 'Other balances',             sw: 'none',   sub: m => (m.accounts||[]).map(a => a.label).filter(Boolean).join(', ') || 'e.g. 401K, mortgage' },
+  { key: 'accounts', title: 'Appreciation assets',        sw: 'wealth', sub: m => { const e = equityStats(m); return e.has ? `${fmt(e.value)} worth · ${fmt(e.owed)} owed${e.nOwed > 1 ? ` on ${e.nOwed} mortgages` : ''}` : 'the home\u2019s value and the mortgages against it'; } },
 ];
 function balancesBody(key) {
   const m = S.months[key], keys = sortedKeys(), i = keys.indexOf(key), prev = i > 0 ? keys[i - 1] : null;
@@ -1109,8 +1171,9 @@ function openTrends(key) {
     (() => { const pl = retirePlan(); return { act: 'retire', sw: 'wealth', title: 'Retirement', sub: `${pl.p.years} year${pl.p.years === 1 ? '' : 's'} away · ${fmt(pl.todays)} a month in today’s money`, v: `${fmt(pl.monthly)}/mo` }; })(),
     { act: 'chart', chart: 'trend', sw: 'ret', title: 'Income retained by month', sub: t.pc ? `${fmt(t.c.retained - t.pc.retained, {sign:true})} vs ${shortMonth(t.prevKey)}` : 'first month on record', v: fmt(t.c.retained), cls: signCls(t.c.retained) },
     { act: 'year', sw: 'ret', title: `${yo.year} outlook`, sub: `kept by year end · ${yo.entered} of 12 months in`, v: fmt(yo.kept), cls: signCls(yo.kept) },
+    ...(equityStats(cm).has ? [(() => { const e = equityStats(cm), y = equityYTD(key); return { act: 'chart', chart: 'equity', sw: 'wealth', title: 'Home equity', sub: `${fmt(e.value)} worth − ${fmt(e.owed)} owed · ${fmt(y.total)} built in ${key.slice(0, 4)}`, v: fmt(e.equity) }; })()] : []),
     { act: 'chart', chart: 'debt', sw: 'debt', title: 'Total credit card debt', sub: t.bc ? `${t.bpc ? fmt(t.bc.cc - t.bpc.cc, {sign:true}) + ' since ' + shortMonth(t.bPrev) + ' · ' : ''}as of ${monthLabel(t.withBal)}` : 'add card balances in a month to track this', v: t.bc ? fmt(t.bc.cc) : '—' },
-    { act: 'balances', sw: 'income', title: `Balances · ${monthLabel(key)}`, sub: nBal ? `${nCards} card${nCards === 1 ? '' : 's'} with a balance · ${(cm.savings||[]).length} savings · ${(cm.accounts||[]).length} other · tap to edit` : `nothing recorded yet for ${shortMonth(key)} · tap to add`, v: '' },
+    { act: 'balances', sw: 'income', title: `Balances · ${monthLabel(key)}`, sub: nBal ? `${nCards} card${nCards === 1 ? '' : 's'} with a balance · ${(cm.savings||[]).length} savings · ${(cm.accounts||[]).length} on the house · tap to edit` : `nothing recorded yet for ${shortMonth(key)} · tap to add`, v: '' },
   ];
   dialogCtx = { key, sec: 'trends' };
   openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · tap one to open it</span></div></div>
@@ -1181,7 +1244,7 @@ function viewKey() { const m = /^#\/m\/(\d{4}-\d{2})/.exec(location.hash||''); r
 function findLine(key, col, id) { return (S.months[key][col]||[]).find(l => l.id === id); }
 function updateTotals(key) {
   const m = S.months[key], c = calc(m);
-  $$('[data-total]').forEach(el => { const k = el.dataset.total; el.textContent = fmt(k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:k==='accounts'?sumFlat(m.accounts):0); if (k==='budgets') el.textContent = fmtBudgets(m); });
+  $$('[data-total]').forEach(el => { const k = el.dataset.total; el.textContent = fmt(k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:k==='accounts'?accountsNet(m):0); if (k==='budgets') el.textContent = fmtBudgets(m); });
   { const n = $('.lrow[data-sec=budgets] .n'); if (n) { const bs = budgetStats(m), sc = standardExpenses(key).size; n.textContent = bs.count ? `${bs.count} budget${bs.count===1?'':'s'}${bs.over?` · ${bs.over} over`:''}${sc?` · ${sc} standard`:''}` : sc ? `${sc} standard expense${sc===1?'':'s'}` : 'set spending limits'; } }
   $$('[data-bud-meter]').forEach(el => { const b = (m.budgets||[]).find(x => x.id === el.dataset.budMeter); if (b) el.outerHTML = meterHTML(b, m); });
   $$('[data-perf]').forEach(el => { const v = c[el.dataset.perf]; el.textContent = fmt(v); el.className = 'v num ' + signCls(v); });
@@ -1211,6 +1274,7 @@ function onInput(e) {
     if (f === 'bud-limit') b.limit = amtOr(el.value, b.limit); else { const l = expenseFor(m, b.label); if (l && !expenseFor(m, el.value)) l.label = el.value; b.label = el.value; } }
   else if (f === 'blabel' || f === 'bamount') { const row = el.closest('[data-brow]'); const r = (m[row.dataset.bal]||[]).find(x=>x.id===row.dataset.brow); if (!r) return; if (f==='blabel') r.label = el.value; else r.amount = amtOr(el.value, r.amount); }
   else return;
+  if (f === 'amount' || f === 'iamount' || f === 'label' || f === 'ilabel') syncEquityIn(m);
   updateTotals(key); Store.markDirty(key);
 }
 async function onChange(e) {
@@ -1238,7 +1302,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','retire','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','retire','bal-kind','bal-principal','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -1267,7 +1331,7 @@ async function onAction(e) {
     case 'ch-rename': { const span = $('[data-church-title]'); if (!span) break; const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'ch-title-inp'; inp.dataset.f = 'ch-title'; inp.maxLength = 60; inp.value = churchTitle(); inp.setAttribute('aria-label', 'Name'); inp.autocomplete = 'off'; span.replaceWith(inp); inp.focus(); inp.select(); break; }
     case 'ch-add': { S.church = S.church || []; const r = { id: uid(), date: today(), label: '', amount: 0, paid: false }; S.church.push(r); Store.markChurch(); refreshEditor(); const inp = $('#f-' + r.id + '-label'); if (inp) inp.focus(); break; }
     case 'ch-del': { const row = t.closest('[data-ch]'); const r = (S.church || []).find(x => x.id === row.dataset.ch); if (!r) break; if ((r.amount || r.label) && !(await ask(`Remove “${r.label || 'this expense'}” (${fmt(r.amount)})?`, 'Remove'))) break; S.church = S.church.filter(x => x.id !== r.id); Store.markChurch(); refreshEditor(); break; }
-    case 'copy-bal': { const src = S.months[t.dataset.from]; if (!src) break; for (const b of BALS) m[b.key] = (src[b.key]||[]).map(r => ({ id: uid(), label: r.label, amount: r.amount })); Store.markDirty(key); render(); break; }
+    case 'copy-bal': { const src = S.months[t.dataset.from]; if (!src) break; for (const b of BALS) m[b.key] = (src[b.key]||[]).map(r => ({ id: uid(), label: r.label, amount: r.amount, ...(r.kind?{kind:r.kind}:{}), ...(r.principal?{principal:true}:{}) })); rewireEquity(m); Store.markDirty(key); render(); break; }
     case 'new-month': openNewMonth(t.dataset.from || currentKey()); break;
     case 'sign-in': await Store.signIn(); break;
     case 'sign-out': await Store.signOut(); break;
@@ -1287,8 +1351,13 @@ async function onAction(e) {
       if (!expenseFor(m, name)) { m.expenses = m.expenses || []; m.expenses.push({ id: uid(), label: name, amount: 0, items: [] }); toast(`Added “${name}” to Expenses too`); }
       Store.markDirty(key); render(); break; }
     case 'del-bud': { const row = t.closest('[data-bud]'); const b = (m.budgets||[]).find(x => x.id === row.dataset.bud); if (!b) break; if (!(await ask(`Remove the “${b.label}” budget? The Expenses line stays.`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur.budgets = (cur.budgets||[]).filter(x => x.id !== b.id); Store.markDirty(key); render(); break; }
+    case 'bal-kind': { const r = (m.accounts||[]).find(x => x.id === t.closest('[data-brow]').dataset.brow); if (!r) break;
+      const order = ['value','owed','other']; r.kind = order[(order.indexOf(rowKind(r)) + 1) % 3]; if (r.kind !== 'owed') delete r.principal;
+      rewireEquity(m); Store.markDirty(key); refreshEditor(); break; }
+    case 'bal-principal': { const r = (m.accounts||[]).find(x => x.id === t.closest('[data-brow]').dataset.brow); if (!r) break;
+      for (const x of m.accounts||[]) delete x.principal; r.principal = true; rewireEquity(m); Store.markDirty(key); refreshEditor(); break; }
     case 'add-bal': { const b = t.dataset.bal; m[b] = m[b]||[]; const r = {id:uid(), label:'', amount:0}; m[b].push(r); Store.markDirty(key); render(); const inp = $('#f-'+r.id+'-label'); if (inp) inp.focus(); break; }
-    case 'del-bal': { const row = t.closest('[data-brow]'); const b = row.dataset.bal; const r = (m[b]||[]).find(x=>x.id===row.dataset.brow); if (r && (r.amount||r.label) && !(await ask(`Remove “${r.label||'this balance'}”?`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur[b] = (cur[b]||[]).filter(x=>x.id!==row.dataset.brow); Store.markDirty(key); render(); break; }
+    case 'del-bal': { const row = t.closest('[data-brow]'); const b = row.dataset.bal; const r = (m[b]||[]).find(x=>x.id===row.dataset.brow); if (r && (r.amount||r.label) && !(await ask(`Remove “${r.label||'this balance'}”?`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur[b] = (cur[b]||[]).filter(x=>x.id!==row.dataset.brow); if (b === 'accounts') rewireEquity(cur); Store.markDirty(key); render(); break; }
   }
 }
 app.addEventListener('click', onAction);
@@ -1344,7 +1413,7 @@ function dialogAction(t, e) {
 /* ---------- charts ---------- */
 const CHART_TABS = [
   {id:'where', label:'Where it went'}, {id:'expenses', label:'Expenses'}, {id:'income', label:'Income'},
-  {id:'wealth', label:'Wealth Building'}, {id:'abnormal', label:'Abnormal'}, {id:'trend', label:'Trend'}, {id:'debt', label:'Debt'},
+  {id:'wealth', label:'Wealth Building'}, {id:'abnormal', label:'Abnormal'}, {id:'trend', label:'Trend'}, {id:'equity', label:'Home equity'}, {id:'debt', label:'Debt'},
 ];
 function openCharts(chart, key, keepTable) {
   if (!key || !S.months[key]) key = currentKey(); if (!key) return; if (chart === 'savings') chart = 'trend';
@@ -1381,7 +1450,20 @@ function openCharts(chart, key, keepTable) {
     body = keys.length > 1 ? lineChartHTML(series, keys.map(shortMonth)) : `<div class="empty">Add a second month in ${key.slice(0,4)} to see a trend.</div>`;
     const kept = cs.filter(c=>c.retained>=0).length, ytd = r2(cs.reduce((s,c)=>s+c.wealth,0)), sum = f => r2(cs.reduce((s,c)=>s+f(c),0));
     note = `${kept} of ${keys.length} months ended with money retained; abnormal expenses and wealth building are included in that figure, so a big one-off month dips below zero even when regular expenses were covered. ${fmt(ytd)} has gone to wealth building so far in ${key.slice(0,4)}. Savings in cash is the balance recorded under Balances each month.`;
-    table = tableHTML(['Month', ...series.map(s=>s.name)], keys.map((k,i)=>[monthLabel(k), ...series.map(s=>s.values[i])]), [`${key.slice(0,4)} total`, sum(c=>c.net), sum(c=>c.exp), sum(c=>c.retained), '', ytd]);
+    const totalRow = [`${key.slice(0,4)} total`, sum(c=>c.net), sum(c=>c.exp), sum(c=>c.retained), '', ytd]; while (totalRow.length < series.length + 1) totalRow.push('');
+    table = tableHTML(['Month', ...series.map(s=>s.name)], keys.map((k,i)=>[monthLabel(k), ...series.map(s=>s.values[i])]), totalRow);
+  } else if (chart === 'equity') {
+    const keys = yearKeys(key).filter(k => equityStats(S.months[k]).has), es = keys.map(k => equityStats(S.months[k])), y = equityYTD(key);
+    title = 'Home equity'; sub = `${key.slice(0,4)} · what the home is worth against what is owed on it`;
+    const series = [
+      {name:'Worth', color:'var(--accent)', values: es.map(e=>e.value)},
+      {name:'Owed', color:'var(--s-debt)', values: es.map(e=>e.owed)},
+      {name:'Equity', color:'var(--s-wealth)', values: es.map(e=>e.equity)},
+    ];
+    body = keys.length > 1 ? lineChartHTML(series, keys.map(shortMonth)) : `<div class="empty">Add the home\u2019s value and its mortgages to a second month in ${key.slice(0,4)} to see it move.</div>`;
+    const now = equityStats(S.months[key]);
+    note = `${fmt(now.equity)} of equity today — ${fmt(now.value)} worth less ${fmt(now.owed)} owed${now.nOwed > 1 ? ` on ${now.nOwed} mortgages` : ''}. ${fmt(y.total)} of that was built in ${key.slice(0,4)}${y.appr ? ` (${fmt(y.paid)} paid down, ${fmt(y.appr)} from the value rising)` : ' by paying the mortgage down'}. Home equity entered under wealth building comes off the mortgage automatically.`;
+    table = tableHTML(['Month', ...series.map(s=>s.name)], keys.map((k,i)=>[monthLabel(k), ...series.map(s=>s.values[i])]));
   } else if (chart === 'debt') {
     const keys = yearKeys(key).filter(k => (S.months[k].cards||[]).length);
     const bk = keys.includes(key) ? key : keys[keys.length-1];
@@ -1401,7 +1483,7 @@ function openCharts(chart, key, keepTable) {
     <div class="dlg-head">${chartBack(key)}<div class="ttl"><h2>${esc(title)}</h2><span class="muted" style="font-size:13px">${esc(sub)}</span></div></div>
     <div class="tabs">${CHART_TABS.map(t => `<button class="tab ${t.id===chart?'on':''}" data-dact="tab" data-chart="${t.id}">${t.label}</button>`).join('')}</div>
     <div class="dlg-body"><div class="chart-area">${body}</div>${note?`<p class="chart-note">${note}</p>`:''}${dialogCtx.table ? table : ''}</div>
-    <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','debt'].includes(chart) ? key.slice(0,4) + ' · resets each January' : esc(monthLabel(key))}</span><span class="sp"></span><button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button></div>`);
+    <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','debt','equity'].includes(chart) ? key.slice(0,4) + ' · resets each January' : esc(monthLabel(key))}</span><span class="sp"></span><button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button></div>`);
   attachChartHover();
 }
 function tableHTML(head, rows, total) {
@@ -1532,8 +1614,9 @@ function buildMonth(key, srcKey, prefill, carry) {
     if (src) doc[col.key] = (src[col.key]||[]).map(l => ({id:uid(), label:l.label, amount: (prefill && (col.key==='expenses'||col.key==='wealth')) ? lineAmt(l) : 0, items:[]}));
     else doc[col.key] = mk(DEFAULT_LINES[col.key]);
   }
-  if (src) for (const b of BALS) doc[b.key] = (src[b.key]||[]).map(r => ({id:uid(), label:r.label, amount:r.amount}));
+  if (src) for (const b of BALS) doc[b.key] = (src[b.key]||[]).map(r => ({id:uid(), label:r.label, amount:r.amount, ...(r.kind?{kind:r.kind}:{}), ...(r.principal?{principal:true}:{})}));
   doc.budgets = src ? (src.budgets||[]).map(b => ({ id: uid(), label: b.label, limit: b.limit })) : [];
+  syncEquityIn(doc); // the month opens with this month's principal already off the mortgage
   if (carry && src) { const ret = calc(src).retained; let l = doc.income.find(x => /left over|carry/i.test(x.label)); if (!l) { l = {id:uid(), label:'Money left over from last month', amount:0, items:[]}; doc.income.push(l); } l.amount = ret > 0 ? ret : 0; }
   return doc;
 }
