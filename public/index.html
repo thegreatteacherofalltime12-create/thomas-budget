@@ -182,9 +182,15 @@ h3{font-size:16px;font-weight:700}
 .chrow .paid{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);white-space:nowrap} .chrow .paid input{width:16px;height:16px;margin:0}
 .ch-title{display:flex;align-items:center;gap:6px;min-width:0} .ch-title .pencil{width:26px;height:26px;color:var(--ink-3);flex:none} .ch-title .pencil:hover{color:var(--accent);background:var(--accent-soft)}
 .ch-title-inp{font:inherit;font-size:19px;font-weight:600;padding:2px 6px;border:1px solid var(--accent-line);border-radius:6px;min-width:0;width:min(100%,280px)}
-.trends-list .lrow{touch-action:pan-y;transition:background .15s,transform .15s}
-.trends-list .lrow.holding{background:var(--surface-2);transform:scale(.99)}
-.trends-list .lrow.dragging{background:var(--surface);border-radius:10px;box-shadow:var(--shadow);transform:scale(1.02);position:relative;z-index:2;border-bottom-color:transparent}
+.lwrap{position:relative;border-bottom:1px solid var(--line)} .lwrap:last-child{border-bottom:0}
+.trends-list .lrow{touch-action:pan-y;background:var(--surface);border-bottom:0;position:relative;z-index:1;transition:transform .14s}
+.swipe-hint{position:absolute;inset:0;z-index:0;background:var(--accent-soft);opacity:0;pointer-events:none;transition:opacity .12s}
+.swipe-flag{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:3;display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s}
+.swipe-flag svg{width:14px;height:14px}
+.lwrap.swiping .swipe-hint,.lwrap.swiping .swipe-flag{opacity:1}
+.lwrap.swiping .lrow{transition:none}
+.lwrap.dragging{background:var(--surface);border-radius:10px;box-shadow:var(--shadow);border-bottom-color:transparent;z-index:2}
+.lwrap.dragging .swipe-hint,.lwrap.dragging .swipe-flag{opacity:0} .lwrap.dragging .lrow{transform:scale(1.02);border-radius:10px}
 .list.arranging{cursor:grabbing;user-select:none}
 .arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
 .arow:last-child{border-bottom:0}
@@ -198,9 +204,15 @@ h3{font-size:16px;font-weight:700}
 .rt-form label{display:contents} .rt-form label>span:first-child{color:var(--ink-2)}
 .rt-form input{text-align:right;font-variant-numeric:tabular-nums;font-size:16px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);width:100%;min-width:0;font-family:inherit}
 .rt-form label>span:last-child{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden}
-@media (max-width:420px){ .trends-list .lrow{touch-action:pan-y;transition:background .15s,transform .15s}
-.trends-list .lrow.holding{background:var(--surface-2);transform:scale(.99)}
-.trends-list .lrow.dragging{background:var(--surface);border-radius:10px;box-shadow:var(--shadow);transform:scale(1.02);position:relative;z-index:2;border-bottom-color:transparent}
+@media (max-width:420px){ .lwrap{position:relative;border-bottom:1px solid var(--line)} .lwrap:last-child{border-bottom:0}
+.trends-list .lrow{touch-action:pan-y;background:var(--surface);border-bottom:0;position:relative;z-index:1;transition:transform .14s}
+.swipe-hint{position:absolute;inset:0;z-index:0;background:var(--accent-soft);opacity:0;pointer-events:none;transition:opacity .12s}
+.swipe-flag{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:3;display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s}
+.swipe-flag svg{width:14px;height:14px}
+.lwrap.swiping .swipe-hint,.lwrap.swiping .swipe-flag{opacity:1}
+.lwrap.swiping .lrow{transition:none}
+.lwrap.dragging{background:var(--surface);border-radius:10px;box-shadow:var(--shadow);border-bottom-color:transparent;z-index:2}
+.lwrap.dragging .swipe-hint,.lwrap.dragging .swipe-flag{opacity:0} .lwrap.dragging .lrow{transform:scale(1.02);border-radius:10px}
 .list.arranging{cursor:grabbing;user-select:none}
 .arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
 .arow:last-child{border-bottom:0}
@@ -512,6 +524,7 @@ const ICON = {
   chart: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 13h12M4 10V7M8 10V4M12 10V6"/></svg>',
   undo: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L2.5 7 6 10.5"/><path d="M2.5 7h7a3.5 3.5 0 0 1 0 7H8"/></svg>',
   pencil: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11.3 2.7l2 2L5.5 12.5H3.5v-2z"/><path d="M9.8 4.2l2 2"/></svg>',
+  grip: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L2.5 7 6 10.5"/><path d="M10 3.5L13.5 7 10 10.5"/><path d="M2.5 7h11"/></svg>`,
   x: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
   plus: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
   chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l5 5-5 5"/></svg>',
@@ -1178,16 +1191,16 @@ let arranging = false;
 function wireArrange() {
   const list = $('.trends-list', dlg); if (!list) return;
   let press = null;
-  const clear = () => { if (press) { press.row.style.transform = ''; press.row.classList.remove('holding'); } press = null; };
+  const clear = () => { if (press) { press.inner.style.transform = ''; press.row.classList.remove('swiping'); } press = null; };
   list.addEventListener('pointerdown', e => {
     const row = e.target.closest('[data-arr]'); if (!row || arranging) return;
-    press = { row, x: e.clientX, y: e.clientY };
+    press = { row, inner: row.querySelector('.lrow') || row, x: e.clientX, y: e.clientY };
   });
   list.addEventListener('pointermove', e => {
     if (!press || arranging) return;
     const dx = e.clientX - press.x, dy = e.clientY - press.y;
     if (Math.abs(dy) > 24 || dx < -10) { clear(); return; } // they are scrolling, not swiping
-    if (dx > 6) { press.row.classList.add('holding'); press.row.style.transform = `translateX(${Math.min(dx, 56)}px)`; }
+    if (dx > 6) { press.row.classList.add('swiping'); press.inner.style.transform = `translateX(${Math.min(dx, 110)}px)`; }
     if (dx > 44) { const row = press.row; clear(); lift(row, list); }
   });
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) list.addEventListener(ev, clear);
@@ -1233,7 +1246,7 @@ function openTrends(key) {
   rows.sort((a, b) => { const i = ord.indexOf(a.id), j = ord.indexOf(b.id); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j); });
   dialogCtx = { key, sec: 'trends' };
   openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · tap one to open it · swipe one right to move it</span></div></div>
-    <div class="dlg-body editor"><div class="list trends-list" style="margin:0">${rows.map(r => `<button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-arr="${r.id}" data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button>`).join('')}</div></div>`);
+    <div class="dlg-body editor"><div class="list trends-list" style="margin:0">${rows.map(r => `<div class="lwrap" data-arr="${r.id}"><span class="swipe-hint"></span><span class="swipe-flag">${ICON.grip} Move tab</span><button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button></div>`).join('')}</div></div>`);
   dlg.style.maxWidth = '560px'; wireArrange();
 }
 const fromTrends = () => dialogCtx.back === 'trends';
