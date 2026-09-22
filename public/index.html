@@ -182,15 +182,13 @@ h3{font-size:16px;font-weight:700}
 .chrow .paid{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);white-space:nowrap} .chrow .paid input{width:16px;height:16px;margin:0}
 .ch-title{display:flex;align-items:center;gap:6px;min-width:0} .ch-title .pencil{width:26px;height:26px;color:var(--ink-3);flex:none} .ch-title .pencil:hover{color:var(--accent);background:var(--accent-soft)}
 .ch-title-inp{font:inherit;font-size:19px;font-weight:600;padding:2px 6px;border:1px solid var(--accent-line);border-radius:6px;min-width:0;width:min(100%,280px)}
-.lwrap{position:relative;border-bottom:1px solid var(--line)} .lwrap:last-child{border-bottom:0}
-.trends-list .lrow{touch-action:pan-y;background:var(--surface);border-bottom:0;position:relative;z-index:1;transition:transform .14s}
-.swipe-hint{position:absolute;inset:0;z-index:0;background:var(--accent-soft);opacity:0;pointer-events:none;transition:opacity .12s}
-.swipe-flag{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:3;display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s}
+.lwrap{position:relative;border-bottom:1px solid var(--line);touch-action:pan-y} .lwrap:last-child{border-bottom:0}
+.trends-list .lrow{touch-action:pan-y;background:var(--surface);border-bottom:0;position:relative;z-index:1}
+.swipe-hint{position:absolute;inset:0;z-index:0;background:var(--accent-soft);display:none;pointer-events:none}
+.swipe-flag{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:3;display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap;display:none;pointer-events:none}
 .swipe-flag svg{width:14px;height:14px}
-.lwrap.swiping .swipe-hint,.lwrap.swiping .swipe-flag{opacity:1}
-.lwrap.swiping .lrow{transition:none}
-.lwrap.dragging{background:var(--surface);border-radius:10px;box-shadow:var(--shadow);border-bottom-color:transparent;z-index:2}
-.lwrap.dragging .swipe-hint,.lwrap.dragging .swipe-flag{opacity:0} .lwrap.dragging .lrow{transform:scale(1.02);border-radius:10px}
+.lwrap.moving .swipe-hint,.lwrap.moving .swipe-flag{display:flex}
+.lwrap.moving{box-shadow:var(--shadow);border-radius:10px;border-bottom-color:transparent;z-index:2}
 .list.arranging{cursor:grabbing;user-select:none}
 .arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
 .arow:last-child{border-bottom:0}
@@ -204,15 +202,13 @@ h3{font-size:16px;font-weight:700}
 .rt-form label{display:contents} .rt-form label>span:first-child{color:var(--ink-2)}
 .rt-form input{text-align:right;font-variant-numeric:tabular-nums;font-size:16px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);width:100%;min-width:0;font-family:inherit}
 .rt-form label>span:last-child{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden}
-@media (max-width:420px){ .lwrap{position:relative;border-bottom:1px solid var(--line)} .lwrap:last-child{border-bottom:0}
-.trends-list .lrow{touch-action:pan-y;background:var(--surface);border-bottom:0;position:relative;z-index:1;transition:transform .14s}
-.swipe-hint{position:absolute;inset:0;z-index:0;background:var(--accent-soft);opacity:0;pointer-events:none;transition:opacity .12s}
-.swipe-flag{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:3;display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s}
+@media (max-width:420px){ .lwrap{position:relative;border-bottom:1px solid var(--line);touch-action:pan-y} .lwrap:last-child{border-bottom:0}
+.trends-list .lrow{touch-action:pan-y;background:var(--surface);border-bottom:0;position:relative;z-index:1}
+.swipe-hint{position:absolute;inset:0;z-index:0;background:var(--accent-soft);display:none;pointer-events:none}
+.swipe-flag{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:3;display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap;display:none;pointer-events:none}
 .swipe-flag svg{width:14px;height:14px}
-.lwrap.swiping .swipe-hint,.lwrap.swiping .swipe-flag{opacity:1}
-.lwrap.swiping .lrow{transition:none}
-.lwrap.dragging{background:var(--surface);border-radius:10px;box-shadow:var(--shadow);border-bottom-color:transparent;z-index:2}
-.lwrap.dragging .swipe-hint,.lwrap.dragging .swipe-flag{opacity:0} .lwrap.dragging .lrow{transform:scale(1.02);border-radius:10px}
+.lwrap.moving .swipe-hint,.lwrap.moving .swipe-flag{display:flex}
+.lwrap.moving{box-shadow:var(--shadow);border-radius:10px;border-bottom-color:transparent;z-index:2}
 .list.arranging{cursor:grabbing;user-select:none}
 .arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
 .arow:last-child{border-bottom:0}
@@ -1190,44 +1186,46 @@ function trendsFacts(key) {
 let arranging = false;
 function wireArrange() {
   const list = $('.trends-list', dlg); if (!list) return;
-  let press = null;
-  const clear = () => { if (press) { press.inner.style.transform = ''; press.row.classList.remove('swiping'); } press = null; };
-  list.addEventListener('pointerdown', e => {
-    const row = e.target.closest('[data-arr]'); if (!row || arranging) return;
-    press = { row, inner: row.querySelector('.lrow') || row, x: e.clientX, y: e.clientY };
-  });
-  list.addEventListener('pointermove', e => {
-    if (!press || arranging) return;
-    const dx = e.clientX - press.x, dy = e.clientY - press.y;
-    if (Math.abs(dy) > 24 || dx < -10) { clear(); return; } // they are scrolling, not swiping
-    if (dx > 6) { press.row.classList.add('swiping'); press.inner.style.transform = `translateX(${Math.min(dx, 110)}px)`; }
-    if (dx > 44) { const row = press.row; clear(); lift(row, list); }
-  });
-  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) list.addEventListener(ev, clear);
-  list.addEventListener('scroll', clear, true);
-  list.addEventListener('click', e => { if (arranging) { e.preventDefault(); e.stopPropagation(); } }, true);
-}
-function lift(row, list) {
-  arranging = true; row.classList.add('dragging'); list.classList.add('arranging');
-  try { if (navigator.vibrate) navigator.vibrate(25); } catch (e) {}
-  toast('Now drag it where you want it', 2600);
-  const hold = e => e.preventDefault(); // keep the page still while the row is being carried
-  const move = e => {
-    const over = document.elementFromPoint(e.clientX, e.clientY), tgt = over && over.closest('[data-arr]');
-    if (!tgt || tgt === row || tgt.parentElement !== list) return;
-    const b = tgt.getBoundingClientRect();
-    list.insertBefore(row, e.clientY < b.top + b.height / 2 ? tgt : tgt.nextSibling);
+  let p = null;
+  const noScroll = e => e.preventDefault(); // the page stays still while a row is being carried
+  const onMove = e => {
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (!p.moving) {
+      if (dx > 10 && dx > Math.abs(dy)) { // sliding right: hold it for moving
+        p.moving = true; arranging = true;
+        p.row.classList.add('moving'); list.classList.add('arranging');
+        document.addEventListener('touchmove', noScroll, { passive: false });
+        try { if (navigator.vibrate) navigator.vibrate(20); } catch (err) {}
+      } else if (Math.abs(dy) > 12 || dx < -10) { end(); return; } // scrolling, not moving
+      else return;
+    }
+    p.inner.style.transform = `translateX(${Math.max(0, Math.min(dx, 96))}px)`;
+    for (const s of $$('[data-arr]', list)) { // place it by where the finger is, not by what is under it
+      if (s === p.row) continue;
+      const b = s.getBoundingClientRect();
+      if (e.clientY >= b.top && e.clientY <= b.bottom) { list.insertBefore(p.row, e.clientY < b.top + b.height / 2 ? s : s.nextSibling); break; }
+    }
   };
-  const drop = () => {
-    document.removeEventListener('pointermove', move); document.removeEventListener('touchmove', hold);
-    row.classList.remove('dragging'); list.classList.remove('arranging');
+  const end = () => {
+    if (!p) return; const { row, inner, moving } = p; p = null;
+    document.removeEventListener('pointermove', onMove); document.removeEventListener('touchmove', noScroll);
+    inner.style.transform = ''; row.classList.remove('moving');
+    if (!moving) return;
+    list.classList.remove('arranging');
     S.trendsOrder = $$('[data-arr]', list).map(el => el.dataset.arr); Store.saveTrendsOrder();
-    setTimeout(() => { arranging = false; }, 60); // let the click that ends the drag fall away
+    setTimeout(() => { arranging = false; }, 60); // let the click that ends the gesture fall away
     toast('Order saved');
   };
-  document.addEventListener('touchmove', hold, { passive: false });
-  document.addEventListener('pointermove', move);
-  document.addEventListener('pointerup', drop, { once: true });
+  list.addEventListener('pointerdown', e => {
+    const row = e.target.closest('[data-arr]'); if (!row || p || arranging) return;
+    p = { row, inner: row.querySelector('.lrow') || row, x: e.clientX, y: e.clientY, moving: false };
+    try { row.setPointerCapture(e.pointerId); } catch (err) {}
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', end, { once: true });
+    document.addEventListener('pointercancel', end, { once: true });
+  });
+  list.addEventListener('click', e => { if (arranging) { e.preventDefault(); e.stopPropagation(); } }, true);
 }
 function openTrends(key) {
   if (!S.months[key]) key = currentKey(); if (!key) return;
