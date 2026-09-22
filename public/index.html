@@ -1610,6 +1610,7 @@ const CHART_TABS = [
 ];
 function openCharts(chart, key, keepTable) {
   if (!key || !S.months[key]) key = currentKey(); if (!key) return;
+  const tabsAt = (() => { const t = $('.tabs', dlg); return t ? t.scrollLeft : 0; })();
   if (!keepTable) { const p = dialogCtx, back = p.sec === 'trends' ? 'trends' : p.sec === 'balances' ? 'balances' : SECTIONS.some(s => s.key === p.sec) ? 'editor:' + p.sec : 'page';
     dialogCtx = { back, via: cameFromTrends() ? 'trends' : null, from: p.from || null }; }
   dialogCtx.chart = chart; dialogCtx.key = key;
@@ -1685,6 +1686,8 @@ function openCharts(chart, key, keepTable) {
     <div class="tabs">${CHART_TABS.map(t => `<button class="tab ${t.id===chart?'on':''}" data-dact="tab" data-chart="${t.id}">${t.label}</button>`).join('')}</div>
     <div class="dlg-body"><div class="chart-area">${body}</div>${note?`<p class="chart-note">${note}</p>`:''}${dialogCtx.table ? table : ''}</div>
     <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','savings','debt','equity'].includes(chart) ? key.slice(0,4) + ' · resets each January' : esc(monthLabel(key))}</span><span class="sp"></span>${addRowBtn(chart === 'trend' ? ['trend','retained'] : [chart])}<button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button></div>`);
+  const tabs = $('.tabs', dlg);
+  if (tabs) { tabs.scrollLeft = tabsAt; const on = $('.tab.on', tabs); if (on) { const l = on.offsetLeft, r = l + on.offsetWidth; if (l < tabs.scrollLeft + 8 || r > tabs.scrollLeft + tabs.clientWidth - 8) on.scrollIntoView({ block: 'nearest', inline: 'center' }); } }
   attachChartHover();
 }
 function tableHTML(head, rows, total) {
