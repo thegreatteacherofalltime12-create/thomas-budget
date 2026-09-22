@@ -182,6 +182,10 @@ h3{font-size:16px;font-weight:700}
 .chrow .paid{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);white-space:nowrap} .chrow .paid input{width:16px;height:16px;margin:0}
 .ch-title{display:flex;align-items:center;gap:6px;min-width:0} .ch-title .pencil{width:26px;height:26px;color:var(--ink-3);flex:none} .ch-title .pencil:hover{color:var(--accent);background:var(--accent-soft)}
 .ch-title-inp{font:inherit;font-size:19px;font-weight:600;padding:2px 6px;border:1px solid var(--accent-line);border-radius:6px;min-width:0;width:min(100%,280px)}
+.trends-list .lrow{touch-action:pan-y;transition:background .15s,transform .15s}
+.trends-list .lrow.holding{background:var(--surface-2);transform:scale(.99)}
+.trends-list .lrow.dragging{background:var(--surface);border-radius:10px;box-shadow:var(--shadow);transform:scale(1.02);position:relative;z-index:2;border-bottom-color:transparent}
+.list.arranging{cursor:grabbing;user-select:none}
 .arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
 .arow:last-child{border-bottom:0}
 .arow>input[data-f=blabel]{grid-area:label} .arow .amtw{grid-area:amt} .arow>.icon{grid-area:del}
@@ -194,7 +198,11 @@ h3{font-size:16px;font-weight:700}
 .rt-form label{display:contents} .rt-form label>span:first-child{color:var(--ink-2)}
 .rt-form input{text-align:right;font-variant-numeric:tabular-nums;font-size:16px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);width:100%;min-width:0;font-family:inherit}
 .rt-form label>span:last-child{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden}
-@media (max-width:420px){ .arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
+@media (max-width:420px){ .trends-list .lrow{touch-action:pan-y;transition:background .15s,transform .15s}
+.trends-list .lrow.holding{background:var(--surface-2);transform:scale(.99)}
+.trends-list .lrow.dragging{background:var(--surface);border-radius:10px;box-shadow:var(--shadow);transform:scale(1.02);position:relative;z-index:2;border-bottom-color:transparent}
+.list.arranging{cursor:grabbing;user-select:none}
+.arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
 .arow:last-child{border-bottom:0}
 .arow>input[data-f=blabel]{grid-area:label} .arow .amtw{grid-area:amt} .arow>.icon{grid-area:del}
 .arow .tags{grid-area:tags;display:flex;gap:6px;flex-wrap:wrap;padding:2px 0 0 4px}
@@ -448,7 +456,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -570,11 +578,12 @@ const Store = {
       requestRender();
       if (!snap.metadata.fromCache) ensureCurrentMonth();
     }, err => this.onError(err)));
-    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.admin = snap.exists() ? String(snap.data().admin || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
+    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.admin = snap.exists() ? String(snap.data().admin || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; S.trendsOrder = snap.exists() && Array.isArray(snap.data().trendsOrder) ? snap.data().trendsOrder : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.collection(db, 'feedback'), snap => { S.feedback = snap.docs.map(d => d.data()).filter(x => x && x.text); requestRender(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.doc(db, 'ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; S.churchTitle = snap.exists() ? String(snap.data().title || '') : ''; requestRender(); }, err => this.onError(err)));
   },
   markChurch() { this._churchDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._churchTimer); this._churchTimer = setTimeout(() => this.saveChurch(), 700); },
+  saveTrendsOrder() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { trendsOrder: S.trendsOrder || [] }, { merge: true }), 'the order'); } else this.saveLocal(); },
   markRetire() { clearTimeout(this._rtTimer); this._rtTimer = setTimeout(() => this.saveRetire(), 700); },
   saveRetire() { clearTimeout(this._rtTimer); if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { retire: S.retire || {} }, { merge: true }), 'the retirement settings'); } else this.saveLocal(); },
   saveFeedback(item) { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'feedback', item.id), item), 'the note'); } else this.saveLocal(); },
@@ -595,10 +604,10 @@ const Store = {
     else { setSync('bad', 'Sync problem'); toast('Sync problem: ' + code); S.ready = true; requestRender(); }
   },
   loadLocal() {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; S.feedback = Array.isArray(d.feedback) ? d.feedback : []; S.retire = d.retire || null; } } catch (e) {}
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; S.feedback = Array.isArray(d.feedback) ? d.feedback : []; S.retire = d.retire || null; S.trendsOrder = Array.isArray(d.trendsOrder) ? d.trendsOrder : null; } } catch (e) {}
     S.ready = true;
   },
-  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title, feedback: S.feedback, retire: S.retire })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
+  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title, feedback: S.feedback, retire: S.retire, trendsOrder: S.trendsOrder })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
   markDirty(key) { dirty[key] = true; const mm = S.months[key]; if (mm) { mm.updatedOn = today(); $$('[data-updated]').forEach(el => { el.textContent = 'Updated ' + fmtDate(mm.updatedOn); }); } setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
   write(fn, what) { // fire-and-forget: the SDK queues the write locally; report only failures
     Promise.resolve().then(fn).then(() => { if (!Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced'); })
@@ -1163,23 +1172,64 @@ function trendsFacts(key) {
   const bc = withBal ? calc(S.months[withBal]) : null, bPrev = withBal ? keys[keys.indexOf(withBal) - 1] : null, bpc = bPrev && (S.months[bPrev].cards||[]).length ? calc(S.months[bPrev]) : null;
   return { c, prevKey, pc, withBal, bc, bPrev, bpc, ytdWealth: r2(yearKeys(key).reduce((s, k) => s + calc(S.months[k]).wealth, 0)) };
 }
+/* Hold a row in Trends & balances for two seconds and it lifts off the list; drag it where you want it
+   and let go. The order is kept with the budget, so it follows you to any device. */
+let arranging = false;
+function wireArrange() {
+  const list = $('.trends-list', dlg); if (!list) return;
+  let timer = null, held = null, x0 = 0, y0 = 0;
+  const cancel = () => { clearTimeout(timer); timer = null; if (held) held.classList.remove('holding'); held = null; };
+  list.addEventListener('pointerdown', e => {
+    const row = e.target.closest('[data-arr]'); if (!row || arranging) return;
+    held = row; x0 = e.clientX; y0 = e.clientY; row.classList.add('holding');
+    timer = setTimeout(() => { const r = held; cancel(); if (r) lift(r, list); }, 2000);
+  });
+  list.addEventListener('pointermove', e => { if (timer && (Math.abs(e.clientX - x0) > 10 || Math.abs(e.clientY - y0) > 10)) cancel(); });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) list.addEventListener(ev, cancel);
+  list.addEventListener('scroll', cancel, true);
+  list.addEventListener('click', e => { if (arranging) { e.preventDefault(); e.stopPropagation(); } }, true);
+}
+function lift(row, list) {
+  arranging = true; row.classList.add('dragging'); list.classList.add('arranging');
+  try { if (navigator.vibrate) navigator.vibrate(25); } catch (e) {}
+  toast('Drag it where you want it', 2600);
+  const hold = e => e.preventDefault(); // keep the page still while the row is being carried
+  const move = e => {
+    const over = document.elementFromPoint(e.clientX, e.clientY), tgt = over && over.closest('[data-arr]');
+    if (!tgt || tgt === row || tgt.parentElement !== list) return;
+    const b = tgt.getBoundingClientRect();
+    list.insertBefore(row, e.clientY < b.top + b.height / 2 ? tgt : tgt.nextSibling);
+  };
+  const drop = () => {
+    document.removeEventListener('pointermove', move); document.removeEventListener('touchmove', hold);
+    row.classList.remove('dragging'); list.classList.remove('arranging');
+    S.trendsOrder = $$('[data-arr]', list).map(el => el.dataset.arr); Store.saveTrendsOrder();
+    setTimeout(() => { arranging = false; }, 60); // let the click that ends the drag fall away
+    toast('Order saved');
+  };
+  document.addEventListener('touchmove', hold, { passive: false });
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', drop, { once: true });
+}
 function openTrends(key) {
   if (!S.months[key]) key = currentKey(); if (!key) return;
   const t = trendsFacts(key), yo = yearOutlook(), cm = S.months[key], nCards = (cm.cards||[]).filter(x => x.amount).length, nBal = (cm.cards||[]).length + (cm.savings||[]).length + (cm.accounts||[]).length;
   const rows = [
-    { act: 'chart', chart: 'trend', sw: 'wealth', title: 'Trends data', sub: `net income, expenses and what was retained · month by month in ${key.slice(0, 4)}`, v: `${yearKeys(key).length} mo` },
-    { act: 'chart', chart: 'savings', sw: 'income', title: 'Savings & wealth building', sub: `in cash · ${fmt(t.c.wealth)} to wealth building this month · ${fmt(t.ytdWealth)} in ${key.slice(0, 4)}`, v: fmt(t.c.cash) },
-    (() => { const pl = retirePlan(); return { act: 'retire', sw: 'wealth', title: 'Retirement', sub: `${pl.p.years} year${pl.p.years === 1 ? '' : 's'} away · ${fmt(pl.todays)} a month in today’s money`, v: `${fmt(pl.monthly)}/mo` }; })(),
-    { act: 'chart', chart: 'trend', sw: 'ret', title: 'Income retained by month', sub: t.pc ? `${fmt(t.c.retained - t.pc.retained, {sign:true})} vs ${shortMonth(t.prevKey)}` : 'first month on record', v: fmt(t.c.retained), cls: signCls(t.c.retained) },
-    { act: 'year', sw: 'ret', title: `${yo.year} outlook`, sub: `kept by year end · ${yo.entered} of 12 months in`, v: fmt(yo.kept), cls: signCls(yo.kept) },
-    ...(equityStats(cm).has ? [(() => { const e = equityStats(cm), y = equityYTD(key); return { act: 'chart', chart: 'equity', sw: 'wealth', title: 'Home equity', sub: `${fmt(e.value)} worth − ${fmt(e.owed)} owed · ${fmt(y.total)} built in ${key.slice(0, 4)}`, v: fmt(e.equity) }; })()] : []),
-    { act: 'chart', chart: 'debt', sw: 'debt', title: 'Total credit card debt', sub: t.bc ? `${t.bpc ? fmt(t.bc.cc - t.bpc.cc, {sign:true}) + ' since ' + shortMonth(t.bPrev) + ' · ' : ''}as of ${monthLabel(t.withBal)}` : 'add card balances in a month to track this', v: t.bc ? fmt(t.bc.cc) : '—' },
-    { act: 'balances', sw: 'income', title: `Balances · ${monthLabel(key)}`, sub: nBal ? `${nCards} card${nCards === 1 ? '' : 's'} with a balance · ${(cm.savings||[]).length} savings · ${(cm.accounts||[]).length} on the house · tap to edit` : `nothing recorded yet for ${shortMonth(key)} · tap to add`, v: '' },
+    { id: 'trend', act: 'chart', chart: 'trend', sw: 'wealth', title: 'Trends data', sub: `net income, expenses and what was retained · month by month in ${key.slice(0, 4)}`, v: `${yearKeys(key).length} mo` },
+    { id: 'savings', act: 'chart', chart: 'savings', sw: 'income', title: 'Savings & wealth building', sub: `in cash · ${fmt(t.c.wealth)} to wealth building this month · ${fmt(t.ytdWealth)} in ${key.slice(0, 4)}`, v: fmt(t.c.cash) },
+    (() => { const pl = retirePlan(); return { id: 'retire', act: 'retire', sw: 'wealth', title: 'Retirement', sub: `${pl.p.years} year${pl.p.years === 1 ? '' : 's'} away · ${fmt(pl.todays)} a month in today’s money`, v: `${fmt(pl.monthly)}/mo` }; })(),
+    { id: 'retained', act: 'chart', chart: 'trend', sw: 'ret', title: 'Income retained by month', sub: t.pc ? `${fmt(t.c.retained - t.pc.retained, {sign:true})} vs ${shortMonth(t.prevKey)}` : 'first month on record', v: fmt(t.c.retained), cls: signCls(t.c.retained) },
+    { id: 'outlook', act: 'year', sw: 'ret', title: `${yo.year} outlook`, sub: `kept by year end · ${yo.entered} of 12 months in`, v: fmt(yo.kept), cls: signCls(yo.kept) },
+    ...(equityStats(cm).has ? [(() => { const e = equityStats(cm), y = equityYTD(key); return { id: 'equity', act: 'chart', chart: 'equity', sw: 'wealth', title: 'Home equity', sub: `${fmt(e.value)} worth − ${fmt(e.owed)} owed · ${fmt(y.total)} built in ${key.slice(0, 4)}`, v: fmt(e.equity) }; })()] : []),
+    { id: 'debt', act: 'chart', chart: 'debt', sw: 'debt', title: 'Total credit card debt', sub: t.bc ? `${t.bpc ? fmt(t.bc.cc - t.bpc.cc, {sign:true}) + ' since ' + shortMonth(t.bPrev) + ' · ' : ''}as of ${monthLabel(t.withBal)}` : 'add card balances in a month to track this', v: t.bc ? fmt(t.bc.cc) : '—' },
+    { id: 'balances', act: 'balances', sw: 'income', title: `Balances · ${monthLabel(key)}`, sub: nBal ? `${nCards} card${nCards === 1 ? '' : 's'} with a balance · ${(cm.savings||[]).length} savings · ${(cm.accounts||[]).length} on the house · tap to edit` : `nothing recorded yet for ${shortMonth(key)} · tap to add`, v: '' },
   ];
+  const ord = Array.isArray(S.trendsOrder) ? S.trendsOrder : []; // whatever order was arranged; anything new stays where it was added
+  rows.sort((a, b) => { const i = ord.indexOf(a.id), j = ord.indexOf(b.id); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j); });
   dialogCtx = { key, sec: 'trends' };
-  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · tap one to open it</span></div></div>
-    <div class="dlg-body editor"><div class="list" style="margin:0">${rows.map(r => `<button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button>`).join('')}</div></div>`);
-  dlg.style.maxWidth = '560px';
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · tap one to open it · hold one to move it</span></div></div>
+    <div class="dlg-body editor"><div class="list trends-list" style="margin:0">${rows.map(r => `<button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-arr="${r.id}" data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button>`).join('')}</div></div>`);
+  dlg.style.maxWidth = '560px'; wireArrange();
 }
 const fromTrends = () => dialogCtx.back === 'trends';
 const trendsBack = key => fromTrends() ? `<button class="btn sm ghost back" data-act="nav-back">${ICON.left} Trends</button>` : '';
