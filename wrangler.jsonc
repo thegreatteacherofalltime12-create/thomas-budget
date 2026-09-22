@@ -7,5 +7,13 @@
     "directory": "./public",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "single-page-application"
+  },
+  // Workers Logs and traces: keep them on. Without this block a deploy turns dashboard-enabled
+  // observability back off, so it lives in the repo next to the deploy command.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": { "enabled": true, "invocation_logs": true },
+    "traces": { "enabled": true }
   }
 }
