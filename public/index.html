@@ -482,7 +482,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -605,12 +605,12 @@ const Store = {
       requestRender();
       if (!snap.metadata.fromCache) ensureCurrentMonth();
     }, err => this.onError(err)));
-    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.admin = snap.exists() ? String(snap.data().admin || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; S.trendsOrder = snap.exists() && Array.isArray(snap.data().trendsOrder) ? snap.data().trendsOrder : null; S.trendsHidden = snap.exists() && Array.isArray(snap.data().trendsHidden) ? snap.data().trendsHidden : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
+    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.admin = snap.exists() ? String(snap.data().admin || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; S.trendsOrder = snap.exists() && Array.isArray(snap.data().trendsOrder) ? snap.data().trendsOrder : null; S.trendsHidden = snap.exists() && Array.isArray(snap.data().trendsHidden) ? snap.data().trendsHidden : null; S.trendsAdded = snap.exists() && Array.isArray(snap.data().trendsAdded) ? snap.data().trendsAdded : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.collection(db, 'feedback'), snap => { S.feedback = snap.docs.map(d => d.data()).filter(x => x && x.text); requestRender(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.doc(db, 'ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; S.churchTitle = snap.exists() ? String(snap.data().title || '') : ''; requestRender(); }, err => this.onError(err)));
   },
   markChurch() { this._churchDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._churchTimer); this._churchTimer = setTimeout(() => this.saveChurch(), 700); },
-  saveTrendsView() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { trendsOrder: S.trendsOrder || [], trendsHidden: S.trendsHidden || [] }, { merge: true }), 'the list'); } else this.saveLocal(); },
+  saveTrendsView() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { trendsOrder: S.trendsOrder || [], trendsHidden: S.trendsHidden || [], trendsAdded: S.trendsAdded || [] }, { merge: true }), 'the list'); } else this.saveLocal(); },
   markRetire() { clearTimeout(this._rtTimer); this._rtTimer = setTimeout(() => this.saveRetire(), 700); },
   saveRetire() { clearTimeout(this._rtTimer); if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { retire: S.retire || {} }, { merge: true }), 'the retirement settings'); } else this.saveLocal(); },
   saveFeedback(item) { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'feedback', item.id), item), 'the note'); } else this.saveLocal(); },
@@ -631,10 +631,10 @@ const Store = {
     else { setSync('bad', 'Sync problem'); toast('Sync problem: ' + code); S.ready = true; requestRender(); }
   },
   loadLocal() {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; S.feedback = Array.isArray(d.feedback) ? d.feedback : []; S.retire = d.retire || null; S.trendsOrder = Array.isArray(d.trendsOrder) ? d.trendsOrder : null; S.trendsHidden = Array.isArray(d.trendsHidden) ? d.trendsHidden : null; } } catch (e) {}
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; S.feedback = Array.isArray(d.feedback) ? d.feedback : []; S.retire = d.retire || null; S.trendsOrder = Array.isArray(d.trendsOrder) ? d.trendsOrder : null; S.trendsHidden = Array.isArray(d.trendsHidden) ? d.trendsHidden : null; S.trendsAdded = Array.isArray(d.trendsAdded) ? d.trendsAdded : null; } } catch (e) {}
     S.ready = true;
   },
-  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title, feedback: S.feedback, retire: S.retire, trendsOrder: S.trendsOrder, trendsHidden: S.trendsHidden })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
+  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title, feedback: S.feedback, retire: S.retire, trendsOrder: S.trendsOrder, trendsHidden: S.trendsHidden, trendsAdded: S.trendsAdded })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
   markDirty(key) { dirty[key] = true; const mm = S.months[key]; if (mm) { mm.updatedOn = today(); $$('[data-updated]').forEach(el => { el.textContent = 'Updated ' + fmtDate(mm.updatedOn); }); } setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
   write(fn, what) { // fire-and-forget: the SDK queues the write locally; report only failures
     Promise.resolve().then(fn).then(() => { if (!Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced'); })
@@ -846,6 +846,7 @@ const SECTIONS = [
    The Home equity line under wealth building is the principal paid, so entering it comes straight off the
    mortgage marked “principal” — the balance, the equity and the year's equity build always agree.
    Each row is marked worth / owed / other; only worth and owed make up the equity. */
+const TRENDS_DEFAULTS = ['trend', 'savings', 'retire', 'retained', 'outlook', 'equity', 'debt', 'balances'];
 const rowKind = r => ['value', 'owed', 'other'].includes(r.kind) ? r.kind : (OWED_LIKE.test(r.label || '') ? 'owed' : /home|house|property|condo|land|cabin/i.test(r.label || '') ? 'value' : 'other');
 const KIND_LABEL = { value: 'worth', owed: 'owed', other: 'other' };
 const homeEquityAmt = m => r2(((m && m.wealth) || []).filter(l => /equity/i.test(l.label || '')).reduce((s, l) => s + lineAmt(l), 0));
@@ -1115,7 +1116,8 @@ function retireBody() {
 function openRetire() {
   const from = cameFromTrends(); dialogCtx = { sec: 'retire', back: from ? 'trends' : null, via: from ? 'trends' : null };
   openOverlay(`<div class="dlg-head">${trendsBack() || pageBack()}<div class="ttl"><h2>Retirement</h2><span class="muted" style="font-size:13px">What the pot pays out each month once you stop working</span></div></div>
-    <div class="dlg-body">${retireBody()}</div>`);
+    <div class="dlg-body">${retireBody()}</div>
+    <div class="dlg-foot"><span class="muted" style="font-size:12px">Arithmetic on the figures above, not advice.</span><span class="sp"></span>${addRowBtn('retire')}</div>`);
   dlg.style.maxWidth = '620px'; updateRetire(); attachChartHover();
 }
 function openOutlook(key) {
@@ -1205,7 +1207,7 @@ function openYearOutlook() {
         <tr style="font-weight:600"><td>${yo.year}</td><td>${fmt(yo.net)}</td><td>${fmt(r2(yo.exp + yo.abn))}</td><td>${fmt(yo.wealth)}</td><td class="${signCls(yo.kept)}">${fmt(yo.kept)}</td><td class="basis">${yo.entered} entered · ${12 - yo.entered} predicted</td></tr>
       </tbody></table></div>
     </div>
-    <div class="dlg-foot"><span class="muted" style="font-size:12px">Updates as soon as anything in a month changes.</span></div>`);
+    <div class="dlg-foot"><span class="muted" style="font-size:12px">Updates as soon as anything in a month changes.</span><span class="sp"></span>${addRowBtn('outlook')}</div>`);
   dlg.style.maxWidth = '680px'; attachChartHover();
 }
 const BAL_GROUPS = [
@@ -1271,7 +1273,8 @@ function wireArrange() {
     if (mode === 'del') {
       if (!far) return; // not far enough: it springs back
       const id = row.dataset.arr, title = $('.t', row) ? $('.t', row).firstChild.textContent : 'That tab';
-      S.trendsHidden = [...(S.trendsHidden || []).filter(x => x !== id), id];
+      if (TRENDS_DEFAULTS.includes(id)) S.trendsHidden = [...(S.trendsHidden || []).filter(x => x !== id), id];
+      else S.trendsAdded = (S.trendsAdded || []).filter(x => x !== id);
       S.trendsOrder = $$('[data-arr]', list).map(el => el.dataset.arr);
       Store.saveTrendsView(); redrawTrends(dialogCtx.key); toast(`${title} put away — add it back at the bottom`, 3200);
       return;
@@ -1301,6 +1304,7 @@ function openTrends(key) {
     { id: 'debt', act: 'chart', chart: 'debt', sw: 'debt', title: 'Total credit card debt', sub: t.bc ? `${t.bpc ? fmt(t.bc.cc - t.bpc.cc, {sign:true}) + ' since ' + shortMonth(t.bPrev) + ' · ' : ''}as of ${monthLabel(t.withBal)}` : 'add card balances in a month to track this', v: t.bc ? fmt(t.bc.cc) : '—' },
     { id: 'balances', act: 'balances', sw: 'income', title: `Balances · ${monthLabel(key)}`, sub: nBal ? `${nCards} card${nCards === 1 ? '' : 's'} with a balance · ${(cm.savings||[]).length} savings · ${(cm.accounts||[]).length} on the house · tap to edit` : `nothing recorded yet for ${shortMonth(key)} · tap to add`, v: '' },
   ];
+  for (const c of CHART_TABS) if (!rows.some(r => r.chart === c.id) && (S.trendsAdded || []).includes(c.id)) rows.push(extraRow(key, c)); // charts added from their own window
   const ord = Array.isArray(S.trendsOrder) ? S.trendsOrder : []; // whatever order was arranged; anything new stays where it was added
   rows.sort((a, b) => { const i = ord.indexOf(a.id), j = ord.indexOf(b.id); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j); });
   trendsRows = rows;
@@ -1310,12 +1314,31 @@ function openTrends(key) {
   dlg.style.maxWidth = '560px'; wireArrange();
 }
 let trendsRows = [];
+/* A chart the list does not carry yet can be added from its own window; anything put away comes back
+   from the strip under the list. Both write the same two lists on the budget. */
+function extraRow(key, c) {
+  const m = S.months[key], cl = calc(m), col = COLS.find(x => x.key === c.id);
+  const v = c.id === 'where' ? cl.net : col ? secTotal(m, c.id) : 0;
+  return { id: c.id, act: 'chart', chart: c.id, sw: col ? col.sw : 'ret', title: col ? col.title : c.label,
+    sub: col ? `${esc(shortMonth(key))} · tap for the chart` : 'the month at a glance', v: fmt(v) };
+}
+function trendsHasRow(id) {
+  if ((S.trendsAdded || []).includes(id)) return true;
+  return TRENDS_DEFAULTS.includes(id) && !(S.trendsHidden || []).includes(id);
+}
+function addRowBtn(ids) { // the first of these rows that is missing can be added from this window
+  const id = (Array.isArray(ids) ? ids : [ids]).find(x => !trendsHasRow(x));
+  return id ? `<button class="btn sm" data-act="trend-add" data-arr="${id}">${ICON.plus} Add to Trends & Balances</button>`
+            : '<span class="muted" style="font-size:12.5px">On Trends & balances</span>';
+}
 function trendsBody(key) {
   const hid = Array.isArray(S.trendsHidden) ? S.trendsHidden : [], ord = Array.isArray(S.trendsOrder) ? S.trendsOrder : [];
   trendsRows.sort((x, y) => { const i = ord.indexOf(x.id), j = ord.indexOf(y.id); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j); }); // keep whatever order was arranged
-  const shown = trendsRows.filter(r => !hid.includes(r.id)), away = trendsRows.filter(r => hid.includes(r.id));
+  const add = Array.isArray(S.trendsAdded) ? S.trendsAdded : [];
+  const shown = trendsRows.filter(r => TRENDS_DEFAULTS.includes(r.id) ? !hid.includes(r.id) : add.includes(r.id));
+  const away = trendsRows.filter(r => TRENDS_DEFAULTS.includes(r.id) && hid.includes(r.id));
   return `<div class="list trends-list" style="margin:0">${shown.map(r => `<div class="lwrap" data-arr="${r.id}"><span class="swipe-hint"></span><span class="swipe-flag">${ICON.grip} Move tab</span><span class="del-hint"></span><span class="del-flag">${ICON.x} Delete</span><button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button></div>`).join('') || '<div class="faint" style="padding:14px 10px;font-size:12.5px">Every tab is put away. Add one back below.</div>'}</div>
-    <div class="putaway">${away.length ? `<div class="eyebrow" style="margin:14px 2px 6px">Put away</div>${away.map(r => `<button class="btn sm ghost put" data-act="trend-show" data-arr="${r.id}">${ICON.plus} ${esc(r.title)}</button>`).join('')}` : '<div class="faint" style="padding:12px 2px 2px;font-size:12px">Swipe a tab left to put it away; it can be added back here.</div>'}</div>`;
+    <div class="putaway">${away.length ? `<div class="eyebrow" style="margin:14px 2px 6px">Put away</div>${away.map(r => `<button class="btn sm ghost put" data-act="trend-show" data-arr="${r.id}">${ICON.plus} ${esc(r.title)}</button>`).join('')}` : '<div class="faint" style="padding:12px 2px 2px;font-size:12px">Swipe a tab left to put it away. Any chart can be added from the bottom of the chart itself.</div>'}</div>`;
 }
 function redrawTrends(key) { const body = $('.dlg-body.editor', dlg); if (!body) return; body.innerHTML = trendsBody(key); wireArrange(); }
 const fromTrends = () => dialogCtx.back === 'trends';
@@ -1333,7 +1356,7 @@ function openBalances(key) {
   if (!S.months[key]) return; const via = cameFromTrends() ? 'trends' : null; dialogCtx = { key, sec: 'balances', back: via, via };
   openOverlay(`<div class="dlg-head">${trendsBack(key) || pageBack()}<div class="ttl"><h2>Balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · where things stand at month end</span></div></div>
     <div class="dlg-body editor">${balancesBody(key)}</div>
-    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="savings" data-key="${key}">${ICON.chart} Savings & wealth</button></div>`);
+    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="savings" data-key="${key}">${ICON.chart} Savings & wealth</button><span class="sp"></span>${addRowBtn('balances')}</div>`);
   dlg.style.maxWidth = '640px';
 }
 function openEditor(key, sec) {
@@ -1449,8 +1472,8 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-show','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
-  if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back'].includes(act)) return; // only the editor dialog carries edit actions
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-show','trend-add','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
     case 'edit': openEditor(key, t.dataset.sec); break;
@@ -1468,6 +1491,11 @@ async function onAction(e) {
     case 'fb-admin': { if (S.admin || !S.user) break; S.admin = S.user.email; Store.saveAdmin(); refreshEditor(); toast('You are the administrator'); break; }
     case 'year': openYearOutlook(); break;
     case 'trends': openTrends(t.dataset.key || key); break;
+    case 'trend-add': { const id = t.dataset.arr;
+      if (TRENDS_DEFAULTS.includes(id)) S.trendsHidden = (S.trendsHidden || []).filter(x => x !== id);
+      else S.trendsAdded = [...(S.trendsAdded || []).filter(x => x !== id), id];
+      Store.saveTrendsView(); t.outerHTML = '<span class="muted" style="font-size:12.5px">On Trends & balances</span>';
+      toast('Added to Trends & balances'); break; }
     case 'trend-show': { const id = t.dataset.arr; S.trendsHidden = (S.trendsHidden || []).filter(x => x !== id); Store.saveTrendsView(); redrawTrends(dialogCtx.key || key); toast('Added back'); break; }
     case 'undo': undoAmount(t.dataset.for); break;
     case 'rename-app': { const b = $('#brand'); if (!b || b.tagName === 'INPUT') break;
@@ -1661,7 +1689,7 @@ function openCharts(chart, key, keepTable) {
     <div class="dlg-head">${chartBack(key)}<div class="ttl"><h2>${esc(title)}</h2><span class="muted" style="font-size:13px">${esc(sub)}</span></div></div>
     <div class="tabs">${CHART_TABS.map(t => `<button class="tab ${t.id===chart?'on':''}" data-dact="tab" data-chart="${t.id}">${t.label}</button>`).join('')}</div>
     <div class="dlg-body"><div class="chart-area">${body}</div>${note?`<p class="chart-note">${note}</p>`:''}${dialogCtx.table ? table : ''}</div>
-    <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','savings','debt','equity'].includes(chart) ? key.slice(0,4) + ' · resets each January' : esc(monthLabel(key))}</span><span class="sp"></span><button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button></div>`);
+    <div class="dlg-foot"><span class="muted" style="font-size:12.5px">${['trend','savings','debt','equity'].includes(chart) ? key.slice(0,4) + ' · resets each January' : esc(monthLabel(key))}</span><span class="sp"></span>${addRowBtn(chart === 'trend' ? ['trend','retained'] : [chart])}<button class="btn sm ghost" data-dact="table">${dialogCtx.table?'Hide table':'Show as table'}</button></div>`);
   attachChartHover();
 }
 function tableHTML(head, rows, total) {
