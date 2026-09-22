@@ -193,7 +193,6 @@ h3{font-size:16px;font-weight:700}
 .del-flag svg{width:13px;height:13px}
 .lwrap.deleting .del-hint,.lwrap.deleting .del-flag{display:flex}
 .lwrap.deleting.armed .del-flag{background:var(--bad);color:#fff}
-.putaway{padding:0 2px 4px} .putaway .put{margin:0 6px 6px 0}
 .lwrap.moving,.lwrap.deleting{box-shadow:var(--shadow);border-radius:10px;border-bottom-color:transparent;z-index:2}
 .list.arranging{cursor:grabbing;user-select:none}
 .arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
@@ -222,7 +221,6 @@ h3{font-size:16px;font-weight:700}
 .del-flag svg{width:13px;height:13px}
 .lwrap.deleting .del-hint,.lwrap.deleting .del-flag{display:flex}
 .lwrap.deleting.armed .del-flag{background:var(--bad);color:#fff}
-.putaway{padding:0 2px 4px} .putaway .put{margin:0 6px 6px 0}
 .lwrap.moving,.lwrap.deleting{box-shadow:var(--shadow);border-radius:10px;border-bottom-color:transparent;z-index:2}
 .list.arranging{cursor:grabbing;user-select:none}
 .arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
@@ -847,6 +845,7 @@ const SECTIONS = [
    mortgage marked “principal” — the balance, the equity and the year's equity build always agree.
    Each row is marked worth / owed / other; only worth and owed make up the equity. */
 const TRENDS_DEFAULTS = ['trend', 'savings', 'retire', 'retained', 'outlook', 'equity', 'debt', 'balances'];
+const TRENDS_KEEP = ['retire', 'outlook', 'balances']; // no window of their own to be added back from
 const rowKind = r => ['value', 'owed', 'other'].includes(r.kind) ? r.kind : (OWED_LIKE.test(r.label || '') ? 'owed' : /home|house|property|condo|land|cabin/i.test(r.label || '') ? 'value' : 'other');
 const KIND_LABEL = { value: 'worth', owed: 'owed', other: 'other' };
 const homeEquityAmt = m => r2(((m && m.wealth) || []).filter(l => /equity/i.test(l.label || '')).reduce((s, l) => s + lineAmt(l), 0));
@@ -1116,8 +1115,7 @@ function retireBody() {
 function openRetire() {
   const from = cameFromTrends(); dialogCtx = { sec: 'retire', back: from ? 'trends' : null, via: from ? 'trends' : null };
   openOverlay(`<div class="dlg-head">${trendsBack() || pageBack()}<div class="ttl"><h2>Retirement</h2><span class="muted" style="font-size:13px">What the pot pays out each month once you stop working</span></div></div>
-    <div class="dlg-body">${retireBody()}</div>
-    <div class="dlg-foot"><span class="muted" style="font-size:12px">Arithmetic on the figures above, not advice.</span><span class="sp"></span>${addRowBtn('retire')}</div>`);
+    <div class="dlg-body">${retireBody()}</div>`);
   dlg.style.maxWidth = '620px'; updateRetire(); attachChartHover();
 }
 function openOutlook(key) {
@@ -1207,7 +1205,7 @@ function openYearOutlook() {
         <tr style="font-weight:600"><td>${yo.year}</td><td>${fmt(yo.net)}</td><td>${fmt(r2(yo.exp + yo.abn))}</td><td>${fmt(yo.wealth)}</td><td class="${signCls(yo.kept)}">${fmt(yo.kept)}</td><td class="basis">${yo.entered} entered · ${12 - yo.entered} predicted</td></tr>
       </tbody></table></div>
     </div>
-    <div class="dlg-foot"><span class="muted" style="font-size:12px">Updates as soon as anything in a month changes.</span><span class="sp"></span>${addRowBtn('outlook')}</div>`);
+    <div class="dlg-foot"><span class="muted" style="font-size:12px">Updates as soon as anything in a month changes.</span></div>`);
   dlg.style.maxWidth = '680px'; attachChartHover();
 }
 const BAL_GROUPS = [
@@ -1242,6 +1240,7 @@ function wireArrange() {
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
     if (!p.mode) {
       if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) { // a sideways slide: right moves it, left puts it away
+        if (dx < 0 && TRENDS_KEEP.includes(p.row.dataset.arr)) { end(); return; } // this one stays
         p.mode = dx > 0 ? 'move' : 'del'; arranging = true;
         p.row.classList.add(p.mode === 'move' ? 'moving' : 'deleting'); list.classList.add('arranging');
         document.addEventListener('touchmove', noScroll, { passive: false });
@@ -1276,7 +1275,7 @@ function wireArrange() {
       if (TRENDS_DEFAULTS.includes(id)) S.trendsHidden = [...(S.trendsHidden || []).filter(x => x !== id), id];
       else S.trendsAdded = (S.trendsAdded || []).filter(x => x !== id);
       S.trendsOrder = $$('[data-arr]', list).map(el => el.dataset.arr);
-      Store.saveTrendsView(); redrawTrends(dialogCtx.key); toast(`${title} put away — add it back at the bottom`, 3200);
+      Store.saveTrendsView(); redrawTrends(dialogCtx.key); toast(`${title} put away — add it back from its own chart`, 3200);
       return;
     }
     S.trendsOrder = $$('[data-arr]', list).map(el => el.dataset.arr); Store.saveTrendsView();
@@ -1314,8 +1313,7 @@ function openTrends(key) {
   dlg.style.maxWidth = '560px'; wireArrange();
 }
 let trendsRows = [];
-/* A chart the list does not carry yet can be added from its own window; anything put away comes back
-   from the strip under the list. Both write the same two lists on the budget. */
+/* A chart the list does not carry yet can be added from inside it; swiping one away here takes it off. */
 function extraRow(key, c) {
   const m = S.months[key], cl = calc(m), col = COLS.find(x => x.key === c.id);
   const v = c.id === 'where' ? cl.net : col ? secTotal(m, c.id) : 0;
@@ -1336,9 +1334,7 @@ function trendsBody(key) {
   trendsRows.sort((x, y) => { const i = ord.indexOf(x.id), j = ord.indexOf(y.id); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j); }); // keep whatever order was arranged
   const add = Array.isArray(S.trendsAdded) ? S.trendsAdded : [];
   const shown = trendsRows.filter(r => TRENDS_DEFAULTS.includes(r.id) ? !hid.includes(r.id) : add.includes(r.id));
-  const away = trendsRows.filter(r => TRENDS_DEFAULTS.includes(r.id) && hid.includes(r.id));
-  return `<div class="list trends-list" style="margin:0">${shown.map(r => `<div class="lwrap" data-arr="${r.id}"><span class="swipe-hint"></span><span class="swipe-flag">${ICON.grip} Move tab</span><span class="del-hint"></span><span class="del-flag">${ICON.x} Delete</span><button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button></div>`).join('') || '<div class="faint" style="padding:14px 10px;font-size:12.5px">Every tab is put away. Add one back below.</div>'}</div>
-    <div class="putaway">${away.length ? `<div class="eyebrow" style="margin:14px 2px 6px">Put away</div>${away.map(r => `<button class="btn sm ghost put" data-act="trend-show" data-arr="${r.id}">${ICON.plus} ${esc(r.title)}</button>`).join('')}` : '<div class="faint" style="padding:12px 2px 2px;font-size:12px">Swipe a tab left to put it away. Any chart can be added from the bottom of the chart itself.</div>'}</div>`;
+  return `<div class="list trends-list" style="margin:0">${shown.map(r => `<div class="lwrap" data-arr="${r.id}"><span class="swipe-hint"></span><span class="swipe-flag">${ICON.grip} Move tab</span><span class="del-hint"></span><span class="del-flag">${ICON.x} Delete</span><button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button></div>`).join('') || '<div class="faint" style="padding:14px 10px;font-size:12.5px">Every tab is put away. Add one back below.</div>'}</div>`;
 }
 function redrawTrends(key) { const body = $('.dlg-body.editor', dlg); if (!body) return; body.innerHTML = trendsBody(key); wireArrange(); }
 const fromTrends = () => dialogCtx.back === 'trends';
@@ -1356,7 +1352,7 @@ function openBalances(key) {
   if (!S.months[key]) return; const via = cameFromTrends() ? 'trends' : null; dialogCtx = { key, sec: 'balances', back: via, via };
   openOverlay(`<div class="dlg-head">${trendsBack(key) || pageBack()}<div class="ttl"><h2>Balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · where things stand at month end</span></div></div>
     <div class="dlg-body editor">${balancesBody(key)}</div>
-    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="savings" data-key="${key}">${ICON.chart} Savings & wealth</button><span class="sp"></span>${addRowBtn('balances')}</div>`);
+    <div class="dlg-foot"><button class="chartbtn" data-act="chart" data-chart="debt" data-key="${key}">${ICON.chart} Debt chart</button><button class="chartbtn" data-act="chart" data-chart="savings" data-key="${key}">${ICON.chart} Savings & wealth</button></div>`);
   dlg.style.maxWidth = '640px';
 }
 function openEditor(key, sec) {
@@ -1472,7 +1468,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-show','trend-add','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -1496,7 +1492,6 @@ async function onAction(e) {
       else S.trendsAdded = [...(S.trendsAdded || []).filter(x => x !== id), id];
       Store.saveTrendsView(); t.outerHTML = '<span class="muted" style="font-size:12.5px">On Trends & balances</span>';
       toast('Added to Trends & balances'); break; }
-    case 'trend-show': { const id = t.dataset.arr; S.trendsHidden = (S.trendsHidden || []).filter(x => x !== id); Store.saveTrendsView(); redrawTrends(dialogCtx.key || key); toast('Added back'); break; }
     case 'undo': undoAmount(t.dataset.for); break;
     case 'rename-app': { const b = $('#brand'); if (!b || b.tagName === 'INPUT') break;
       const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'app-title-inp'; inp.maxLength = 40; inp.value = appTitle(); inp.setAttribute('aria-label', 'Budget name'); inp.autocomplete = 'off';
