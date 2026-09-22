@@ -27,6 +27,8 @@ data is ours; the code is here for anyone.)
 - **LDS church expenses** — a separate reimbursable ledger at the bottom of the home page (date, description, amount, paid), with a graph of spend per month; a pencil in its window renames it. Stored on its own and never counted in any budget figure.
 - **Backup / restore** as JSON.
 - **Rename the budget** — tap its name in the header; the name is shared (Firestore `settings/app`). The header stays quiet: no sync pill unless something failed to save.
+- **Retirement** — a Trends window projecting the monthly withdrawal a retirement pot supports. The pot is savings in cash plus the other balances that are money owned (a 401K, an HSA; anything that reads as owed, like a mortgage, is left out), grown at a rate you set with wealth building added each month, then annuitised over the retirement years you choose; the figure is also shown in today’s money. Settings live in `settings/app.retire`.
+- **One window at a time** — each overlay takes its own history entry, so a phone’s back button steps back through the windows instead of jumping to the home page.
 - **Suggestions & bugs** — a card at the bottom of the home page opens a window where anyone on the budget can send a bug report or an idea (Firestore `feedback/<id>`). Whoever first claims it becomes the administrator (`settings/app.admin`), sees every note with who sent it, and marks them fixed; others see only their own notes and their status.
 - **Month picker** on the home page and in the month header to jump anywhere in one tap.
 - **Update button** appears when a new version is deployed; one tap reloads to it.

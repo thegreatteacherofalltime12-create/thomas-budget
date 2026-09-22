@@ -182,6 +182,11 @@ h3{font-size:16px;font-weight:700}
 .chrow .paid{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);white-space:nowrap} .chrow .paid input{width:16px;height:16px;margin:0}
 .ch-title{display:flex;align-items:center;gap:6px;min-width:0} .ch-title .pencil{width:26px;height:26px;color:var(--ink-3);flex:none} .ch-title .pencil:hover{color:var(--accent);background:var(--accent-soft)}
 .ch-title-inp{font:inherit;font-size:19px;font-weight:600;padding:2px 6px;border:1px solid var(--accent-line);border-radius:6px;min-width:0;width:min(100%,280px)}
+.rt-form{display:grid;grid-template-columns:minmax(0,1fr) 86px auto;gap:8px 10px;align-items:center;padding:10px;background:var(--surface-2);border-radius:var(--r-s);margin:0 0 14px;font-size:14px}
+.rt-form label{display:contents} .rt-form label>span:first-child{color:var(--ink-2)}
+.rt-form input{text-align:right;font-variant-numeric:tabular-nums;font-size:16px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);width:100%;min-width:0;font-family:inherit}
+.rt-form label>span:last-child{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden}
+@media (max-width:420px){ .rt-form{grid-template-columns:minmax(0,1fr) 76px} .rt-form label>span:last-child{grid-column:2;text-align:right;margin-top:-6px} }
 .kcard.feedback{text-align:left;color:var(--ink);width:100%}
 .fb-form{display:grid;gap:8px;padding:10px;background:var(--surface-2);border-radius:var(--r-s);margin:0 0 12px} .fb-form textarea{min-height:84px;font:inherit;font-size:15px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;resize:vertical;background:var(--surface)} .fb-form .row2{display:flex;gap:8px;align-items:center} .fb-form .sel{flex:1;min-width:0}
 .fbrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;padding:10px 6px;border-bottom:1px solid var(--line);align-items:start} .fbrow:last-child{border-bottom:0}
@@ -427,7 +432,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -549,11 +554,13 @@ const Store = {
       requestRender();
       if (!snap.metadata.fromCache) ensureCurrentMonth();
     }, err => this.onError(err)));
-    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.admin = snap.exists() ? String(snap.data().admin || '') : ''; renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
+    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.admin = snap.exists() ? String(snap.data().admin || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.collection(db, 'feedback'), snap => { S.feedback = snap.docs.map(d => d.data()).filter(x => x && x.text); requestRender(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.doc(db, 'ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; S.churchTitle = snap.exists() ? String(snap.data().title || '') : ''; requestRender(); }, err => this.onError(err)));
   },
   markChurch() { this._churchDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._churchTimer); this._churchTimer = setTimeout(() => this.saveChurch(), 700); },
+  markRetire() { clearTimeout(this._rtTimer); this._rtTimer = setTimeout(() => this.saveRetire(), 700); },
+  saveRetire() { clearTimeout(this._rtTimer); if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { retire: S.retire || {} }, { merge: true }), 'the retirement settings'); } else this.saveLocal(); },
   saveFeedback(item) { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'feedback', item.id), item), 'the note'); } else this.saveLocal(); },
   deleteFeedback(id) { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.deleteDoc(F.doc(db, 'feedback', id)), 'the removal'); } else this.saveLocal(); },
   saveAdmin() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { admin: S.admin || '' }, { merge: true }), 'the administrator'); } else this.saveLocal(); },
@@ -572,10 +579,10 @@ const Store = {
     else { setSync('bad', 'Sync problem'); toast('Sync problem: ' + code); S.ready = true; requestRender(); }
   },
   loadLocal() {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; S.feedback = Array.isArray(d.feedback) ? d.feedback : []; } } catch (e) {}
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; S.feedback = Array.isArray(d.feedback) ? d.feedback : []; S.retire = d.retire || null; } } catch (e) {}
     S.ready = true;
   },
-  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title, feedback: S.feedback })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
+  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title, feedback: S.feedback, retire: S.retire })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
   markDirty(key) { dirty[key] = true; const mm = S.months[key]; if (mm) { mm.updatedOn = today(); $$('[data-updated]').forEach(el => { el.textContent = 'Updated ' + fmtDate(mm.updatedOn); }); } setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
   write(fn, what) { // fire-and-forget: the SDK queues the write locally; report only failures
     Promise.resolve().then(fn).then(() => { if (!Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced'); })
@@ -603,7 +610,7 @@ const Store = {
     else this.saveLocal();
   },
   /* ---- backup & restore (JSON) ---- */
-  backupJSON() { return JSON.stringify({ app: 'thomas-budget', version: 1, exportedAt: new Date().toISOString(), months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title }, null, 1); },
+  backupJSON() { return JSON.stringify({ app: 'thomas-budget', version: 1, exportedAt: new Date().toISOString(), months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title, retire: S.retire }, null, 1); },
   parseBackup(text) {
     let d; try { d = JSON.parse(text); } catch (e) { throw new Error('That file is not valid JSON'); }
     const safeId = id => (typeof id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(id)) ? id : uid();
@@ -622,13 +629,15 @@ const Store = {
     const church = (d && !Array.isArray(d) && Array.isArray(d.church) ? d.church : []).filter(r => r && /^\d{4}-\d{2}-\d{2}$/.test(String(r.date || ''))).map(r => ({ id: safeId(r.id), date: String(r.date), label: String(r.label || '').slice(0, 120), amount: r2(r.amount), paid: !!r.paid }));
     const churchTitle = d && !Array.isArray(d) && typeof d.churchTitle === 'string' ? d.churchTitle.slice(0, 60) : '';
     const title = d && !Array.isArray(d) && typeof d.title === 'string' ? d.title.slice(0, 40) : '';
-    return { months, church, churchTitle, title };
+    const retire = d && !Array.isArray(d) && d.retire && typeof d.retire === 'object' ? d.retire : null;
+    return { months, church, churchTitle, title, retire };
   },
   async restore(data) {
     setSync('busy', 'Restoring…');
     let n = 0;
     for (const key of Object.keys(data.months).sort()) { S.months[key] = data.months[key]; this.saveMonthNow(key); n++; }
     if (data.title) { S.title = data.title; this.saveTitle(); renderBrand(); }
+    if (data.retire) { S.retire = data.retire; this.saveRetire(); }
     if ((data.church && data.church.length) || data.churchTitle) { if (data.church.length) S.church = data.church; if (data.churchTitle) S.churchTitle = data.churchTitle; this.saveChurch(); }
     S.dbEmpty = false; if (S.mode !== 'firebase') setSync('local', 'Saved on this device'); toast(`Restored ${n} month${n === 1 ? '' : 's'}`); render();
   }
@@ -905,6 +914,83 @@ function openFeedback() {
     <div class="dlg-body editor">${feedbackBody()}</div>`);
   dlg.style.maxWidth = '600px';
 }
+/* Retirement: what the pot becomes by the year you pick, and what it pays out each month after that.
+   It counts savings in cash and the other balances that are money you own (a 401K, an HSA — not a mortgage
+   or a loan), plus what goes to wealth building each month. Plain arithmetic on the figures entered, not advice. */
+const RETIRE_DEF = { years: 20, growth: 6, growthRet: 4, lasts: 30, inflation: 2.5, monthly: null };
+const OWED_LIKE = /mortgage|loan|owe|debt|credit|card|heloc|lien|payable|balance due/i;
+function retirePlan() {
+  const p = { ...RETIRE_DEF, ...(S.retire || {}) };
+  const keys = sortedKeys(), balKey = [...keys].reverse().find(k => (S.months[k].savings || []).length || (S.months[k].accounts || []).length);
+  const bm = balKey ? S.months[balKey] : null, parts = [], skipped = [];
+  if (bm) {
+    for (const r of bm.savings || []) if (r.amount) parts.push({ label: r.label || 'Savings in cash', amount: r.amount });
+    for (const r of bm.accounts || []) { if (!r.amount) continue; if (r.amount < 0 || OWED_LIKE.test(r.label || '')) skipped.push(r.label || 'Other balance'); else parts.push({ label: r.label || 'Other balance', amount: r.amount }); }
+  }
+  const pot = r2(parts.reduce((s, x) => s + x.amount, 0));
+  const cur = currentKey(), yw = (cur ? yearKeys(cur) : []).map(k => calc(S.months[k]).wealth).filter(v => v > 0), nowW = cur ? calc(S.months[cur]).wealth : 0;
+  const auto = nowW > 0 ? nowW : (yw.length ? r2(yw.reduce((a, b) => a + b, 0) / yw.length) : 0);
+  const contrib = p.monthly == null ? auto : p.monthly;
+  const n = Math.round(p.years * 12), r = p.growth / 100 / 12, mo = Math.max(1, Math.round(p.lasts * 12)), rr = p.growthRet / 100 / 12;
+  const bal = [pot]; let b = pot;
+  for (let i = 1; i <= n; i++) { b = b * (1 + r) + contrib; if (i % 12 === 0) bal.push(r2(b)); }
+  const fv = r2(b);
+  const monthly = r2(rr ? fv * rr / (1 - (1 + rr) ** -mo) : fv / mo);
+  const todays = r2(monthly / (1 + p.inflation / 100) ** p.years);
+  const draw = []; let d = fv;
+  for (let i = 1; i <= mo; i++) { d = d * (1 + rr) - monthly; if (i % 12 === 0) draw.push(r2(Math.max(0, d))); }
+  const thisYear = new Date().getFullYear();
+  return { p, parts, skipped, balKey, pot, auto, contrib, fv, monthly, todays, paidIn: r2(contrib * n), growthAmt: r2(fv - pot - contrib * n),
+    values: [...bal, ...draw], startYear: thisYear, retireYear: thisYear + p.years, endYear: thisYear + p.years + p.lasts, dashFrom: bal.length };
+}
+function retireChart() {
+  const pl = retirePlan(), n = pl.values.length;
+  if (n < 2) return '<div class="faint" style="padding:8px">Set how many years away retirement is to see the shape of it.</div>';
+  const labels = pl.values.map((v, i) => String(pl.startYear + i));
+  return lineChartHTML([{ name: 'Balance', color: 'var(--s-wealth)', values: pl.values, dashFrom: pl.dashFrom }], labels, { height: 240, labelEvery: Math.ceil(n / 8) });
+}
+function retireNote() {
+  const pl = retirePlan(), inc = pl.parts.length ? pl.parts.map(x => `${esc(x.label)} ${fmt(x.amount)}`).join(', ') : 'nothing recorded yet';
+  return `Counted as the pot today (${pl.balKey ? esc(monthLabel(pl.balKey)) : 'no balances yet'}): ${inc}.${pl.skipped.length ? ` Left out as money owed: ${pl.skipped.map(esc).join(', ')}.` : ''}
+    The pot grows at ${pl.p.growth}% a year with ${fmt(pl.contrib)} added each month, then pays out for ${pl.p.lasts} years while what is left earns ${pl.p.growthRet}%, ending at zero in ${pl.endYear}. This is arithmetic on the figures above, not financial advice — real returns vary.`;
+}
+function retireFigures() {
+  const pl = retirePlan();
+  return { pot: fmt(pl.pot), contrib: fmt(pl.contrib), fv: fmt(pl.fv), monthly: fmt(pl.monthly), todays: fmt(pl.todays),
+    paid: fmt(pl.paidIn), growth: fmt(pl.growthAmt), year: String(pl.retireYear), end: String(pl.endYear), lasts: String(pl.p.lasts) };
+}
+function updateRetire() {
+  const f = retireFigures(); $$('[data-rt]', dlg).forEach(el => { const v = f[el.dataset.rt]; if (v != null) el.textContent = v; });
+  const c = $('#rt-chart'); if (c) c.innerHTML = retireChart();
+  const nn = $('#rt-note'); if (nn) nn.innerHTML = retireNote();
+}
+function retireBody() {
+  const pl = retirePlan(), p = pl.p;
+  return `<div class="rt-form">
+      <label><span>Retire in</span><input type="text" inputmode="numeric" data-f="rt-years" value="${p.years}" aria-label="Years until retirement"><span>years</span></label>
+      <label><span>Money should last</span><input type="text" inputmode="numeric" data-f="rt-lasts" value="${p.lasts}" aria-label="Years in retirement"><span>years</span></label>
+      <label><span>Growth until then</span><input type="text" inputmode="decimal" data-f="rt-growth" value="${p.growth}" aria-label="Growth before retirement"><span>% a year</span></label>
+      <label><span>Growth in retirement</span><input type="text" inputmode="decimal" data-f="rt-growthRet" value="${p.growthRet}" aria-label="Growth during retirement"><span>% a year</span></label>
+      <label><span>Inflation</span><input type="text" inputmode="decimal" data-f="rt-inflation" value="${p.inflation}" aria-label="Inflation"><span>% a year</span></label>
+      <label><span>Added each month</span><input type="text" inputmode="decimal" data-f="rt-monthly" value="${p.monthly == null ? '' : fmtIn(p.monthly)}" placeholder="${fmtIn(pl.auto)}" aria-label="Monthly amount added"><span>blank = auto</span></label>
+    </div>
+    <div class="okv num">
+      <span class="k">Savings and investments now</span><span class="v" data-rt="pot"></span>
+      <span class="k">Added each month</span><span class="v" data-rt="contrib"></span>
+      <span class="k" style="margin-top:8px">Pot in <b data-rt="year"></b></span><span class="v" style="margin-top:8px" data-rt="fv"></span>
+      <span class="k faint">of which paid in / growth</span><span class="v faint"><span data-rt="paid"></span> / <span data-rt="growth"></span></span>
+      <span class="k tot">Each month for <b data-rt="lasts"></b> years</span><span class="v tot" data-rt="monthly"></span>
+      <span class="k faint">in today’s money</span><span class="v faint" data-rt="todays"></span>
+    </div>
+    <div class="chart-area"><div id="rt-chart"></div></div>
+    <p class="chart-note" id="rt-note"></p>`;
+}
+function openRetire() {
+  const from = cameFromTrends(); dialogCtx = { sec: 'retire', back: from ? 'trends' : null, via: from ? 'trends' : null };
+  openOverlay(`<div class="dlg-head">${trendsBack() || pageBack()}<div class="ttl"><h2>Retirement</h2><span class="muted" style="font-size:13px">What the pot pays out each month once you stop working</span></div></div>
+    <div class="dlg-body">${retireBody()}</div>`);
+  dlg.style.maxWidth = '620px'; updateRetire(); attachChartHover();
+}
 function openOutlook(key) {
   const o = outlook(key), m = S.months[key]; dialogCtx = { key };
   const group = (title, rows, sign) => rows.length ? `<tr class="grp"><th colspan="3">${title}</th></tr>` + rows.map(r => `<tr class="${r.expected !== r.actual ? 'pred' : ''}"><td>${esc(r.label)}</td><td class="num">${fmt(r.actual)}</td><td class="num">${r.expected !== r.actual ? fmt(r.expected) : '<span class="faint">same</span>'}</td></tr>`).join('') : '';
@@ -1020,6 +1106,7 @@ function openTrends(key) {
   const t = trendsFacts(key), yo = yearOutlook(), cm = S.months[key], nCards = (cm.cards||[]).filter(x => x.amount).length, nBal = (cm.cards||[]).length + (cm.savings||[]).length + (cm.accounts||[]).length;
   const rows = [
     { act: 'chart', chart: 'trend', sw: 'wealth', title: 'Trends data', sub: `net income, expenses, retained, savings in cash and wealth building · month by month in ${key.slice(0, 4)}`, v: `${yearKeys(key).length} mo` },
+    (() => { const pl = retirePlan(); return { act: 'retire', sw: 'wealth', title: 'Retirement', sub: `${pl.p.years} year${pl.p.years === 1 ? '' : 's'} away · ${fmt(pl.todays)} a month in today’s money`, v: `${fmt(pl.monthly)}/mo` }; })(),
     { act: 'chart', chart: 'trend', sw: 'ret', title: 'Income retained by month', sub: t.pc ? `${fmt(t.c.retained - t.pc.retained, {sign:true})} vs ${shortMonth(t.prevKey)}` : 'first month on record', v: fmt(t.c.retained), cls: signCls(t.c.retained) },
     { act: 'year', sw: 'ret', title: `${yo.year} outlook`, sub: `kept by year end · ${yo.entered} of 12 months in`, v: fmt(yo.kept), cls: signCls(yo.kept) },
     { act: 'chart', chart: 'debt', sw: 'debt', title: 'Total credit card debt', sub: t.bc ? `${t.bpc ? fmt(t.bc.cc - t.bpc.cc, {sign:true}) + ' since ' + shortMonth(t.bPrev) + ' · ' : ''}as of ${monthLabel(t.withBal)}` : 'add card balances in a month to track this', v: t.bc ? fmt(t.bc.cc) : '—' },
@@ -1031,15 +1118,15 @@ function openTrends(key) {
   dlg.style.maxWidth = '560px';
 }
 const fromTrends = () => dialogCtx.back === 'trends';
-const trendsBack = key => fromTrends() ? `<button class="btn sm ghost back" data-act="trends" data-key="${key}">${ICON.left} Trends</button>` : '';
+const trendsBack = key => fromTrends() ? `<button class="btn sm ghost back" data-act="nav-back">${ICON.left} Trends</button>` : '';
 const cameFromTrends = () => dialogCtx.sec === 'trends' || dialogCtx.via === 'trends';
-const pageBack = () => `<button class="btn sm ghost back" data-dact="close">${ICON.left} ${viewKey() ? esc(monthLabel(viewKey())) : 'Home'}</button>`;
+const pageBack = () => `<button class="btn sm ghost back" data-act="nav-back">${ICON.left} ${viewKey() ? esc(monthLabel(viewKey())) : 'Home'}</button>`;
 function chartBack(key) { // where the chart was opened from
   const b = dialogCtx.back || 'page';
   if (b === 'trends') return trendsBack(key);
-  if (b === 'balances') return `<button class="btn sm ghost back" data-act="balances" data-key="${key}">${ICON.left} Balances</button>`;
+  if (b === 'balances') return `<button class="btn sm ghost back" data-act="nav-back">${ICON.left} Balances</button>`;
   const s = b.startsWith('editor:') && SECTIONS.find(x => x.key === b.slice(7));
-  return s ? `<button class="btn sm ghost back" data-act="edit" data-sec="${s.key}" data-key="${key}">${ICON.left} ${esc(s.title)}</button>` : pageBack();
+  return s ? `<button class="btn sm ghost back" data-act="nav-back">${ICON.left} ${esc(s.title)}</button>` : pageBack();
 }
 function openBalances(key) {
   if (!S.months[key]) return; const via = cameFromTrends() ? 'trends' : null; dialogCtx = { key, sec: 'balances', back: via, via };
@@ -1054,7 +1141,7 @@ function openEditor(key, sec) {
   const fromBalances = dialogCtx.sec === 'balances' || dialogCtx.from === 'balances';
   dialogCtx = { key, sec, from: fromBalances ? 'balances' : null, via: dialogCtx.via || null };
   const chart = s.kind === 'lines' ? sec : (sec === 'cards' ? 'debt' : null);
-  openOverlay(`<div class="dlg-head">${fromBalances ? `<button class="btn sm ghost back" data-act="balances" data-key="${key}">${ICON.left} Balances</button>` : pageBack()}<div class="ttl"><h2 style="display:flex;align-items:center;gap:8px">${s.sw?`<span class="sw ${s.sw}"></span>`:''}${s.title}</h2><span class="muted num" style="font-size:13px">${esc(monthLabel(key))} · <b data-total="${sec}">${sec==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, sec))}</b></span></div></div>
+  openOverlay(`<div class="dlg-head">${fromBalances ? `<button class="btn sm ghost back" data-act="nav-back">${ICON.left} Balances</button>` : pageBack()}<div class="ttl"><h2 style="display:flex;align-items:center;gap:8px">${s.sw?`<span class="sw ${s.sw}"></span>`:''}${s.title}</h2><span class="muted num" style="font-size:13px">${esc(monthLabel(key))} · <b data-total="${sec}">${sec==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, sec))}</b></span></div></div>
     <div class="dlg-body editor">${editorBody(key, sec)}</div>
     <div class="dlg-foot">${s.kind==='budgets' ? `<button class="btn sm" data-act="bud-new" title="New budget">${ICON.plus} Budget</button>` : s.kind==='lines' ? `<button class="btn sm" data-act="add-line" data-col="${sec}">${ICON.plus} Add line</button>` : `<button class="btn sm" data-act="add-bal" data-bal="${sec}">${ICON.plus} Add</button>`}${chart?`<button class="chartbtn" data-act="chart" data-chart="${chart}" data-key="${key}">${ICON.chart} Chart</button>`:''}</div>`);
   dlg.style.maxWidth = '640px';
@@ -1104,6 +1191,13 @@ function updateTotals(key) {
 
 function onInput(e) {
   const el = e.target, f = el.dataset.f;
+  if (f && f.startsWith('rt-')) {
+    const k = f.slice(3), raw = el.value.trim(), lim = { years: [0, 60], lasts: [1, 60], growth: [-5, 20], growthRet: [-5, 20], inflation: [0, 15], monthly: [0, 1e7] }[k];
+    const cur = { ...RETIRE_DEF, ...(S.retire || {}) };
+    if (k === 'monthly' && raw === '') cur.monthly = null;
+    else { const v = parseNum(raw); if (!lim) return; cur[k] = Math.min(lim[1], Math.max(lim[0], k === 'years' || k === 'lasts' ? Math.round(v) : v)); }
+    S.retire = cur; updateRetire(); Store.markRetire(); return;
+  }
   if (f === 'ch-title') { S.churchTitle = el.value.slice(0, 60); Store.markChurch(); return; }
   if (f && f.startsWith('ch-')) { const row = el.closest('[data-ch]'); const r = (S.church || []).find(x => x.id === row.dataset.ch); if (!r) return;
     if (f === 'ch-date') { if (/^\d{4}-\d{2}-\d{2}$/.test(el.value)) r.date = el.value; } else if (f === 'ch-label') r.label = el.value; else if (f === 'ch-amount') r.amount = amtOr(el.value, r.amount); else if (f === 'ch-paid') r.paid = el.checked;
@@ -1144,13 +1238,15 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
-  if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit'].includes(act)) return; // only the editor dialog carries edit actions
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','retire','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
-    case 'open': if (dlg.open) closeOverlay(); location.hash = '#/m/' + t.dataset.key; break;
+    case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
     case 'edit': openEditor(key, t.dataset.sec); break;
     case 'outlook': openOutlook(key); break;
     case 'balances': openBalances(t.dataset.key || key); break;
+    case 'nav-back': history.back(); break;
+    case 'retire': openRetire(); break;
     case 'church': openChurch(); break;
     case 'feedback': openFeedback(); break;
     case 'fb-send': { const ta = $('#fb-text'), text = (ta && ta.value || '').trim(); if (!text) { if (ta) ta.focus(); break; }
@@ -1201,10 +1297,23 @@ $('#dlg').addEventListener('click', onAction);
 
 /* ---------- overlay ---------- */
 const dlg = $('#dlg');
+/* Each window takes a history entry of its own, so the phone's back button walks back through them
+   one at a time instead of leaving the page. The in-app back buttons go through the same door. */
+const navStack = []; let navLock = false, navAfter = null;
+function navOpen(fn, args) { if (navLock) { fn(...args); return; } navStack.push([fn, args]); history.pushState({ dlg: navStack.length }, ''); fn(...args); }
+function navDrop(after) { const n = navStack.length; navStack.length = 0; if (n) { navAfter = after || null; history.go(-n); } else if (after) after(); }
+window.addEventListener('popstate', () => {
+  const after = navAfter; navAfter = null;
+  if (navStack.length) {
+    navStack.pop(); const top = navStack[navStack.length - 1];
+    if (top) { navLock = true; try { top[0](...top[1]); } finally { navLock = false; } } else closeOverlay();
+  }
+  if (after) after();
+});
 function openOverlay(html) { dlg.innerHTML = `<div class="dlg">${html}</div>`; if (!dlg.open) dlg.showModal(); dlg.scrollTop = 0; }
-function closeOverlay() { const wasEdit = !!dialogCtx.sec; dialogCtx.sec = null; dlg.style.maxWidth = ''; if (dlg.open) dlg.close(); dlg.innerHTML = ''; hideTip(); if (wasEdit && !viewKey()) render(); }
+function closeOverlay(after) { const wasEdit = !!dialogCtx.sec; dialogCtx.sec = null; dlg.style.maxWidth = ''; if (dlg.open) dlg.close(); dlg.innerHTML = ''; hideTip(); navDrop(after); if (wasEdit && !viewKey()) render(); }
 dlg.addEventListener('click', e => { if (e.target === dlg) closeOverlay(); const t = e.target.closest('[data-dact]'); if (t) dialogAction(t, e); });
-dlg.addEventListener('close', () => { if (dlg.open) return; const wasEdit = !!dialogCtx.sec; dialogCtx.sec = null; dlg.style.maxWidth = ''; dlg.innerHTML = ''; hideTip(); if (wasEdit && !viewKey()) render(); });
+dlg.addEventListener('close', () => { if (dlg.open) return; const wasEdit = !!dialogCtx.sec; dialogCtx.sec = null; dlg.style.maxWidth = ''; dlg.innerHTML = ''; hideTip(); navDrop(); if (wasEdit && !viewKey()) render(); });
 const askDlg = $('#askdlg');
 function ask(msg, okLabel='OK') {
   return new Promise(res => {
@@ -1347,12 +1456,12 @@ function niceTicks(min, max, n=5) {
   const step = [1,2,2.5,5,10].map(x=>x*mag).find(x => span / x <= n) || mag*10;
   const lo = Math.floor(min/step)*step, hi = Math.ceil(max/step)*step; const ticks=[]; for (let v=lo; v<=hi+1e-9; v+=step) ticks.push(r2(v)); return {lo, hi, ticks};
 }
-function lineChartHTML(series, labels, {height=300}={}) {
+function lineChartHTML(series, labels, {height=300, labelEvery=1}={}) {
   const W = 760, H = height, ml = 62, mr = 118, mt = 14, mb = 30;
   const all = series.flatMap(s=>s.values); const {lo, hi, ticks} = niceTicks(Math.min(0, ...all), Math.max(...all));
   const n = labels.length; const x = i => ml + (n>1 ? i/(n-1) : .5) * (W-ml-mr); const y = v => mt + (1 - (v-lo)/((hi-lo)||1)) * (H-mt-mb);
   const grid = ticks.map(t => `<line class="${t===0?'zero':''}" x1="${ml}" x2="${W-mr}" y1="${y(t)}" y2="${y(t)}"/><text x="${ml-8}" y="${y(t)+4}" text-anchor="end">${t===0?'0':fmt(t,{cents:false}).replace('−','−')}</text>`).join('');
-  const xl = labels.map((l,i) => `<text x="${x(i)}" y="${H-8}" text-anchor="middle">${esc(l)}</text>`).join('');
+  const xl = labels.map((l,i) => (i % labelEvery && i !== labels.length-1) ? '' : `<text x="${x(i)}" y="${H-8}" text-anchor="middle">${esc(l)}</text>`).join('');
   const paths = series.map((s,si) => { const pt = i => `${x(i).toFixed(1)},${y(s.values[i]).toFixed(1)}`, last = s.values.length-1, df = s.dashFrom ?? s.values.length;
     const seg = (a, b) => a < b ? s.values.slice(a, b + 1).map((v,i)=>`${i?'L':'M'}${pt(a + i)}`).join(' ') : '';
     const d = seg(0, Math.min(df - 1, last)), dd = df <= last ? seg(Math.max(df - 1, 0), last) : '';
@@ -1525,6 +1634,17 @@ function openRestore() {
     };
     r.readAsText(f);
   });
+}
+
+/* each window registers itself with the history, so back unwinds them one at a time */
+{
+  const wrap = f => (...a) => navOpen(f, a);
+  const charts = openCharts;
+  openCharts = (chart, key, keepTable) => keepTable ? charts(chart, key, keepTable) : navOpen(charts, [chart, key]);
+  openTrends = wrap(openTrends); openBalances = wrap(openBalances); openEditor = wrap(openEditor);
+  openChurch = wrap(openChurch); openYearOutlook = wrap(openYearOutlook); openOutlook = wrap(openOutlook);
+  openFeedback = wrap(openFeedback); openYear = wrap(openYear); openRetire = wrap(openRetire); openNewMonth = wrap(openNewMonth);
+  confirmDelete = wrap(confirmDelete); openRestore = wrap(openRestore);
 }
 
 /* ---------- boot ---------- */
