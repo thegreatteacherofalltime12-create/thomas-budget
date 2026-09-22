@@ -54,6 +54,17 @@
   --shadow:0 18px 50px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.3);
   color-scheme:dark;
 }
+:root[data-theme="dark"]{
+  --bg:#131613; --surface:#1c201c; --surface-2:#252a25; --surface-3:#2f352f;
+  --ink:#f1f3ee; --ink-2:#b5bcb3; --ink-3:#7f877f;
+  --line:#2c322c; --line-2:#3c433c;
+  --accent:#4dbb97; --accent-ink:#0b1a13; --accent-soft:#1c3a2f; --accent-line:#2f6b57;
+  --good:#5ccc77; --good-soft:#1b3323; --bad:#f0837a; --bad-soft:#3f2321; --warn:#f2c057; --warn-soft:#3b3012;
+  --s-income:#3987e5; --s-exp:#d95926; --s-wealth:#199e70; --s-abn:#c98500; --s-ret:#9085e9; --s-debt:#e66767;
+  --grid:#2c2f2c; --axis:#3d423d;
+  --shadow:0 18px 50px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.3);
+  color-scheme:dark;
+}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{height:100%}
@@ -69,7 +80,8 @@ a{color:var(--accent)}
 /* ---- top bar ---- */
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .top .wrap{display:flex;align-items:center;gap:18px;padding-block:12px}
-.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)}
+.brand{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--ink)}
+.brand .theme{width:30px;height:30px;color:var(--ink-3);flex:none} .brand .theme:hover{color:var(--accent);background:var(--accent-soft)} .brand .theme svg{width:17px;height:17px}
 .brand .name{font-family:var(--display);font-weight:800;font-size:19px;letter-spacing:-.02em;font-variation-settings:"opsz" 96;background:none;border:0;padding:0;color:inherit;cursor:pointer;text-align:left}
 .app-title-inp{font-family:var(--display);font-weight:800;font-size:19px;letter-spacing:-.02em;padding:2px 6px;border:1px solid var(--accent-line);border-radius:6px;width:min(60vw,260px);min-width:0}
 .top nav{display:flex;gap:4px;margin-left:auto;align-items:center}
@@ -424,7 +436,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
 </style>
 
 <header class="top"><div class="wrap">
-  <span class="brand"><button class="name" id="brand" data-act="rename-app" title="Tap to rename the budget">Thomas Budget</button></span>
+  <span class="brand"><button class="name" id="brand" data-act="rename-app" title="Tap to rename the budget">Thomas Budget</button><button class="icon theme" id="theme" data-act="theme" title="Light or dark" aria-label="Light or dark"></button></span>
   <nav>
     <span class="pill local" id="sync" hidden><span class="dot"></span><span id="sync-t">Connecting…</span></span>
     <button id="upd" class="btn primary sm" hidden title="A new version is ready">Update</button>
@@ -532,6 +544,8 @@ function setSync(state, text) { const p=$('#sync'); p.className='pill '+state; p
 const ICON = {
   chart: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 13h12M4 10V7M8 10V4M12 10V6"/></svg>',
   undo: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L2.5 7 6 10.5"/><path d="M2.5 7h7a3.5 3.5 0 0 1 0 7H8"/></svg>',
+  sun: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8" cy="8" r="3.1"/><path d="M8 1.4v1.4M8 13.2v1.4M14.6 8h-1.4M2.8 8H1.4M12.7 3.3l-1 1M4.3 11.7l-1 1M12.7 12.7l-1-1M4.3 4.3l-1-1"/></svg>',
+  moon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1z"/></svg>',
   pencil: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11.3 2.7l2 2L5.5 12.5H3.5v-2z"/><path d="M9.8 4.2l2 2"/></svg>',
   grip: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L2.5 7 6 10.5"/><path d="M10 3.5L13.5 7 10 10.5"/><path d="M2.5 7h11"/></svg>`,
   x: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
@@ -1139,6 +1153,12 @@ function openOutlook(key) {
    month starts from the same month last year, scaled by how this year's income and spending are running
    against last year over the months both years have. Money carried over from the previous month is not
    income made, so it is left out. Nothing is stored: it is recomputed from the month data on every draw. */
+const THEME_KEY = 'thomas-budget:theme';
+const darkNow = () => (document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light')) === 'dark';
+function paintTheme() { const b = $('#theme'); if (b) { b.innerHTML = darkNow() ? ICON.sun : ICON.moon; b.title = darkNow() ? 'Switch to a white background' : 'Switch to a black background'; } }
+function setTheme(t) { document.documentElement.dataset.theme = t; try { localStorage.setItem(THEME_KEY, t); } catch (e) {} paintTheme(); }
+try { const t = localStorage.getItem(THEME_KEY); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; } catch (e) {}
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { if (!document.documentElement.dataset.theme) paintTheme(); });
 const appTitle = () => (S.title || '').trim() || 'Thomas Budget';
 function renderBrand() { const b = $('#brand'); if (b) b.textContent = appTitle(); document.title = appTitle(); }
 const churchTitle = () => (S.churchTitle || '').trim() || 'LDS church expenses';
@@ -1465,7 +1485,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -1490,6 +1510,7 @@ async function onAction(e) {
       Store.saveTrendsView(); t.outerHTML = '<span class="muted" style="font-size:12.5px">On Trends & balances</span>';
       toast('Added to Trends & balances'); break; }
     case 'undo': undoAmount(t.dataset.for); break;
+    case 'theme': setTheme(darkNow() ? 'light' : 'dark'); break;
     case 'rename-app': { const b = $('#brand'); if (!b || b.tagName === 'INPUT') break;
       const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'app-title-inp'; inp.maxLength = 40; inp.value = appTitle(); inp.setAttribute('aria-label', 'Budget name'); inp.autocomplete = 'off';
       const done = () => { S.title = inp.value.trim().slice(0, 40); const nb = document.createElement('button'); nb.className = 'name'; nb.id = 'brand'; nb.dataset.act = 'rename-app'; nb.title = 'Tap to rename the budget'; inp.replaceWith(nb); renderBrand(); Store.saveTitle(); if (!viewKey()) render(); };
@@ -1937,6 +1958,7 @@ function openRestore() {
 }
 
 /* ---------- boot ---------- */
+paintTheme();
 render();
 Store.init();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
