@@ -198,6 +198,8 @@ h3{font-size:16px;font-weight:700}
 .tag.value{background:var(--accent-soft);color:var(--accent);border-color:transparent}
 .tag.owed{background:var(--bad-soft);color:var(--bad);border-color:transparent}
 .paidbox{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+.paidbox .srcsel{font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);max-width:150px;color:var(--ink-2);font-family:inherit}
+.paidbox .paidval{font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
 .paidbox input{width:86px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-family:inherit;font-variant-numeric:tabular-nums}
 .rt-form{display:grid;grid-template-columns:minmax(0,1fr) 86px auto;gap:8px 10px;align-items:center;padding:10px;background:var(--surface-2);border-radius:var(--r-s);margin:0 0 14px;font-size:14px}
 .rt-form label{display:contents} .rt-form label>span:first-child{color:var(--ink-2)}
@@ -219,6 +221,8 @@ h3{font-size:16px;font-weight:700}
 .tag.value{background:var(--accent-soft);color:var(--accent);border-color:transparent}
 .tag.owed{background:var(--bad-soft);color:var(--bad);border-color:transparent}
 .paidbox{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+.paidbox .srcsel{font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);max-width:150px;color:var(--ink-2);font-family:inherit}
+.paidbox .paidval{font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
 .paidbox input{width:86px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-family:inherit;font-variant-numeric:tabular-nums}
 .rt-form{grid-template-columns:minmax(0,1fr) 76px} .rt-form label>span:last-child{grid-column:2;text-align:right;margin-top:-6px} }
 .kcard.feedback{text-align:left;color:var(--ink);width:100%}
@@ -657,7 +661,7 @@ const Store = {
       if (!m || !/^\d{4}-(0[1-9]|1[0-2])$/.test(m.key || '')) continue;
       const doc = { key: m.key, label: m.label || monthLabel(m.key), year: +m.key.slice(0, 4), month: +m.key.slice(5, 7), updatedOn: m.updatedOn || null, notes: String(m.notes || ''), cards: [], savings: [], accounts: [] };
       for (const col of COLS) doc[col.key] = (Array.isArray(m[col.key]) ? m[col.key] : []).map(l => ({ id: safeId(l.id), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })) }));
-      for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount), ...(['value','owed','other'].includes(r.kind) ? { kind: r.kind } : {}), ...(r.paid || r.applied ? { paid: r2(r.paid || r.applied) } : {}) }));
+      for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount), ...(['value','owed','other'].includes(r.kind) ? { kind: r.kind } : {}), ...(r.paid || r.applied ? { paid: r2(r.paid || r.applied) } : {}), ...(r.src ? { src: safeId(r.src) } : {}) }));
       doc.budgets = (Array.isArray(m.budgets) ? m.budgets : []).map(b => ({ id: safeId(b.id), label: String(b.label || '').slice(0, 80), limit: r2(b.limit) }));
       months[m.key] = doc;
     }
@@ -842,19 +846,22 @@ function equityStats(m) {
 }
 const accountsNet = m => equityStats(m).net;
 const owedRows = m => ((m && m.accounts) || []).filter(r => rowKind(r) === 'owed');
+const equityLines = m => ((m && m.wealth) || []).filter(l => /equity/i.test(l.label || '')); // only the Home equity lines
 const rowPaid = r => r2(+r.paid || +r.applied || 0); // what has already come off this month
 const paidTotal = m => r2(owedRows(m).reduce((s, r) => s + rowPaid(r), 0));
-function syncEquityIn(m) { // the Home equity line under wealth building mirrors the mortgages' principal
-  if (!owedRows(m).length) return false;
-  const total = paidTotal(m);
-  let l = (m.wealth || []).find(x => /equity/i.test(x.label || ''));
-  if (!l) { if (!total) return false; l = { id: uid(), label: 'Home equity', amount: 0, items: [] }; (m.wealth = m.wealth || []).push(l); }
-  if (lineAmt(l) === total) return false;
-  l.items = []; l.amount = total; return true;
-}
 function payPrincipal(r, m, amount) { // move a mortgage by the difference, never twice for the same money
   const was = rowPaid(r), d = r2(amount - was); if (d) r.amount = r2((+r.amount || 0) - d);
-  r.paid = r2(amount); delete r.applied; syncEquityIn(m); return d;
+  r.paid = r2(amount); delete r.applied; return d;
+}
+function syncEquityIn(m) { // every mortgage tied to a Home equity line follows what that line says
+  let moved = false;
+  for (const r of owedRows(m)) {
+    if (!r.src) continue;
+    const l = (m.wealth || []).find(x => x.id === r.src);
+    if (!l) { delete r.src; continue; } // the line is gone: leave the balance where it is
+    if (lineAmt(l) !== rowPaid(r)) { payPrincipal(r, m, lineAmt(l)); moved = true; }
+  }
+  return moved;
 }
 function rewireEquity(m) { // a row that is no longer a mortgage hands back what was taken off it
   for (const r of (m && m.accounts) || []) { const p = rowPaid(r); if (p && rowKind(r) !== 'owed') { r.amount = r2((+r.amount || 0) + p); delete r.paid; delete r.applied; } }
@@ -866,6 +873,14 @@ function equityYTD(key) {
   const first = keys[0] && keys[0] !== key ? equityStats(S.months[keys[0]]) : null, now = equityStats(m);
   const appr = first && first.value && now.value ? r2(now.value - first.value) : 0;
   return { paid, appr, total: r2(paid + appr), from: keys[0] };
+}
+function principalCell(m, r) { // where this mortgage's principal for the month comes from
+  const lines = equityLines(m), taken = new Set(owedRows(m).filter(x => x !== r && x.src).map(x => x.src));
+  const pick = lines.length ? `<select data-f="bsrc" class="srcsel" aria-label="Where the principal comes from"><option value="">type it here</option>${lines.map(l => `<option value="${l.id}"${r.src === l.id ? ' selected' : ''}${taken.has(l.id) ? ' disabled' : ''}>${esc(l.label || 'Home equity')} · ${fmt(lineAmt(l))}</option>`).join('')}</select>` : '';
+  const val = r.src
+    ? `<span class="paidval num">${fmt(rowPaid(r))}</span>`
+    : `<input type="text" inputmode="decimal" class="amt" placeholder="0" title="The principal part of this month's payment — it comes straight off this balance" id="f-${r.id}-paid" data-f="bpaid" value="${fmtIn(rowPaid(r))}" autocomplete="off">`;
+  return `<label class="paidbox">principal${pick}${val}</label>`;
 }
 function appreciationHead(key) {
   const m = S.months[key], e = equityStats(m);
@@ -932,7 +947,7 @@ function editorBody(key, sec) {
       <input type="text" id="f-${r.id}-label" data-f="blabel" value="${esc(r.label)}" placeholder="${sec==='cards'?'Card name':sec==='savings'?'Account':'e.g. Home value, Mortgage'}" enterkeyhint="next" autocomplete="off">
       <span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${r.id}-amount" data-f="bamount" value="${fmtIn(r.amount)}" aria-label="Balance" enterkeyhint="next" autocomplete="off">${undoBtn(`f-${r.id}-amount`)}</span>
       <button class="icon" data-act="del-bal" title="Remove">${ICON.x}</button>
-      ${app ? `<span class="tags"><button class="tag ${rowKind(r)}" data-act="bal-kind" title="What this row is — tap to change">${KIND_LABEL[rowKind(r)]}</button>${rowKind(r) === 'owed' ? `<label class="paidbox">principal this month<input type="text" inputmode="decimal" class="amt" placeholder="0" title="The principal part of this month's payment — it comes straight off this balance" id="f-${r.id}-paid" data-f="bpaid" value="${fmtIn(rowPaid(r))}" autocomplete="off"></label>` : ''}</span>` : ''}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}.</div>`}</div>`;
+      ${app ? `<span class="tags"><button class="tag ${rowKind(r)}" data-act="bal-kind" title="What this row is — tap to change">${KIND_LABEL[rowKind(r)]}</button>${rowKind(r) === 'owed' ? principalCell(m, r) : ''}</span>` : ''}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}.</div>`}</div>`;
 }
 /* End-of-month outlook. Start from what last month left over; assume every income, expense and
    wealth-building line reaches at least its usual amount (average of the last three months in which it
@@ -1305,12 +1320,10 @@ function refreshEditor() {
 }
 function lineHTML(key, colKey, l) {
   const hasItems = l.items && l.items.length;
-  const fromHouse = colKey === 'wealth' && /equity/i.test(l.label || '') && owedRows(S.months[key]).length;
   const open = S.view[l.id] || false;
   return `<div class="row" data-line="${l.id}" data-col="${colKey}">
     <input type="text" id="f-${l.id}-label" data-f="label" value="${esc(l.label)}" placeholder="Label" aria-label="Line label" enterkeyhint="next" autocomplete="off">
-    ${fromHouse ? `<span class="calc num" data-line-amt="${l.id}" data-act="edit" data-sec="accounts" data-key="${key}" title="The principal paid on your mortgages — tap to open Appreciation assets">${fmt(lineAmt(l))}</span>`
-               : hasItems ? `<span class="calc num" data-line-amt="${l.id}" data-act="toggle-items" title="Sum of ${l.items.length} items — click to see them">${fmt(lineAmt(l))}</span>`
+    ${hasItems ? `<span class="calc num" data-line-amt="${l.id}" data-act="toggle-items" title="Sum of ${l.items.length} items — click to see them">${fmt(lineAmt(l))}</span>`
                : `<span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${l.id}-amount" data-f="amount" value="${fmtIn(l.amount)}" aria-label="Amount" enterkeyhint="next" autocomplete="off">${undoBtn(`f-${l.id}-amount`)}</span>`}
     <button class="icon ${open||hasItems?'on':''}" data-act="toggle-items" title="${hasItems?'Breakdown items':'Break this line into items'}">${ICON.list}</button>
     <button class="icon" data-act="del-line" title="Remove line">${ICON.x}</button>
@@ -1369,11 +1382,15 @@ function onInput(e) {
     updateAppr(key); }
   else if (f === 'blabel' || f === 'bamount') { const row = el.closest('[data-brow]'); const r = (m[row.dataset.bal]||[]).find(x=>x.id===row.dataset.brow); if (!r) return; if (f==='blabel') r.label = el.value; else r.amount = amtOr(el.value, r.amount); }
   else return;
-  if (f === 'blabel' || f === 'bamount') updateAppr(key);
+  if (f === 'amount' || f === 'iamount' || f === 'label' || f === 'ilabel') { if (syncEquityIn(m) && dialogCtx.sec === 'accounts') refreshEditor(); }
+  if (f && f[0] === 'b') updateAppr(key);
   updateTotals(key); Store.markDirty(key);
 }
 async function onChange(e) {
   const el = e.target, key = viewKey() || dialogCtx.key;
+  if (el.dataset.f === 'bsrc') { const m2 = key && S.months[key]; const row = el.closest('[data-brow]'); const r = m2 && (m2.accounts||[]).find(x => x.id === row.dataset.brow); if (!r) return;
+    if (el.value) { for (const x of owedRows(m2)) if (x !== r && x.src === el.value) delete x.src; r.src = el.value; } else delete r.src;
+    syncEquityIn(m2); Store.markDirty(key); refreshEditor(); updateAppr(key); return; }
   if (el.dataset.f === 'ch-paid') { onInput(e); return; }
   if (el.id === 'bud-name') { const n = $('#bud-name-new'); if (n) { n.hidden = el.value !== '__new__'; if (!n.hidden) n.focus(); } return; }
   if (el.dataset.f === 'yearpick') { const y = el.value; el.value = ''; if (y) openYear(y); return; }
@@ -1735,14 +1752,15 @@ function buildMonth(key, srcKey, prefill, carry) {
   const src = srcKey ? S.months[srcKey] : null, [year, month] = key.split('-').map(Number);
   const mk = (labels) => labels.map(l => ({id:uid(), label:l, amount:0, items:[]}));
   const doc = { key, label: monthLabel(key), year, month, updatedOn: today(), notes:'', cards:[], savings:[], accounts:[] };
+  const lineIds = {}; // old line id → the new month's line id, so a mortgage keeps the line it follows
   for (const col of COLS) {
-    if (src) doc[col.key] = (src[col.key]||[]).map(l => ({id:uid(), label:l.label, amount: (prefill && (col.key==='expenses'||col.key==='wealth')) ? lineAmt(l) : 0, items:[]}));
+    if (src) doc[col.key] = (src[col.key]||[]).map(l => { const id = uid(); lineIds[l.id] = id; return {id, label:l.label, amount: (prefill && (col.key==='expenses'||col.key==='wealth')) ? lineAmt(l) : 0, items:[]}; });
     else doc[col.key] = mk(DEFAULT_LINES[col.key]);
   }
-  if (src) for (const b of BALS) doc[b.key] = (src[b.key]||[]).map(r => ({id:uid(), label:r.label, amount:r.amount, ...(r.kind?{kind:r.kind}:{})}));
+  if (src) for (const b of BALS) doc[b.key] = (src[b.key]||[]).map(r => ({id:uid(), label:r.label, amount:r.amount, ...(r.kind?{kind:r.kind}:{}), ...(r.src && lineIds[r.src] ? {src: lineIds[r.src]} : {})}));
   doc.budgets = src ? (src.budgets||[]).map(b => ({ id: uid(), label: b.label, limit: b.limit })) : [];
   if (src) for (const r of owedRows(doc)) { const was = (src.accounts||[]).find(x => x.label === r.label); const p = was ? rowPaid(was) : 0; if (p) payPrincipal(r, doc, p); } // the same principal again, already taken off
-  syncEquityIn(doc);
+  syncEquityIn(doc); // and anything tied to a Home equity line follows the line
   if (carry && src) { const ret = calc(src).retained; let l = doc.income.find(x => /left over|carry/i.test(x.label)); if (!l) { l = {id:uid(), label:'Money left over from last month', amount:0, items:[]}; doc.income.push(l); } l.amount = ret > 0 ? ret : 0; }
   return doc;
 }
