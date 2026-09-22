@@ -1424,7 +1424,7 @@ $('#dlg').addEventListener('click', onAction);
 const dlg = $('#dlg');
 /* Each window takes a history entry of its own, so the phone's back button walks back through them
    one at a time instead of leaving the page. The in-app back buttons go through the same door. */
-const navStack = []; let navLock = false, navAfter = null, navGuard = false, navIgnore = 0, navAt = 0;
+const navStack = []; let navLock = false, navAfter = null, navGuard = false, navIgnore = 0, navAt = 0, navClosing = false;
 const navHold = () => { if (!navGuard) { navGuard = true; try { history.pushState({ dlg: 1 }, ''); } catch (e) { navGuard = false; } } };
 function navOpen(fn, args) { if (navLock) { fn(...args); return; } navStack.push([fn, args]); navHold(); fn(...args); }
 function navStep() { // one window back, closing the last one
@@ -1447,12 +1447,23 @@ window.addEventListener('popstate', () => {
   if (navStack.length) navHold();
 });
 function openOverlay(html) { dlg.innerHTML = `<div class="dlg">${html}</div>`; if (!dlg.open) dlg.showModal(); dlg.scrollTop = 0; }
-function closeOverlay(after) { const wasEdit = !!dialogCtx.sec; dialogCtx.sec = null; dlg.style.maxWidth = ''; if (dlg.open) dlg.close(); dlg.innerHTML = ''; hideTip(); navDrop(after); if (wasEdit && !viewKey()) render(); }
+function closeOverlay(after) { const wasEdit = !!dialogCtx.sec; dialogCtx.sec = null; dlg.style.maxWidth = ''; if (dlg.open) { navClosing = true; setTimeout(() => { navClosing = false; }, 400); dlg.close(); } dlg.innerHTML = ''; hideTip(); navDrop(after); if (wasEdit && !viewKey()) render(); }
 dlg.addEventListener('click', e => { if (e.target === dlg) closeOverlay(); const t = e.target.closest('[data-dact]'); if (t) dialogAction(t, e); });
 /* A phone's back button (and Escape) reaches an open modal dialog as a close request, which would
    otherwise dismiss the whole stack at once: take one step back through the windows instead. */
-dlg.addEventListener('cancel', e => { e.preventDefault(); if (navStack.length) navBack(); else closeOverlay(); });
-dlg.addEventListener('close', () => { if (dlg.open) return; const wasEdit = !!dialogCtx.sec; dialogCtx.sec = null; dlg.style.maxWidth = ''; dlg.innerHTML = ''; hideTip(); navDrop(); if (wasEdit && !viewKey()) render(); });
+/* A phone may cancel the close (once per tap on Android), fire close, or pop the history. Whichever
+   arrives, step back one window — and if a browser closes the window without telling us at all, the
+   watch below puts the parent back. navAt keeps a single press from stepping twice. */
+dlg.addEventListener('cancel', e => { if (!navStack.length || !e.cancelable) return; e.preventDefault(); navStep(); });
+setInterval(() => { if (navStack.length && !dlg.open && !navClosing && Date.now() - navAt > 300) navStep(); }, 250);
+dlg.addEventListener('close', () => {
+  if (dlg.open) return;
+  if (Date.now() - navAt < 300) return;                  // this press has already been handled
+  if (navClosing) { navClosing = false; return; }        // we closed it ourselves; already handled
+  if (navStack.length > 1) { navStep(); return; }        // a back press on the phone: put the window behind it back
+  const wasEdit = !!dialogCtx.sec; dialogCtx.sec = null; dlg.style.maxWidth = ''; dlg.innerHTML = ''; hideTip(); navStack.length = 0; navDrop();
+  if (wasEdit && !viewKey()) render();
+});
 const askDlg = $('#askdlg');
 function ask(msg, okLabel='OK') {
   return new Promise(res => {
