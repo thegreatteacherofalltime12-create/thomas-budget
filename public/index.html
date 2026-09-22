@@ -833,6 +833,7 @@ function renderMonth(key) {
     <button class="card p" data-act="chart" data-chart="where" data-key="${key}"><span class="lab">Month Performance</span><span class="v num ${signCls(c.perf)}" data-perf="perf">${fmt(c.perf)}</span></button>
     <button class="card p" data-act="chart" data-chart="where" data-key="${key}"><span class="lab">Excl. Abnormal</span><span class="v num ${signCls(c.exAbn)}" data-perf="exAbn">${fmt(c.exAbn)}</span></button>
     <button class="card p" data-act="chart" data-chart="where" data-key="${key}"><span class="lab"><span class="sw ret"></span>Income Retained</span><span class="v num ${signCls(c.retained)}" data-perf="retained">${fmt(c.retained)}</span></button>
+    <button class="card p" data-act="edit" data-sec="wealth"><span class="lab"><span class="sw wealth"></span>Wealth Building</span><span class="v num" data-perf="wealth">${fmt(c.wealth)}</span></button>
     <button class="card p" data-act="outlook" title="Tap for the breakdown"><span class="lab">End-of-month outlook</span><span class="v num ${signCls(outlook(key).projected)}" data-outlook>${fmt(outlook(key).projected)}</span></button>
   </section>
 
@@ -1638,7 +1639,7 @@ function openCharts(chart, key, keepTable) {
   if (chart === 'where') {
     title = 'Where the money went'; sub = `${monthLabel(key)} · ${fmt(c.net)} came in`;
     body = donutHTML(m, {size:300});
-    note = c.retained < 0 ? `Spending plus wealth building exceeded income by ${fmt(-c.retained)} this month, so there is no retained slice. The ring shows how the money that went out splits up.` : `Income Retained is what is left of the ${fmt(c.net)} that came in after expenses, abnormal expenses and wealth building. Wealth building (${fmt(c.wealth)} this month) is set aside before it and is tracked under Balances, so it is not drawn here.`;
+    note = c.retained < 0 ? `Spending plus wealth building exceeded income by ${fmt(-c.retained)} this month, so there is no retained slice. The ring shows how the money that went out splits up.` : `Income Retained is what is left of the ${fmt(c.net)} that came in after expenses, abnormal expenses and wealth building. Wealth building (${fmt(c.wealth)} this month) is money you kept, just not in your pocket — it has its own slice.`;
     const rows = donutSegments(m).map(s => [s.label, s.value, c.net ? Math.round(s.value/c.net*1000)/10 + '%' : '']);
     table = tableHTML(['Category','Amount','Share of income'], rows, ['Net Income', c.net, '100%']);
   } else if (barCol) {
@@ -1717,6 +1718,7 @@ function donutSegments(m) {
   const c = calc(m);
   const segs = [
     {label:'Expenses', value:c.exp, color:'var(--s-exp)'},
+    {label:'Wealth Building', value:c.wealth, color:'var(--s-wealth)'},
     {label:'Abnormal Expenses', value:c.abn, color:'var(--s-abn)'},
     {label:'Income Retained', value:Math.max(0,c.retained), color:'var(--s-ret)'},
   ];
