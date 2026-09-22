@@ -188,7 +188,13 @@ h3{font-size:16px;font-weight:700}
 .swipe-flag{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:3;display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap;display:none;pointer-events:none}
 .swipe-flag svg{width:14px;height:14px}
 .lwrap.moving .swipe-hint,.lwrap.moving .swipe-flag{display:flex}
-.lwrap.moving{box-shadow:var(--shadow);border-radius:10px;border-bottom-color:transparent;z-index:2}
+.del-hint{position:absolute;inset:0;z-index:0;background:var(--bad-soft);display:none;pointer-events:none}
+.del-flag{position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:3;display:none;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad);font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap;pointer-events:none}
+.del-flag svg{width:13px;height:13px}
+.lwrap.deleting .del-hint,.lwrap.deleting .del-flag{display:flex}
+.lwrap.deleting.armed .del-flag{background:var(--bad);color:#fff}
+.putaway{padding:0 2px 4px} .putaway .put{margin:0 6px 6px 0}
+.lwrap.moving,.lwrap.deleting{box-shadow:var(--shadow);border-radius:10px;border-bottom-color:transparent;z-index:2}
 .list.arranging{cursor:grabbing;user-select:none}
 .arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
 .arow:last-child{border-bottom:0}
@@ -211,7 +217,13 @@ h3{font-size:16px;font-weight:700}
 .swipe-flag{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:3;display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap;display:none;pointer-events:none}
 .swipe-flag svg{width:14px;height:14px}
 .lwrap.moving .swipe-hint,.lwrap.moving .swipe-flag{display:flex}
-.lwrap.moving{box-shadow:var(--shadow);border-radius:10px;border-bottom-color:transparent;z-index:2}
+.del-hint{position:absolute;inset:0;z-index:0;background:var(--bad-soft);display:none;pointer-events:none}
+.del-flag{position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:3;display:none;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad);font-size:12px;font-weight:700;letter-spacing:.02em;white-space:nowrap;pointer-events:none}
+.del-flag svg{width:13px;height:13px}
+.lwrap.deleting .del-hint,.lwrap.deleting .del-flag{display:flex}
+.lwrap.deleting.armed .del-flag{background:var(--bad);color:#fff}
+.putaway{padding:0 2px 4px} .putaway .put{margin:0 6px 6px 0}
+.lwrap.moving,.lwrap.deleting{box-shadow:var(--shadow);border-radius:10px;border-bottom-color:transparent;z-index:2}
 .list.arranging{cursor:grabbing;user-select:none}
 .arow{grid-template-columns:minmax(0,1fr) 92px 22px;grid-template-areas:"label amt del" "tags tags tags";padding:6px 2px 8px 6px;border-bottom:1px solid var(--line)}
 .arow:last-child{border-bottom:0}
@@ -470,7 +482,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -593,12 +605,12 @@ const Store = {
       requestRender();
       if (!snap.metadata.fromCache) ensureCurrentMonth();
     }, err => this.onError(err)));
-    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.admin = snap.exists() ? String(snap.data().admin || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; S.trendsOrder = snap.exists() && Array.isArray(snap.data().trendsOrder) ? snap.data().trendsOrder : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
+    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.admin = snap.exists() ? String(snap.data().admin || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; S.trendsOrder = snap.exists() && Array.isArray(snap.data().trendsOrder) ? snap.data().trendsOrder : null; S.trendsHidden = snap.exists() && Array.isArray(snap.data().trendsHidden) ? snap.data().trendsHidden : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.collection(db, 'feedback'), snap => { S.feedback = snap.docs.map(d => d.data()).filter(x => x && x.text); requestRender(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.doc(db, 'ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; S.churchTitle = snap.exists() ? String(snap.data().title || '') : ''; requestRender(); }, err => this.onError(err)));
   },
   markChurch() { this._churchDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._churchTimer); this._churchTimer = setTimeout(() => this.saveChurch(), 700); },
-  saveTrendsOrder() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { trendsOrder: S.trendsOrder || [] }, { merge: true }), 'the order'); } else this.saveLocal(); },
+  saveTrendsView() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { trendsOrder: S.trendsOrder || [], trendsHidden: S.trendsHidden || [] }, { merge: true }), 'the list'); } else this.saveLocal(); },
   markRetire() { clearTimeout(this._rtTimer); this._rtTimer = setTimeout(() => this.saveRetire(), 700); },
   saveRetire() { clearTimeout(this._rtTimer); if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { retire: S.retire || {} }, { merge: true }), 'the retirement settings'); } else this.saveLocal(); },
   saveFeedback(item) { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'feedback', item.id), item), 'the note'); } else this.saveLocal(); },
@@ -619,10 +631,10 @@ const Store = {
     else { setSync('bad', 'Sync problem'); toast('Sync problem: ' + code); S.ready = true; requestRender(); }
   },
   loadLocal() {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; S.feedback = Array.isArray(d.feedback) ? d.feedback : []; S.retire = d.retire || null; S.trendsOrder = Array.isArray(d.trendsOrder) ? d.trendsOrder : null; } } catch (e) {}
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; S.feedback = Array.isArray(d.feedback) ? d.feedback : []; S.retire = d.retire || null; S.trendsOrder = Array.isArray(d.trendsOrder) ? d.trendsOrder : null; S.trendsHidden = Array.isArray(d.trendsHidden) ? d.trendsHidden : null; } } catch (e) {}
     S.ready = true;
   },
-  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title, feedback: S.feedback, retire: S.retire, trendsOrder: S.trendsOrder })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
+  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title, feedback: S.feedback, retire: S.retire, trendsOrder: S.trendsOrder, trendsHidden: S.trendsHidden })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
   markDirty(key) { dirty[key] = true; const mm = S.months[key]; if (mm) { mm.updatedOn = today(); $$('[data-updated]').forEach(el => { el.textContent = 'Updated ' + fmtDate(mm.updatedOn); }); } setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
   write(fn, what) { // fire-and-forget: the SDK queues the write locally; report only failures
     Promise.resolve().then(fn).then(() => { if (!Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced'); })
@@ -1226,15 +1238,20 @@ function wireArrange() {
   const onMove = e => {
     if (!p) return;
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
-    if (!p.moving) {
-      if (dx > 10 && dx > Math.abs(dy)) { // sliding right: hold it for moving
-        p.moving = true; arranging = true;
-        p.row.classList.add('moving'); list.classList.add('arranging');
+    if (!p.mode) {
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) { // a sideways slide: right moves it, left puts it away
+        p.mode = dx > 0 ? 'move' : 'del'; arranging = true;
+        p.row.classList.add(p.mode === 'move' ? 'moving' : 'deleting'); list.classList.add('arranging');
         document.addEventListener('touchmove', noScroll, { passive: false });
         try { p.row.setPointerCapture(e.pointerId); p.captured = e.pointerId; } catch (err) {}
         try { if (navigator.vibrate) navigator.vibrate(20); } catch (err) {}
-      } else if (Math.abs(dy) > 12 || dx < -10) { end(); return; } // scrolling, not moving
+      } else if (Math.abs(dy) > 12) { end(); return; } // scrolling
       else return;
+    }
+    if (p.mode === 'del') {
+      p.inner.style.transform = `translateX(${Math.min(0, Math.max(dx, -120))}px)`;
+      p.far = dx <= -80; p.row.classList.toggle('armed', p.far);
+      return;
     }
     p.inner.style.transform = `translateX(${Math.max(0, Math.min(dx, 96))}px)`;
     for (const s of $$('[data-arr]', list)) { // place it by where the finger is, not by what is under it
@@ -1244,19 +1261,27 @@ function wireArrange() {
     }
   };
   const end = () => {
-    if (!p) return; const { row, inner, moving, captured } = p; p = null;
+    if (!p) return; const { row, inner, mode, far, captured } = p; p = null;
     if (captured != null) try { row.releasePointerCapture(captured); } catch (err) {}
     document.removeEventListener('pointermove', onMove); document.removeEventListener('touchmove', noScroll);
-    inner.style.transform = ''; row.classList.remove('moving');
-    if (!moving) return;
+    inner.style.transform = ''; row.classList.remove('moving', 'deleting', 'armed');
+    if (!mode) return;
     list.classList.remove('arranging');
-    S.trendsOrder = $$('[data-arr]', list).map(el => el.dataset.arr); Store.saveTrendsOrder();
     setTimeout(() => { arranging = false; }, 60); // let the click that ends the gesture fall away
+    if (mode === 'del') {
+      if (!far) return; // not far enough: it springs back
+      const id = row.dataset.arr, title = $('.t', row) ? $('.t', row).firstChild.textContent : 'That tab';
+      S.trendsHidden = [...(S.trendsHidden || []).filter(x => x !== id), id];
+      S.trendsOrder = $$('[data-arr]', list).map(el => el.dataset.arr);
+      Store.saveTrendsView(); redrawTrends(dialogCtx.key); toast(`${title} put away — add it back at the bottom`, 3200);
+      return;
+    }
+    S.trendsOrder = $$('[data-arr]', list).map(el => el.dataset.arr); Store.saveTrendsView();
     toast('Order saved');
   };
   list.addEventListener('pointerdown', e => {
     const row = e.target.closest('[data-arr]'); if (!row || p || arranging) return;
-    p = { row, inner: row.querySelector('.lrow') || row, x: e.clientX, y: e.clientY, moving: false };
+    p = { row, inner: row.querySelector('.lrow') || row, x: e.clientX, y: e.clientY, mode: null, far: false };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', end, { once: true });
     document.addEventListener('pointercancel', end, { once: true });
@@ -1278,11 +1303,21 @@ function openTrends(key) {
   ];
   const ord = Array.isArray(S.trendsOrder) ? S.trendsOrder : []; // whatever order was arranged; anything new stays where it was added
   rows.sort((a, b) => { const i = ord.indexOf(a.id), j = ord.indexOf(b.id); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j); });
+  trendsRows = rows;
   dialogCtx = { key, sec: 'trends' };
-  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · tap one to open it · swipe one right to move it</span></div></div>
-    <div class="dlg-body editor"><div class="list trends-list" style="margin:0">${rows.map(r => `<div class="lwrap" data-arr="${r.id}"><span class="swipe-hint"></span><span class="swipe-flag">${ICON.grip} Move tab</span><button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button></div>`).join('')}</div></div>`);
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · swipe right to move · swipe left to remove</span></div></div>
+    <div class="dlg-body editor">${trendsBody(key)}</div>`);
   dlg.style.maxWidth = '560px'; wireArrange();
 }
+let trendsRows = [];
+function trendsBody(key) {
+  const hid = Array.isArray(S.trendsHidden) ? S.trendsHidden : [], ord = Array.isArray(S.trendsOrder) ? S.trendsOrder : [];
+  trendsRows.sort((x, y) => { const i = ord.indexOf(x.id), j = ord.indexOf(y.id); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j); }); // keep whatever order was arranged
+  const shown = trendsRows.filter(r => !hid.includes(r.id)), away = trendsRows.filter(r => hid.includes(r.id));
+  return `<div class="list trends-list" style="margin:0">${shown.map(r => `<div class="lwrap" data-arr="${r.id}"><span class="swipe-hint"></span><span class="swipe-flag">${ICON.grip} Move tab</span><span class="del-hint"></span><span class="del-flag">${ICON.x} Delete</span><button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button></div>`).join('') || '<div class="faint" style="padding:14px 10px;font-size:12.5px">Every tab is put away. Add one back below.</div>'}</div>
+    <div class="putaway">${away.length ? `<div class="eyebrow" style="margin:14px 2px 6px">Put away</div>${away.map(r => `<button class="btn sm ghost put" data-act="trend-show" data-arr="${r.id}">${ICON.plus} ${esc(r.title)}</button>`).join('')}` : '<div class="faint" style="padding:12px 2px 2px;font-size:12px">Swipe a tab left to put it away; it can be added back here.</div>'}</div>`;
+}
+function redrawTrends(key) { const body = $('.dlg-body.editor', dlg); if (!body) return; body.innerHTML = trendsBody(key); wireArrange(); }
 const fromTrends = () => dialogCtx.back === 'trends';
 const trendsBack = key => fromTrends() ? `<button class="btn sm ghost back" data-act="nav-back">${ICON.left} Trends</button>` : '';
 const cameFromTrends = () => dialogCtx.sec === 'trends' || dialogCtx.via === 'trends';
@@ -1414,7 +1449,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-show','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -1433,6 +1468,7 @@ async function onAction(e) {
     case 'fb-admin': { if (S.admin || !S.user) break; S.admin = S.user.email; Store.saveAdmin(); refreshEditor(); toast('You are the administrator'); break; }
     case 'year': openYearOutlook(); break;
     case 'trends': openTrends(t.dataset.key || key); break;
+    case 'trend-show': { const id = t.dataset.arr; S.trendsHidden = (S.trendsHidden || []).filter(x => x !== id); Store.saveTrendsView(); redrawTrends(dialogCtx.key || key); toast('Added back'); break; }
     case 'undo': undoAmount(t.dataset.for); break;
     case 'rename-app': { const b = $('#brand'); if (!b || b.tagName === 'INPUT') break;
       const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'app-title-inp'; inp.maxLength = 40; inp.value = appTitle(); inp.setAttribute('aria-label', 'Budget name'); inp.autocomplete = 'off';
