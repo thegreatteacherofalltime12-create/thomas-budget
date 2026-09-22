@@ -16,7 +16,7 @@ data is ours; the code is here for anyone.)
   line total is always the sum of its items.
 - **Balances block** — credit cards → total debt, cash savings, 401K and mortgage balances.
 - **Charts in an overlay** — where the month's money went, per-column bars, the calendar-year trend, credit-card debt and savings over time. Every chart has a table view.
-- **Trends & balances** — one card on the home page opens a list of every trend window (trends data, retained by month, the year outlook, credit-card debt, balances); each opens its own overlay with a way back to the list.
+- **Trends & balances** — one card on the home page opens a list of every trend window (trends data, savings & wealth, retirement, retained by month, the year outlook, home equity, credit-card debt, balances); each opens its own overlay with a way back to the list.
 - **New month appears by itself on the 1st** — the first time the app opens in a calendar month with no record, it creates one from the previous month (also available manually). It copies last month's structure, keeps the amounts that repeat (mortgage,
   insurance, 401k), carries balances forward, and pre-fills "money left over".
 - **Budgets** — name a spending limit; it is tracked against the Expenses line with the same name (created for you if missing), with a meter that turns amber near the limit and red over it. Budgets carry forward into new months. Pick the category from a dropdown of your Expenses lines, or type a new one. An Expenses line whose amount is identical three months running is flagged a **standard monthly expense** and drops out of the budget meters automatically (no model, no network — plain arithmetic over the months already loaded).
