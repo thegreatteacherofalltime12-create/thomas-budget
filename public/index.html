@@ -1196,6 +1196,7 @@ function wireArrange() {
         p.moving = true; arranging = true;
         p.row.classList.add('moving'); list.classList.add('arranging');
         document.addEventListener('touchmove', noScroll, { passive: false });
+        try { p.row.setPointerCapture(e.pointerId); p.captured = e.pointerId; } catch (err) {}
         try { if (navigator.vibrate) navigator.vibrate(20); } catch (err) {}
       } else if (Math.abs(dy) > 12 || dx < -10) { end(); return; } // scrolling, not moving
       else return;
@@ -1208,7 +1209,8 @@ function wireArrange() {
     }
   };
   const end = () => {
-    if (!p) return; const { row, inner, moving } = p; p = null;
+    if (!p) return; const { row, inner, moving, captured } = p; p = null;
+    if (captured != null) try { row.releasePointerCapture(captured); } catch (err) {}
     document.removeEventListener('pointermove', onMove); document.removeEventListener('touchmove', noScroll);
     inner.style.transform = ''; row.classList.remove('moving');
     if (!moving) return;
@@ -1220,7 +1222,6 @@ function wireArrange() {
   list.addEventListener('pointerdown', e => {
     const row = e.target.closest('[data-arr]'); if (!row || p || arranging) return;
     p = { row, inner: row.querySelector('.lrow') || row, x: e.clientX, y: e.clientY, moving: false };
-    try { row.setPointerCapture(e.pointerId); } catch (err) {}
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', end, { once: true });
     document.addEventListener('pointercancel', end, { once: true });
