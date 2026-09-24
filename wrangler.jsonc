@@ -1,13 +1,17 @@
 {
-  // Thomas Budget — static site served by a Cloudflare Worker (assets only, no server code).
-  // Deploy with:  npx wrangler deploy
+  // Thomas Budget — a Cloudflare Worker: the static app from ./public, plus one API
+  // route (/api/ai in worker.js, which asks Workers AI to categorize statement
+  // transactions for the importer).  Deploy with:  npx wrangler deploy
   "name": "shiny-mouse-ee83",
+  "main": "worker.js",
   "compatibility_date": "2026-06-01",
   "assets": {
+    "binding": "ASSETS",
     "directory": "./public",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "single-page-application"
   },
+  "ai": { "binding": "AI" },
   // Workers Logs and traces: keep them on. Without this block a deploy turns dashboard-enabled
   // observability back off, so it lives in the repo next to the deploy command.
   "observability": {

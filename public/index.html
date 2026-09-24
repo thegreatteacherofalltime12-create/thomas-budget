@@ -1478,6 +1478,7 @@ async function onChange(e) {
   const el = e.target, key = viewKey() || dialogCtx.key;
   if (el.dataset.f === 'tx-cat' || el.dataset.f === 'tx-new') {
     const t = S.imp && S.imp.rows[+el.dataset.tx]; if (!t) return;
+    t.user = true; delete t.ai;
     if (el.dataset.f === 'tx-new') { t.newName = el.value; t.cat = el.value.trim() ? 'expenses:' + el.value.trim() : ''; return; }
     if (el.value === '__new__') { t.newCat = true; t.cat = ''; refreshEditor(); const n = $(`.newcat[data-tx="${el.dataset.tx}"]`); if (n) n.focus(); return; }
     t.cat = el.value; const ready = S.imp.rows.filter(x => x.cat && !x.dupe && S.months[x.key]).length;
@@ -1510,7 +1511,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -1523,6 +1524,7 @@ async function onAction(e) {
     case 'imp-pdf': pickStatement(t.dataset.key || key, 'pdf'); break;
     case 'imp-csv': pickStatement(t.dataset.key || key, 'csv'); break;
     case 'imp-add': commitImport(); break;
+    case 'imp-ai': aiSuggest(); break;
     case 'church': openChurch(); break;
     case 'feedback': openFeedback(); break;
     case 'fb-send': { const ta = $('#fb-text'), text = (ta && ta.value || '').trim(); if (!text) { if (ta) ta.focus(); break; }
@@ -2096,15 +2098,50 @@ const cleanDesc = s => String(s)
 const fingerprint = t => `${t.date}|${Math.round(Math.abs(t.amount) * 100)}|${merchantKey(t.desc).slice(0, 14)}`;
 
 /* ---------- the review window: nothing is committed until Add is tapped ---------- */
+const aiWants = t => !t.dupe && !t.user && !t.learned && !t.newCat; // rows the AI is allowed to fill or improve
+function aiStrip(im) {
+  if (!S.user || !im.rows.some(aiWants)) return '';
+  return `<div style="padding:0 6px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn sm" data-act="imp-ai"${im.ai === 'busy' ? ' disabled' : ''}>${im.ai === 'busy' ? 'Asking the AI…' : '✨ Let AI suggest categories'}</button>${im.aiNote ? `<span class="muted" style="font-size:12px">${esc(im.aiNote)}</span>` : ''}</div>`;
+}
+async function aiSuggest() {
+  const im = S.imp; if (!im || im.ai === 'busy' || !FB || !FB.auth.currentUser) return;
+  const want = im.rows.map((t, i) => ({ t, i })).filter(x => aiWants(x.t));
+  if (!want.length) return;
+  im.ai = 'busy'; im.aiNote = ''; refreshEditor();
+  try {
+    const token = await FB.auth.currentUser.getIdToken();
+    const cats = new Set(); // his own category names, from every month the statement touches
+    for (const k of new Set([im.key, ...im.rows.map(t => t.key)])) { const m = S.months[k]; if (!m) continue;
+      for (const col of ['expenses', 'income', 'wealth', 'abnormal']) for (const l of m[col] || []) if (l.label.trim()) cats.add(col + ':' + l.label); }
+    let applied = 0;
+    for (let at = 0; at < want.length; at += 80) { // the worker takes 80 at a time
+      const res = await fetch('/api/ai', { method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+        body: JSON.stringify({ cats: [...cats], txns: want.slice(at, at + 80).map(x => ({ i: x.i, desc: x.t.desc.slice(0, 90), amount: r2(x.t.amount) })) }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'The AI is unavailable right now');
+      for (const p of (await res.json()).picks || []) {
+        const t = im.rows[p.i]; if (!t || !aiWants(t) || typeof p.cat !== 'string') continue;
+        const cut = p.cat.indexOf(':'); if (cut < 1) continue;
+        const label = p.cat.slice(cut + 1).replace(/[^\w&\/'’. -]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+        const cat = label && ['expenses', 'income', 'wealth', 'abnormal'].includes(p.cat.slice(0, cut)) ? p.cat.slice(0, cut) + ':' + label : '';
+        if (!cat || cat === t.cat) continue;
+        t.cat = cat; t.ai = true; applied++;
+      }
+    }
+    im.ai = 'done';
+    im.aiNote = applied ? `AI filled in ${applied} — look them over, then tap Add` : 'AI agreed with what was already picked';
+  } catch (e) { console.error(e); im.ai = ''; im.aiNote = (e && e.message) || 'The AI is unavailable right now'; }
+  refreshEditor();
+}
 function importBody() {
   const im = S.imp, months = {};
   for (const t of im.rows) if (t.cat) months[t.key] = (months[t.key] || 0) + 1;
   const missing = Object.keys(months).filter(k => !S.months[k]);
   const ready = im.rows.filter(t => t.cat && !t.dupe && S.months[t.key]).length;
   return `<div class="imp-head muted" style="font-size:12.5px;padding:2px 6px 10px">${im.rows.length} transaction${im.rows.length === 1 ? '' : 's'} read from ${esc(im.name)}${im.dupes ? ` · ${im.dupes} already added` : ''}. Nothing is saved until you tap Add.</div>
-    <div class="col-body">${im.rows.map((t, i) => `<div class="txrow ${t.dupe ? 'dupe' : ''}" data-tx="${i}">
+    ${aiStrip(im)}<div class="col-body">${im.rows.map((t, i) => `<div class="txrow ${t.dupe ? 'dupe' : ''}" data-tx="${i}">
       <span class="d">${esc(t.desc.slice(0, 70))}</span><span class="amt num ${t.amount < 0 ? '' : 'pos'}">${fmt(t.amount)}</span>
-      <span class="meta"><span class="muted" style="font-size:11.5px;white-space:nowrap">${esc(fmtDate(t.date))}${S.months[t.key] ? '' : ' · no ' + esc(monthLabel(t.key))}</span>
+      <span class="meta"><span class="muted" style="font-size:11.5px;white-space:nowrap">${esc(fmtDate(t.date))}${t.ai ? ' · ✨ AI' : ''}${S.months[t.key] ? '' : ' · no ' + esc(monthLabel(t.key))}</span>
       ${t.dupe ? '<span class="muted" style="font-size:11.5px">already added</span>' : t.newCat
         ? `<input class="newcat" data-f="tx-new" data-tx="${i}" placeholder="New category name" value="${esc(t.newName || '')}" autocomplete="off">`
         : `<select data-f="tx-cat" data-tx="${i}">${catOptions(S.months[t.key] || S.months[im.key], t.cat)}</select>`}</span>
@@ -2132,6 +2169,7 @@ function openImport(rows, key, name) {
     t.dupe = !!(S.months[t.key] && (S.months[t.key].imported || []).includes(t.fp));
     if (t.dupe) dupes++;
     t.cat = t.dupe ? '' : suggestCat(mm, t);
+    const mk0 = merchantKey(t.desc); t.learned = !!(t.cat && mk0 && S.catMap && S.catMap[mk0] === t.cat); // a filing he taught the app stays his
   }
   S.imp = { rows, key, name, dupes };
   dialogCtx = { key, sec: 'import' };
@@ -2146,7 +2184,7 @@ function openImportPick(key) {
       <button class="lrow" data-act="imp-pdf" data-key="${key}"><span class="sw exp"></span><span class="t">PDF statement<span class="n">The monthly statement your bank posts or emails</span></span>${ICON.chev}</button>
       <button class="lrow" data-act="imp-csv" data-key="${key}"><span class="sw income"></span><span class="t">CSV or spreadsheet<span class="n">From your bank's site: Activity → Download</span></span>${ICON.chev}</button>
     </div>
-    <p class="chart-note">Either way the file is read on this device and never uploaded anywhere.</p></div>`);
+    <p class="chart-note">The file itself is read on this device and never uploaded. If you tap the AI button on the next screen, only the transaction descriptions and amounts are sent to the AI to be filed.</p></div>`);
   dlg.style.maxWidth = '520px';
 }
 async function pickStatement(key, kind) {
