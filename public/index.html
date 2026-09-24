@@ -451,6 +451,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 .askrow{margin:12px 6px}.askrow .q{font-weight:650}.askrow .a{margin-top:4px;white-space:pre-wrap;line-height:1.5;color:var(--ink-2)}
 .askbar{display:flex;gap:8px;padding:12px 6px 0}.askbar input{flex:1;min-width:0;font-size:14px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:inherit}
+.icon.pre{color:var(--ink-3)}.icon.pre.on{color:var(--accent);background:var(--accent-soft)}
 </style>
 
 <header class="top"><div class="wrap">
@@ -555,11 +556,13 @@ const fmtDate = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00:00'
 const signCls = n => n < 0 ? 'neg' : (n > 0 ? 'pos' : '');
 function calc(m) {
   const net=sumLines(m.income), exp=sumLines(m.expenses), abn=sumLines(m.abnormal), wealth=sumLines(m.wealth);
-  return { net, exp, abn, wealth, perf:r2(net-exp-abn), exAbn:r2(net-exp), retained:r2(net-exp-abn-wealth), cc:sumFlat(m.cards), cash:sumFlat(m.savings) };
+  const wealthBank = sumLines((m.wealth||[]).filter(l => !l.pre)); // lines marked "from paycheck" never left the bank, so only these count against it
+  return { net, exp, abn, wealth, wealthBank, perf:r2(net-exp-abn), exAbn:r2(net-exp), retained:r2(net-exp-abn-wealthBank), cc:sumFlat(m.cards), cash:sumFlat(m.savings) };
 }
 function toast(msg, ms=2200) { const t=$('#toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('on'), ms); }
 function setSync(state, text) { const p=$('#sync'); p.className='pill '+state; p.hidden = state !== 'bad'; $('#sync-t').textContent=text; }
 const ICON = {
+  pay: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><circle cx="8" cy="8" r="2"/></svg>',
   chart: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 13h12M4 10V7M8 10V4M12 10V6"/></svg>',
   undo: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L2.5 7 6 10.5"/><path d="M2.5 7h7a3.5 3.5 0 0 1 0 7H8"/></svg>',
   sun: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8" cy="8" r="3.1"/><path d="M8 1.4v1.4M8 13.2v1.4M14.6 8h-1.4M2.8 8H1.4M12.7 3.3l-1 1M4.3 11.7l-1 1M12.7 12.7l-1-1M4.3 4.3l-1-1"/></svg>',
@@ -985,7 +988,7 @@ function editorBody(key, sec) {
     <div class="bud-form" id="bud-form" hidden><select id="bud-name" class="sel" aria-label="Category">${(() => { const std = standardExpenses(key), taken = new Set((m.budgets||[]).map(b => norm(b.label))); const opts = (m.expenses||[]).filter(l => l.label.trim() && !taken.has(norm(l.label)) && !std.has(norm(l.label))); return `<option value="">Choose a category…</option>${opts.map(l => `<option value="${esc(l.label)}">${esc(l.label)}</option>`).join('')}<option value="__new__">Other — type a new one…</option>`; })()}</select><input type="text" id="bud-name-new" placeholder="New category name" autocomplete="off" hidden><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="bud-limit" placeholder="Don’t go over"><button class="btn primary sm" data-act="bud-add">Add</button></div>
     ${rows.filter(b => !isStandard(m, b.label)).map(b => `<div class="bud" data-bud="${b.id}"><div class="row bud-row"><input type="text" id="f-${b.id}-label" data-f="bud-label" value="${esc(b.label)}" placeholder="Name" autocomplete="off"><span class="faint" style="font-size:12px;white-space:nowrap">limit</span><span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${b.id}-limit" data-f="bud-limit" value="${fmtIn(b.limit)}" aria-label="Limit" autocomplete="off">${undoBtn(`f-${b.id}-limit`)}</span><button class="icon" data-act="del-bud" title="Remove budget">${ICON.x}</button></div>${meterHTML(b, m)}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Tap + to add one.</div>`}
     </div>`;
-  if (s.kind === 'lines') return `<div class="col-body" data-col="${sec}">${rows.map(l => lineHTML(key, sec, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Add a line below.</div>`}</div>`;
+  if (s.kind === 'lines') return `<div class="col-body" data-col="${sec}">${rows.map(l => lineHTML(key, sec, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Add a line below.</div>`}</div>${sec === 'wealth' ? `<p class="chart-note">Money that comes straight out of a paycheck or another payment — a 401k, an HSA, mortgage principal — never goes through the bank account. Turn on the little card icon on those lines: they still count as money put away, but they stop reducing Income Retained.</p>` : ''}`;
   const app = sec === 'accounts';
   return `${app ? appreciationHead(key) : ''}<div class="col-body bal" data-bal="${sec}">${rows.map(r => `<div class="row ${app ? 'arow' : ''}" data-brow="${r.id}" data-bal="${sec}">
       <input type="text" id="f-${r.id}-label" data-f="blabel" value="${esc(r.label)}" placeholder="${sec==='cards'?'Card name':sec==='savings'?'Account':'e.g. Home value, Mortgage'}" enterkeyhint="next" autocomplete="off">
@@ -1005,7 +1008,7 @@ function outlook(key) {
   const m = S.months[key], keys = sortedKeys(), i = keys.indexOf(key), prev = i > 0 ? S.months[keys[i - 1]] : null;
   const carried = (m.income || []).find(l => /left over|carry|carried/i.test(l.label) && lineAmt(l));
   const leftover = carried ? 0 : (prev ? calc(prev).retained : 0); // if the month already lists last month's money as income, it is counted there
-  const rows = col => (m[col] || []).filter(l => l.label.trim()).map(l => { const a = lineAmt(l), t = typical(key, col, l.label); return { label: l.label, actual: a, typical: t, expected: col === 'abnormal' ? a : r2(Math.max(a, t)) }; });
+  const rows = col => (m[col] || []).filter(l => l.label.trim() && !(col === 'wealth' && l.pre)).map(l => { const a = lineAmt(l), t = typical(key, col, l.label); return { label: l.label, actual: a, typical: t, expected: col === 'abnormal' ? a : r2(Math.max(a, t)) }; });
   const g = { income: rows('income'), expenses: rows('expenses'), abnormal: rows('abnormal'), wealth: rows('wealth') };
   const sum = arr => r2(arr.reduce((s, r) => s + r.expected, 0));
   const inc = sum(g.income), exp = sum(g.expenses), abn = sum(g.abnormal), wl = sum(g.wealth);
@@ -1187,7 +1190,7 @@ const isCarry = l => /left over|carry|carried/i.test(l.label || '');
 function fig(net, exp, abn, wealth) { net = r2(net); exp = r2(exp); abn = r2(abn); wealth = r2(wealth); return { net, exp, abn, wealth, out: r2(exp + abn + wealth), kept: r2(net - exp - abn - wealth) }; }
 function yearFigures(m) {
   const c = calc(m), carry = r2((m.income || []).filter(isCarry).reduce((s, l) => s + lineAmt(l), 0));
-  return fig(c.net - carry, c.exp, c.abn, c.wealth);
+  return fig(c.net - carry, c.exp, c.abn, c.wealthBank);
 }
 function currentFigures(key) { const o = outlook(key); return fig(o.g.income.filter(r => !isCarry(r)).reduce((s, r) => s + r.expected, 0), o.exp, o.abn, o.wl); }
 const avgFig = pool => { const n = pool.length || 1, s = k => pool.reduce((t, f) => t + f[k], 0) / n; return fig(s('net'), s('exp'), s('abn'), s('wealth')); };
@@ -1417,6 +1420,7 @@ function lineHTML(key, colKey, l) {
     <input type="text" id="f-${l.id}-label" data-f="label" value="${esc(l.label)}" placeholder="Label" aria-label="Line label" enterkeyhint="next" autocomplete="off">
     ${hasItems ? `<span class="calc num" data-line-amt="${l.id}" data-act="toggle-items" title="Sum of ${l.items.length} items — click to see them">${fmt(lineAmt(l))}</span>`
                : `<span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${l.id}-amount" data-f="amount" value="${fmtIn(l.amount)}" aria-label="Amount" enterkeyhint="next" autocomplete="off">${undoBtn(`f-${l.id}-amount`)}</span>`}
+    ${colKey === 'wealth' ? `<button class="icon pre ${l.pre ? 'on' : ''}" data-act="pre-toggle" title="${l.pre ? 'Comes straight out of a paycheck or another payment — not counted against the bank account. Tap to change.' : 'Tap if this comes straight out of a paycheck or another payment instead of the bank account'}">${ICON.pay}</button>` : ''}
     <button class="icon ${open||hasItems?'on':''}" data-act="toggle-items" title="${hasItems?'Breakdown items':'Break this line into items'}">${ICON.list}</button>
     <button class="icon" data-act="del-line" title="Remove line">${ICON.x}</button>
   </div>
@@ -1567,6 +1571,13 @@ async function onAction(e) {
     case 'chart': openCharts(t.dataset.chart, t.dataset.key || key); break;
     case 'delete-month': confirmDelete(t.dataset.key || key); break;
     case 'add-line': { const col = t.dataset.col; m[col] = m[col]||[]; const l = {id:uid(), label:'', amount:0, items:[]}; m[col].push(l); Store.markDirty(key); render(); const inp = $('#f-'+l.id+'-label'); if (inp) inp.focus(); break; }
+    case 'pre-toggle': { const row = t.closest('[data-line]'); const l = row && (S.months[key].wealth || []).find(x => x.id === row.dataset.line); if (!l) break;
+      const on = !l.pre, name = norm(l.label); let n = 0;
+      if (!name) { if (on) l.pre = 1; else delete l.pre; Store.markDirty(key); n = 1; } // an unnamed line changes only itself
+      else for (const k of sortedKeys()) for (const x of (S.months[k].wealth || [])) if (norm(x.label) === name) { if (on) x.pre = 1; else delete x.pre; Store.markDirty(k); n++; } // the same line means the same thing in every month
+      refreshEditor(); updateTotals(key);
+      toast(on ? `Marked as straight from the paycheck in ${n === 1 ? 'this month' : n + ' months'} — it no longer reduces Income Retained` : `Counted as paid from the bank account again${n > 1 ? ' in all ' + n + ' months' : ''}`, 4000);
+      break; }
     case 'del-line': { const row = t.closest('[data-line]'); const col = row.dataset.col; const l = findLine(key, col, row.dataset.line); if (!l) break; if ((lineAmt(l) || l.label) && !(await ask(`Remove “${l.label||'this line'}”${lineAmt(l)?` (${fmt(lineAmt(l))})`:''} from ${COLS.find(c=>c.key===col).title}?`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur[col] = (cur[col]||[]).filter(x=>x.id!==l.id); Store.markDirty(key); render(); break; }
     case 'toggle-items': { const row = t.closest('[data-line]'); const l = findLine(key, row.dataset.col, row.dataset.line); if (!l) break; S.view[l.id] = !S.view[l.id]; if (S.view[l.id] && !(l.items&&l.items.length) && l.amount) { l.items = [{id:uid(), label:'', amount:l.amount}]; Store.markDirty(key); } render(); break; }
     case 'add-item': { const wrap = t.closest('[data-items]'); const col = t.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) break; l.items = l.items||[]; const it = {id:uid(), label:'', amount:0}; l.items.push(it); Store.markDirty(key); render(); const inp = $('#f-'+it.id+'-label'); if (inp) inp.focus(); break; }
@@ -1676,7 +1687,7 @@ function openCharts(chart, key, keepTable) {
   if (chart === 'where') {
     title = 'Where the money went'; sub = `${monthLabel(key)} · ${fmt(c.net)} came in`;
     body = donutHTML(m, {size:300});
-    note = c.retained < 0 ? `Spending plus wealth building exceeded income by ${fmt(-c.retained)} this month, so there is no retained slice. The ring shows how the money that went out splits up.` : `Income Retained is what is left of the ${fmt(c.net)} that came in after expenses, abnormal expenses and wealth building. Wealth building (${fmt(c.wealth)} this month) is money you kept, just not in your pocket — it has its own slice.`;
+    note = c.retained < 0 ? `Spending plus wealth building exceeded income by ${fmt(-c.retained)} this month, so there is no retained slice. The ring shows how the money that went out splits up.` : `Income Retained is what is left of the ${fmt(c.net)} that came in after expenses, abnormal expenses and wealth building paid from the bank. Wealth building (${fmt(c.wealthBank)} from the bank this month) is money you kept, just not in your pocket — it has its own slice.${c.wealth !== c.wealthBank ? ` Another ${fmt(r2(c.wealth - c.wealthBank))} went to wealth building straight from paychecks, so it never touched this money and isn't in the ring.` : ''}`;
     const rows = donutSegments(m).map(s => [s.label, s.value, c.net ? Math.round(s.value/c.net*1000)/10 + '%' : '']);
     table = tableHTML(['Category','Amount','Share of income'], rows, ['Net Income', c.net, '100%']);
   } else if (barCol) {
@@ -1697,7 +1708,7 @@ function openCharts(chart, key, keepTable) {
     ];
     body = keys.length > 1 ? lineChartHTML(series, keys.map(shortMonth)) : `<div class="empty">Add a second month in ${key.slice(0,4)} to see a trend.</div>`;
     const kept = cs.filter(c=>c.retained>=0).length, ytd = r2(cs.reduce((s,c)=>s+c.wealth,0)), sum = f => r2(cs.reduce((s,c)=>s+f(c),0));
-    note = `${kept} of ${keys.length} months ended with money retained. Abnormal expenses and wealth building are included in that figure, so a big one-off month dips below zero even when regular expenses were covered. Savings and wealth building have their own graph.`;
+    note = `${kept} of ${keys.length} months ended with money retained. Abnormal expenses and wealth building paid from the bank are included in that figure, so a big one-off month dips below zero even when regular expenses were covered. Savings and wealth building have their own graph.`;
     table = tableHTML(['Month', ...series.map(s=>s.name)], keys.map((k,i)=>[monthLabel(k), ...series.map(s=>s.values[i])]), [`${key.slice(0,4)} total`, sum(c=>c.net), sum(c=>c.exp), sum(c=>c.retained)]);
   } else if (chart === 'savings') {
     const keys = yearKeys(key), cs = keys.map(k => calc(S.months[k]));
@@ -1755,7 +1766,7 @@ function donutSegments(m) {
   const c = calc(m);
   const segs = [
     {label:'Expenses', value:c.exp, color:'var(--s-exp)'},
-    {label:'Wealth Building', value:c.wealth, color:'var(--s-wealth)'},
+    {label:'Wealth Building', value:c.wealthBank, color:'var(--s-wealth)'},
     {label:'Abnormal Expenses', value:c.abn, color:'var(--s-abn)'},
     {label:'Income Retained', value:Math.max(0,c.retained), color:'var(--s-ret)'},
   ];
@@ -1780,7 +1791,7 @@ function donutHTML(m, {size=260, compact=false}={}) {
   });
   if (segs.length === 1) paths = `<circle class="donut-seg" cx="${cx}" cy="${cy}" r="${(r0+r1)/2}" fill="none" stroke="${segs[0].color}" stroke-width="${r1-r0}" data-tip="${esc(segs[0].label)}|${esc(fmt(segs[0].value))} · 100%"></circle>`; // a lone slice is a full ring; an arc can't draw that
   if (!segs.length) paths = `<circle cx="${cx}" cy="${cy}" r="${(r0+r1)/2}" fill="none" stroke="var(--surface-3)" stroke-width="${r1-r0}"/>`;
-  const centerBig = c.retained < 0 ? fmt(c.exp+c.abn+c.wealth, {cents:false}) : fmt(c.net, {cents:false});
+  const centerBig = c.retained < 0 ? fmt(c.exp+c.abn+c.wealthBank, {cents:false}) : fmt(c.net, {cents:false});
   const centerLab = c.retained < 0 ? 'went out' : 'came in';
   const svg = `<svg class="donut" viewBox="0 0 ${size} ${size}" role="img" aria-label="Where the money went">${paths}
     <text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="${compact?15:24}" font-weight="600" class="num">${centerBig}</text>
@@ -1873,7 +1884,7 @@ function buildMonth(key, srcKey, prefill, carry) {
   const doc = { key, label: monthLabel(key), year, month, updatedOn: today(), notes:'', cards:[], savings:[], accounts:[] };
   const lineIds = {}; // old line id → the new month's line id, so a mortgage keeps the line it follows
   for (const col of COLS) {
-    if (src) doc[col.key] = (src[col.key]||[]).map(l => { const id = uid(); lineIds[l.id] = id; return {id, label:l.label, amount: (prefill && (col.key==='expenses'||col.key==='wealth')) ? lineAmt(l) : 0, items:[]}; });
+    if (src) doc[col.key] = (src[col.key]||[]).map(l => { const id = uid(); lineIds[l.id] = id; return {id, label:l.label, amount: (prefill && (col.key==='expenses'||col.key==='wealth')) ? lineAmt(l) : 0, items:[], ...(l.pre ? {pre:1} : {})}; });
     else doc[col.key] = mk(DEFAULT_LINES[col.key]);
   }
   if (src) for (const b of BALS) doc[b.key] = (src[b.key]||[]).map(r => ({id:uid(), label:r.label, amount:r.amount, ...(r.kind?{kind:r.kind}:{}), ...(r.src && lineIds[r.src] ? {src: lineIds[r.src]} : {})}));
@@ -2106,11 +2117,11 @@ const fingerprint = t => `${t.date}|${Math.round(Math.abs(t.amount) * 100)}|${me
 
 /* ---------- Ask Budget: plain-English questions answered from the months ---------- */
 function budgetDigest() {
-  const keys = sortedKeys(), out = ['Budget: ' + appTitle() + '. Today: ' + today() + '. All amounts are US dollars. "kept" means net income minus expenses, abnormal and wealth building. Lines under income, expenses, wealth and abnormal are flows during that month (wealth = money moved into savings or investments that month, not a balance). card balance, savings and asset lines are balances as of that month.'];
+  const keys = sortedKeys(), out = ['Budget: ' + appTitle() + '. Today: ' + today() + '. All amounts are US dollars. "kept" means net income minus expenses, abnormal and the wealth building paid from the bank account (wealth lines tagged from-paycheck are put away straight out of a paycheck or another payment, so they do not reduce kept). Lines under income, expenses, wealth and abnormal are flows during that month (wealth = money moved into savings or investments that month, not a balance). card balance, savings and asset lines are balances as of that month.'];
   for (const k of keys.slice(-24)) { const m = S.months[k], c = calc(m);
     out.push(`\n== ${monthLabel(k)} (${k}) — net income ${c.net}, expenses ${c.exp}, abnormal ${c.abn}, wealth building ${c.wealth}, kept ${c.retained}, credit-card balance ${c.cc}, savings in cash ${c.cash}`);
     for (const col of ['income', 'expenses', 'wealth', 'abnormal'])
-      for (const l of m[col] || []) if (l.label.trim() && lineAmt(l)) out.push(`${col} ${l.label}: ${lineAmt(l)}`);
+      for (const l of m[col] || []) if (l.label.trim() && lineAmt(l)) out.push(`${col} ${l.label}: ${lineAmt(l)}${col === 'wealth' && l.pre ? ' (from-paycheck)' : ''}`);
     for (const b of m.budgets || []) if (b.label) out.push(`budget cap ${b.label}: ${b.amount}`);
     for (const x of m.cards || []) if (x.label && +x.amount) out.push(`card balance ${x.label}: ${x.amount}`);
     for (const x of m.savings || []) if (x.label && +x.amount) out.push(`savings ${x.label}: ${x.amount}`);
