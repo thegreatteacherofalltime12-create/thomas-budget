@@ -2098,7 +2098,7 @@ const cleanDesc = s => String(s)
 const fingerprint = t => `${t.date}|${Math.round(Math.abs(t.amount) * 100)}|${merchantKey(t.desc).slice(0, 14)}`;
 
 /* ---------- the review window: nothing is committed until Add is tapped ---------- */
-const aiWants = t => !t.dupe && !t.user && !t.learned && !t.newCat; // rows the AI is allowed to fill or improve
+const aiWants = t => !t.dupe && !t.user && !t.learned && !t.newCat && S.months[t.key]; // rows the AI may fill: not filed by a person, in a month that exists
 function aiStrip(im) {
   if (!S.user || !im.rows.some(aiWants)) return '';
   return `<div style="padding:0 6px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn sm" data-act="imp-ai"${im.ai === 'busy' ? ' disabled' : ''}>${im.ai === 'busy' ? 'Asking the AI…' : '✨ Let AI suggest categories'}</button>${im.aiNote ? `<span class="muted" style="font-size:12px">${esc(im.aiNote)}</span>` : ''}</div>`;
@@ -2131,7 +2131,9 @@ async function aiSuggest() {
     im.ai = 'done';
     im.aiNote = applied ? `AI filled in ${applied} — look them over, then tap Add` : 'AI agreed with what was already picked';
   } catch (e) { console.error(e); im.ai = ''; im.aiNote = (e && e.message) || 'The AI is unavailable right now'; }
-  refreshEditor();
+  const show = () => { if (dialogCtx.sec === 'import' && S.imp === im) refreshEditor(); };
+  if (!isEditing()) show(); // mid-typing: wait for the field to be left, then show (focusout is not reliable everywhere)
+  else { const w = setInterval(() => { if (!isEditing()) { clearInterval(w); show(); } }, 350); }
 }
 function importBody() {
   const im = S.imp, months = {};
@@ -2217,7 +2219,7 @@ function commitImport() {
     l.items.push({ id: uid(), label: t.desc.slice(0, 80), amount: Math.abs(r2(t.amount)), note: fmtDate(t.date) });
     l.amount = sumFlat(l.items);
     m.imported = [...(m.imported || []), t.fp];
-    const mk = merchantKey(t.desc); if (mk) { S.catMap = { ...(S.catMap || {}), [mk]: t.cat }; }
+    const mk = merchantKey(t.desc); if (mk && !t.ai) { S.catMap = { ...(S.catMap || {}), [mk]: t.cat }; } // an untouched AI pick isn't learned — only what a person set or corrected teaches the app
     touched.add(t.key); added++;
   }
   for (const k of touched) Store.markDirty(k);
