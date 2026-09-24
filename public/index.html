@@ -84,7 +84,9 @@ a{color:var(--accent)}
 .brand .theme{width:30px;height:30px;color:var(--ink-3);flex:none} .brand .theme:hover{color:var(--accent);background:var(--accent-soft)} .brand .theme svg{width:17px;height:17px}
 .brand .name{font-family:var(--display);font-weight:800;font-size:19px;letter-spacing:-.02em;font-variation-settings:"opsz" 96;background:none;border:0;padding:0;color:inherit;cursor:pointer;text-align:left}
 .app-title-inp{font-family:var(--display);font-weight:800;font-size:19px;letter-spacing:-.02em;padding:2px 6px;border:1px solid var(--accent-line);border-radius:6px;width:min(60vw,260px);min-width:0}
-.top nav{display:flex;gap:4px;margin-left:auto;align-items:center}
+.top nav{display:flex;gap:4px;margin-left:auto;align-items:center;flex:none}
+#who{display:flex;gap:6px;align-items:center}#who .btn{white-space:nowrap}
+.brand{min-width:0}.brand .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:500;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);white-space:nowrap}
 .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-3)}
 .pill.ok .dot{background:var(--good)} .pill.busy .dot{background:var(--s-abn)} .pill.local .dot{background:var(--ink-3)}
