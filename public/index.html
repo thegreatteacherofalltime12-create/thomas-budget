@@ -214,6 +214,13 @@ h3{font-size:16px;font-weight:700}
 .tag{font-size:11.5px;font-weight:600;letter-spacing:.02em;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-3);cursor:pointer}
 .tag.value{background:var(--accent-soft);color:var(--accent);border-color:transparent}
 .tag.owed{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.imp-row{margin-top:14px}
+.txrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:9px 6px;border-bottom:1px solid var(--line);align-items:start}
+.txrow:last-child{border-bottom:0} .txrow.dupe{opacity:.45}
+.txrow .d{font-size:14px;overflow-wrap:anywhere} .txrow .amt{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.txrow .amt.pos{color:var(--good)}
+.txrow .meta{grid-column:1/-1;display:flex;gap:8px;align-items:center;margin-top:4px}
+.txrow select,.txrow .newcat{flex:1;min-width:0;font-size:13px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font-family:inherit}
 .paidbox{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3);white-space:nowrap}
 .paidbox .srcsel{font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);max-width:150px;color:var(--ink-2);font-family:inherit}
 .paidbox .paidval{font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
@@ -242,6 +249,13 @@ h3{font-size:16px;font-weight:700}
 .tag{font-size:11.5px;font-weight:600;letter-spacing:.02em;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-3);cursor:pointer}
 .tag.value{background:var(--accent-soft);color:var(--accent);border-color:transparent}
 .tag.owed{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.imp-row{margin-top:14px}
+.txrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:9px 6px;border-bottom:1px solid var(--line);align-items:start}
+.txrow:last-child{border-bottom:0} .txrow.dupe{opacity:.45}
+.txrow .d{font-size:14px;overflow-wrap:anywhere} .txrow .amt{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.txrow .amt.pos{color:var(--good)}
+.txrow .meta{grid-column:1/-1;display:flex;gap:8px;align-items:center;margin-top:4px}
+.txrow select,.txrow .newcat{flex:1;min-width:0;font-size:13px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font-family:inherit}
 .paidbox{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3);white-space:nowrap}
 .paidbox .srcsel{font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);max-width:150px;color:var(--ink-2);font-family:inherit}
 .paidbox .paidval{font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
@@ -489,7 +503,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, catMap:null, imp:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -614,11 +628,12 @@ const Store = {
       requestRender();
       if (!snap.metadata.fromCache) ensureCurrentMonth();
     }, err => this.onError(err)));
-    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.admin = snap.exists() ? String(snap.data().admin || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; S.trendsOrder = snap.exists() && Array.isArray(snap.data().trendsOrder) ? snap.data().trendsOrder : null; S.trendsHidden = snap.exists() && Array.isArray(snap.data().trendsHidden) ? snap.data().trendsHidden : null; S.trendsAdded = snap.exists() && Array.isArray(snap.data().trendsAdded) ? snap.data().trendsAdded : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
+    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.admin = snap.exists() ? String(snap.data().admin || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; S.trendsOrder = snap.exists() && Array.isArray(snap.data().trendsOrder) ? snap.data().trendsOrder : null; S.trendsHidden = snap.exists() && Array.isArray(snap.data().trendsHidden) ? snap.data().trendsHidden : null; S.trendsAdded = snap.exists() && Array.isArray(snap.data().trendsAdded) ? snap.data().trendsAdded : null; S.catMap = snap.exists() && snap.data().catMap ? snap.data().catMap : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.collection(db, 'feedback'), snap => { S.feedback = snap.docs.map(d => d.data()).filter(x => x && x.text); requestRender(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.doc(db, 'ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; S.churchTitle = snap.exists() ? String(snap.data().title || '') : ''; requestRender(); }, err => this.onError(err)));
   },
   markChurch() { this._churchDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._churchTimer); this._churchTimer = setTimeout(() => this.saveChurch(), 700); },
+  saveCatMap() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { catMap: S.catMap || {} }, { merge: true }), 'the categories'); } else this.saveLocal(); },
   saveTrendsView() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { trendsOrder: S.trendsOrder || [], trendsHidden: S.trendsHidden || [], trendsAdded: S.trendsAdded || [] }, { merge: true }), 'the list'); } else this.saveLocal(); },
   markRetire() { clearTimeout(this._rtTimer); this._rtTimer = setTimeout(() => this.saveRetire(), 700); },
   saveRetire() { clearTimeout(this._rtTimer); if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { retire: S.retire || {} }, { merge: true }), 'the retirement settings'); } else this.saveLocal(); },
@@ -640,10 +655,10 @@ const Store = {
     else { setSync('bad', 'Sync problem'); toast('Sync problem: ' + code); S.ready = true; requestRender(); }
   },
   loadLocal() {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; S.feedback = Array.isArray(d.feedback) ? d.feedback : []; S.retire = d.retire || null; S.trendsOrder = Array.isArray(d.trendsOrder) ? d.trendsOrder : null; S.trendsHidden = Array.isArray(d.trendsHidden) ? d.trendsHidden : null; S.trendsAdded = Array.isArray(d.trendsAdded) ? d.trendsAdded : null; } } catch (e) {}
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); S.months = d.months || {}; S.church = Array.isArray(d.church) ? d.church : []; S.churchTitle = typeof d.churchTitle === 'string' ? d.churchTitle : ''; S.title = typeof d.title === 'string' ? d.title : ''; S.feedback = Array.isArray(d.feedback) ? d.feedback : []; S.retire = d.retire || null; S.trendsOrder = Array.isArray(d.trendsOrder) ? d.trendsOrder : null; S.trendsHidden = Array.isArray(d.trendsHidden) ? d.trendsHidden : null; S.trendsAdded = Array.isArray(d.trendsAdded) ? d.trendsAdded : null; S.catMap = d.catMap || null; } } catch (e) {}
     S.ready = true;
   },
-  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title, feedback: S.feedback, retire: S.retire, trendsOrder: S.trendsOrder, trendsHidden: S.trendsHidden, trendsAdded: S.trendsAdded })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
+  saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ months: S.months, church: S.church, churchTitle: S.churchTitle, title: S.title, feedback: S.feedback, retire: S.retire, trendsOrder: S.trendsOrder, trendsHidden: S.trendsHidden, trendsAdded: S.trendsAdded, catMap: S.catMap })); } catch (e) { if (!this._warned) { this._warned = true; toast('This browser is not keeping data between visits'); } } },
   markDirty(key) { dirty[key] = true; const mm = S.months[key]; if (mm) { mm.updatedOn = today(); $$('[data-updated]').forEach(el => { el.textContent = 'Updated ' + fmtDate(mm.updatedOn); }); } setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(timers[key]); timers[key] = setTimeout(() => this.flush(key), 700); },
   write(fn, what) { // fire-and-forget: the SDK queues the write locally; report only failures
     Promise.resolve().then(fn).then(() => { if (!Object.values(dirty).some(Boolean)) setSync('ok', 'Shared · synced'); })
@@ -680,7 +695,7 @@ const Store = {
     if (!monthList) throw new Error('No months found in that file');
     for (const m of monthList) {
       if (!m || !/^\d{4}-(0[1-9]|1[0-2])$/.test(m.key || '')) continue;
-      const doc = { key: m.key, label: m.label || monthLabel(m.key), year: +m.key.slice(0, 4), month: +m.key.slice(5, 7), updatedOn: m.updatedOn || null, notes: String(m.notes || ''), cards: [], savings: [], accounts: [] };
+      const doc = { key: m.key, label: m.label || monthLabel(m.key), year: +m.key.slice(0, 4), month: +m.key.slice(5, 7), updatedOn: m.updatedOn || null, notes: String(m.notes || ''), imported: (Array.isArray(m.imported) ? m.imported : []).map(x => String(x).slice(0, 60)), cards: [], savings: [], accounts: [] };
       for (const col of COLS) doc[col.key] = (Array.isArray(m[col.key]) ? m[col.key] : []).map(l => ({ id: safeId(l.id), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })) }));
       for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount), ...(['value','owed','other'].includes(r.kind) ? { kind: r.kind } : {}), ...(r.paid || r.applied ? { paid: r2(r.paid || r.applied) } : {}), ...(r.src ? { src: safeId(r.src) } : {}) }));
       doc.budgets = (Array.isArray(m.budgets) ? m.budgets : []).map(b => ({ id: safeId(b.id), label: String(b.label || '').slice(0, 80), limit: r2(b.limit) }));
@@ -841,6 +856,7 @@ function renderMonth(key) {
     <div class="card list">${SECTIONS.filter(s => s.kind !== 'bal').map(s => `<button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${s.kind==='budgets' ? (budgetStats(m).count ? `${budgetStats(m).count} budget${budgetStats(m).count===1?'':'s'}${budgetStats(m).over?` · ${budgetStats(m).over} over`:''}${standardExpenses(key).size?` · ${standardExpenses(key).size} standard`:''}` : standardExpenses(key).size ? `${standardExpenses(key).size} standard expense${standardExpenses(key).size===1?'':'s'}` : 'set spending limits') : `${(m[s.key]||[]).length} ${s.kind==='lines'?'line':'entr'}${(m[s.key]||[]).length===1?(s.kind==='lines'?'':'y'):(s.kind==='lines'?'s':'ies')}`}</span></span><span class="v num" data-total="${s.key}">${s.key==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, s.key))}</span>${ICON.chev}</button>`).join('')}</div>
   </section>
 
+  <div class="imp-row"><button class="btn ghost sm" data-act="import" data-key="${key}">${ICON.upload} Import a statement</button></div>
   <section class="notes"><div class="eyebrow" style="margin-bottom:6px">Notes</div><textarea id="f-notes" data-f="notes" placeholder="Anything worth remembering about this month…">${esc(m.notes||'')}</textarea></section>
   <footer class="foot"><span class="sp"></span><span>${S.mode==='firebase'?'Changes save automatically and sync to both of you':'Changes save automatically in this browser'}</span></footer>`;
 }
@@ -1388,7 +1404,7 @@ function openEditor(key, sec) {
 function refreshEditor() {
   if (!dialogCtx.sec || !dlg.open) return;
   const body = $('.dlg-body.editor', dlg); if (!body) return;
-  const st = body.scrollTop; setTimeout(() => { if (dialogCtx.sec === 'accounts') updateAppr(dialogCtx.key); }, 0); body.innerHTML = dialogCtx.sec === 'feedback' ? feedbackBody() : dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
+  const st = body.scrollTop; setTimeout(() => { if (dialogCtx.sec === 'accounts') updateAppr(dialogCtx.key); }, 0); body.innerHTML = dialogCtx.sec === 'import' ? importBody() : dialogCtx.sec === 'feedback' ? feedbackBody() : dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
 }
 function lineHTML(key, colKey, l) {
   const hasItems = l.items && l.items.length;
@@ -1460,10 +1476,18 @@ function onInput(e) {
 }
 async function onChange(e) {
   const el = e.target, key = viewKey() || dialogCtx.key;
+  if (el.dataset.f === 'tx-cat' || el.dataset.f === 'tx-new') {
+    const t = S.imp && S.imp.rows[+el.dataset.tx]; if (!t) return;
+    if (el.dataset.f === 'tx-new') { t.newName = el.value; t.cat = el.value.trim() ? 'expenses:' + el.value.trim() : ''; return; }
+    if (el.value === '__new__') { t.newCat = true; t.cat = ''; refreshEditor(); const n = $(`.newcat[data-tx="${el.dataset.tx}"]`); if (n) n.focus(); return; }
+    t.cat = el.value; const ready = S.imp.rows.filter(x => x.cat && !x.dupe && S.months[x.key]).length;
+    const b = $('[data-act="imp-add"]'); if (b) b.innerHTML = `${ICON.plus} Add ${ready} to the budget`;
+    return;
+  }
   if (el.dataset.f === 'bsrc') { const m2 = key && S.months[key]; const row = el.closest('[data-brow]'); const r = m2 && (m2.accounts||[]).find(x => x.id === row.dataset.brow); if (!r) return;
     if (el.value) { for (const x of owedRows(m2)) if (x !== r && x.src === el.value) delete x.src; r.src = el.value; } else delete r.src;
     syncEquityIn(m2); Store.markDirty(key); refreshEditor(); updateAppr(key); return; }
-  if (el.dataset.f === 'ch-paid') { onInput(e); return; }
+  if (el.dataset.f === 'ch-paid' || el.dataset.f === 'tx-cat') { onInput(e); return; }
   if (el.id === 'bud-name') { const n = $('#bud-name-new'); if (n) { n.hidden = el.value !== '__new__'; if (!n.hidden) n.focus(); } return; }
   if (el.dataset.f === 'yearpick') { const y = el.value; el.value = ''; if (y) openYear(y); return; }
   if (el.dataset.f === 'monthpick') { if (el.value && el.value !== key) location.hash = '#/m/' + el.value; return; }
@@ -1486,7 +1510,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -1495,6 +1519,10 @@ async function onAction(e) {
     case 'balances': openBalances(t.dataset.key || key); break;
     case 'nav-back': navBack(); break;
     case 'retire': openRetire(); break;
+    case 'import': openImportPick(key); break;
+    case 'imp-pdf': pickStatement(t.dataset.key || key, 'pdf'); break;
+    case 'imp-csv': pickStatement(t.dataset.key || key, 'csv'); break;
+    case 'imp-add': commitImport(); break;
     case 'church': openChurch(); break;
     case 'feedback': openFeedback(); break;
     case 'fb-send': { const ta = $('#fb-text'), text = (ta && ta.value || '').trim(); if (!text) { if (ta) ta.focus(); break; }
@@ -1955,8 +1983,210 @@ function openRestore() {
   openCharts = (chart, key, keepTable) => keepTable ? charts(chart, key, keepTable) : navOpen(charts, [chart, key]);
   openTrends = wrap(openTrends); openBalances = wrap(openBalances); openEditor = wrap(openEditor);
   openChurch = wrap(openChurch); openYearOutlook = wrap(openYearOutlook); openOutlook = wrap(openOutlook);
-  openFeedback = wrap(openFeedback); openYear = wrap(openYear); openRetire = wrap(openRetire); openNewMonth = wrap(openNewMonth);
+  openFeedback = wrap(openFeedback); openYear = wrap(openYear); openRetire = wrap(openRetire);
+  openImportPick = wrap(openImportPick); openImport = wrap(openImport); openNewMonth = wrap(openNewMonth);
   confirmDelete = wrap(confirmDelete); openRestore = wrap(openRestore);
+}
+
+/* ---------- importing a bank statement ----------
+   The file is read here in the browser and never uploaded anywhere. A statement is turned into rows,
+   each row is given a category to file it under, and only then does anything touch a month. */
+const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/';
+let pdfLib = null;
+async function pdfjs() { if (!pdfLib) { pdfLib = await import(PDFJS + 'pdf.min.mjs'); pdfLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.mjs'; } return pdfLib; }
+const MONEY = /^-?\$?[\d,]+\.\d\d$/;
+const money = s => parseFloat(String(s).replace(/[$,]/g, ''));
+
+async function pdfRows(file) { // every page as rows of {x, s}, top to bottom
+  const lib = await pdfjs(), doc = await lib.getDocument({ data: await file.arrayBuffer() }).promise, out = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const c = await (await doc.getPage(p)).getTextContent(), rows = new Map();
+    for (const it of c.items) {
+      const s = it.str.trim(); if (!s) continue;
+      const y = Math.round(it.transform[5]), k = [...rows.keys()].find(v => Math.abs(v - y) <= 2);
+      const key = k === undefined ? y : k; if (!rows.has(key)) rows.set(key, []); rows.get(key).push({ x: it.transform[4], s });
+    }
+    for (const [, cells] of [...rows.entries()].sort((a, b) => b[0] - a[0])) out.push(cells.sort((a, b) => a.x - b.x));
+  }
+  return out;
+}
+function statementYears(rows) { // "July 22, 2026 through August 21, 2026"
+  const line = rows.map(r => r.map(c => c.s).join(' ')).find(t => /through/i.test(t) && /\b(19|20)\d\d\b/.test(t)) || '';
+  const ys = (line.match(/\b(19|20)\d\d\b/g) || []).map(Number);
+  const ms = (line.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/gi) || [])
+    .map(x => MONTH_NAMES.findIndex(n => n.toLowerCase() === x.toLowerCase()) + 1);
+  const now = new Date();
+  return { m0: ms[0] || 1, y0: ys[0] || now.getFullYear(), y1: ys[ys.length - 1] || ys[0] || now.getFullYear() };
+}
+function txnsFromPdf(rows) {
+  const { m0, y0, y1 } = statementYears(rows), out = [];
+  let cur = null;
+  for (const cells of rows) {
+    const first = cells[0]; if (!first) continue;
+    const text = cells.map(c => c.s).join(' ');
+    const dated = /^\d{1,2}\/\d{1,2}$/.test(first.s);
+    const amt = cells.find(c => c.x > 380 && c.x < 480 && MONEY.test(c.s));
+    if (dated && amt && !/beginning balance|ending balance|total/i.test(text)) {
+      const [mm, dd] = first.s.split('/').map(Number);
+      const year = mm >= m0 ? y0 : y1;
+      const desc = cells.filter(c => c.x > first.x + 8 && c.x < 380).map(c => c.s).join(' ').replace(/\s+/g, ' ').trim();
+      cur = { date: `${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`, desc, amount: money(amt.s) };
+      out.push(cur);
+    } else if (cur && !dated && cells.every(c => c.x < 380) && first.x > 60 && cells.length <= 3 && !/^\*/.test(first.s)) {
+      cur.desc = (cur.desc + ' ' + cells.map(c => c.s).join(' ')).replace(/\s+/g, ' ').trim(); // a wrapped description
+    }
+  }
+  for (const t of out) t.desc = cleanDesc(t.desc) || t.desc;
+  return out;
+}
+function txnsFromCsv(text) {
+  const rows = text.split(/\r?\n/).filter(l => l.trim()).map(l => { const out = []; let cur = '', q = false;
+    for (const ch of l) { if (ch === '"') q = !q; else if (ch === ',' && !q) { out.push(cur); cur = ''; } else cur += ch; }
+    out.push(cur); return out.map(s => s.trim().replace(/^"|"$/g, '')); });
+  if (!rows.length) return [];
+  const head = rows[0].map(s => s.toLowerCase());
+  const iDate = head.findIndex(s => /date/.test(s)), iDesc = head.findIndex(s => /desc|payee|merchant|name/.test(s)), iAmt = head.findIndex(s => /amount|debit/.test(s));
+  if (iDate < 0 || iAmt < 0) return [];
+  const out = [];
+  for (const r of rows.slice(1)) {
+    const d = new Date(r[iDate]); if (isNaN(d) || !r[iAmt]) continue;
+    out.push({ date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      desc: (r[iDesc] || '').replace(/\s+/g, ' ').trim(), amount: money(r[iAmt]) });
+  }
+  return out;
+}
+
+/* ---------- what to file each one under ---------- */
+const CAT_HINTS = [
+  [/walmart|kroger|aldi|trader joe|schnucks|dierbergs|hy-?vee|costco|sam.?s club|grocer/i, 'expenses:Groceries'],
+  [/mcdonald|chipotle|starbucks|panera|pizza|taco|burger|doordash|grubhub|sonic|culver|chick|restaurant|cafe|coffee/i, 'expenses:Eating out'],
+  [/shell|quiktrip|circle k|phillips 66|exxon|mobil|casey|\bbp\b|\bqt\b|fuel|gas station/i, 'expenses:Gas for heating/oven'],
+  [/ameren|spire|electric|water|sewer|utility/i, 'expenses:Electricity'],
+  [/at&t|verizon|vzwrlss|t-?mobile|spectrum|comcast|internet|wireless|prepaid/i, 'expenses:Bills'],
+  [/netflix|spotify|hulu|disney|paramount|peacock|apple\.com\/bill|subscription|prime video/i, 'expenses:Subscription Services'],
+  [/insurance|geico|state farm|progressive|allstate|farmers ins/i, 'expenses:Insurance'],
+  [/jesuschrist|tithing|donation|church/i, 'expenses:Tithing'],
+  [/mortgage|home improvement loan|rent payment/i, 'expenses:Mortgage / rent'],
+  [/credit crd autopay|discover|capital one|amex|american express|card payment|cardmember/i, 'expenses:Credit Card payment'],
+  [/robinhood|coinbase|vanguard|fidelity|betterment|schwab|401k|acorns/i, 'wealth:Robinhood'],
+  [/payroll|direct dep|dir dep|salary/i, 'income:Paycheck 1'],
+];
+function merchantKey(desc) {
+  return String(desc).toLowerCase()
+    .replace(/\d{1,2}\/\d{1,2}/g, ' ').replace(/(web|ppd|ccd|trace) id:?\s*\w+/g, ' ').replace(/card\s*\d+/g, ' ')
+    .replace(/\b\d{3,}\b/g, ' ').replace(/[^a-z& ]+/g, ' ')
+    .replace(/\b(recurring|card|purchase|payment|payments|debits?|credits?|ach|pos|dbt|tst|sq|autopay|e|online|transfer|withdrawal|deposit|id|web|ppd|ccd|inc|llc|com)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
+}
+function suggestCat(m, t) {
+  const key = merchantKey(t.desc);
+  if (key && S.catMap && S.catMap[key]) return S.catMap[key];
+  for (const col of ['expenses', 'income', 'wealth', 'abnormal']) // a line whose name already appears in the description
+    for (const l of m[col] || []) { const lab = norm(l.label); if (lab.length > 3 && norm(t.desc).includes(lab)) return col + ':' + l.label; }
+  for (const [re, cat] of CAT_HINTS) if (re.test(t.desc)) { const [col, label] = cat.split(/:(.*)/);
+    const has = (m[col] || []).find(l => norm(l.label) === norm(label)); return col + ':' + (has ? has.label : label); }
+  return t.amount > 0 ? 'income:' + (((m.income || [])[0] || {}).label || 'Paycheck 1') : '';
+}
+const cleanDesc = s => String(s)
+  .replace(/^(recurring\s+)?card purchase( with pin)?\s*\d{1,2}\/\d{1,2}\s*/i, '')
+  .replace(/\s*(web|ppd|ccd|arc|tel|trace)\s*id:?\s*\S+/ig, '')
+  .replace(/\s*card\s*\d{4}\b/ig, '')
+  .replace(/\s+\d{6,}\b/g, '')
+  .replace(/\s{2,}/g, ' ').trim();
+const fingerprint = t => `${t.date}|${Math.round(Math.abs(t.amount) * 100)}|${merchantKey(t.desc).slice(0, 14)}`;
+
+/* ---------- the review window: nothing is committed until Add is tapped ---------- */
+function importBody() {
+  const im = S.imp, months = {};
+  for (const t of im.rows) if (t.cat) months[t.key] = (months[t.key] || 0) + 1;
+  const missing = Object.keys(months).filter(k => !S.months[k]);
+  const ready = im.rows.filter(t => t.cat && !t.dupe && S.months[t.key]).length;
+  return `<div class="imp-head muted" style="font-size:12.5px;padding:2px 6px 10px">${im.rows.length} transaction${im.rows.length === 1 ? '' : 's'} read from ${esc(im.name)}${im.dupes ? ` · ${im.dupes} already added` : ''}. Nothing is saved until you tap Add.</div>
+    <div class="col-body">${im.rows.map((t, i) => `<div class="txrow ${t.dupe ? 'dupe' : ''}" data-tx="${i}">
+      <span class="d">${esc(t.desc.slice(0, 70))}</span><span class="amt num ${t.amount < 0 ? '' : 'pos'}">${fmt(t.amount)}</span>
+      <span class="meta"><span class="muted" style="font-size:11.5px;white-space:nowrap">${esc(fmtDate(t.date))}${S.months[t.key] ? '' : ' · no ' + esc(monthLabel(t.key))}</span>
+      ${t.dupe ? '<span class="muted" style="font-size:11.5px">already added</span>' : t.newCat
+        ? `<input class="newcat" data-f="tx-new" data-tx="${i}" placeholder="New category name" value="${esc(t.newName || '')}" autocomplete="off">`
+        : `<select data-f="tx-cat" data-tx="${i}">${catOptions(S.months[t.key] || S.months[im.key], t.cat)}</select>`}</span>
+    </div>`).join('')}</div>
+    ${missing.length ? `<p class="chart-note">${missing.map(k => esc(monthLabel(k))).join(' and ')} ${missing.length === 1 ? 'is' : 'are'} not in the app yet, so those rows will be skipped. Add the month first if you want them.</p>` : ''}
+    <div class="dlg-foot" style="padding:12px 0 0"><span class="muted" style="font-size:12px">${ready} ready</span><span class="sp"></span><button class="btn primary sm" data-act="imp-add">${ICON.plus} Add ${ready} to the budget</button></div>`;
+}
+function catOptions(m, chosen) {
+  const have = new Set();
+  const group = (col, title) => { const ls = (m[col] || []).filter(l => l.label.trim()); ls.forEach(l => have.add(col + ':' + l.label));
+    return ls.length ? `<optgroup label="${title}">${ls.map(l => `<option value="${esc(col + ':' + l.label)}"${chosen === col + ':' + l.label ? ' selected' : ''}>${esc(l.label)}</option>`).join('')}</optgroup>` : ''; };
+  const body = `${group('expenses', 'Expenses')}${group('income', 'Net income')}${group('wealth', 'Wealth building')}${group('abnormal', 'Abnormal')}`;
+  const fresh = chosen && !have.has(chosen) ? `<optgroup label="New line"><option value="${esc(chosen)}" selected>${esc(chosen.slice(chosen.indexOf(':') + 1))} — new</option></optgroup>` : '';
+  return `<option value=""${chosen ? '' : ' selected'}>Skip</option>${fresh}${body}<option value="__new__">+ New category…</option>`;
+}
+function openImport(rows, key, name) {
+  const m = S.months[key];
+  const seen = {};
+  let dupes = 0;
+  for (const t of rows) {
+    t.key = t.date.slice(0, 7);
+    const base = fingerprint(t); seen[base] = (seen[base] || 0) + 1;
+    t.fp = base + (seen[base] > 1 ? '#' + seen[base] : ''); // a second identical charge that day is its own row
+    const mm = S.months[t.key] || m;
+    t.dupe = !!(S.months[t.key] && (S.months[t.key].imported || []).includes(t.fp));
+    if (t.dupe) dupes++;
+    t.cat = t.dupe ? '' : suggestCat(mm, t);
+  }
+  S.imp = { rows, key, name, dupes };
+  dialogCtx = { key, sec: 'import' };
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Import a statement</h2><span class="muted" style="font-size:13px">Check where each one goes, then add them</span></div></div>
+    <div class="dlg-body editor">${importBody()}</div>`);
+  dlg.style.maxWidth = '640px';
+}
+function openImportPick(key) {
+  dialogCtx = { key, sec: 'import-pick' };
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Import a statement</h2><span class="muted" style="font-size:13px">What did your bank give you?</span></div></div>
+    <div class="dlg-body editor"><div class="list" style="margin:0">
+      <button class="lrow" data-act="imp-pdf" data-key="${key}"><span class="sw exp"></span><span class="t">PDF statement<span class="n">The monthly statement your bank posts or emails</span></span>${ICON.chev}</button>
+      <button class="lrow" data-act="imp-csv" data-key="${key}"><span class="sw income"></span><span class="t">CSV or spreadsheet<span class="n">From your bank's site: Activity → Download</span></span>${ICON.chev}</button>
+    </div>
+    <p class="chart-note">Either way the file is read on this device and never uploaded anywhere.</p></div>`);
+  dlg.style.maxWidth = '520px';
+}
+async function pickStatement(key, kind) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = kind === 'csv' ? '.csv,.txt,.tsv' : '.pdf';
+  inp.onchange = async () => {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    toast('Reading ' + f.name + '…', 4000);
+    try {
+      const csv = /\.(csv|txt|tsv)$/i.test(f.name) || (kind === 'csv' && !/\.pdf$/i.test(f.name)); // go by the file, not just the choice
+      const rows = csv ? txnsFromCsv(await f.text()) : txnsFromPdf(await pdfRows(f));
+      if (!rows.length) { toast('No transactions found in that file', 4000); return; }
+      if (dialogCtx.sec === 'import-pick') navBack();
+      openImport(rows, key, f.name);
+    } catch (e) { console.error(e); toast('Could not read that file: ' + (e.message || 'unknown'), 5000); }
+  };
+  inp.click();
+}
+function commitImport() {
+  const im = S.imp; if (!im) return;
+  const touched = new Set(); let added = 0;
+  for (const t of im.rows) {
+    if (!t.cat || t.dupe) continue;
+    const m = S.months[t.key]; if (!m) continue;
+    const [col, label] = [t.cat.slice(0, t.cat.indexOf(':')), t.cat.slice(t.cat.indexOf(':') + 1)];
+    if (!COLS.some(c => c.key === col) || !label.trim()) continue;
+    m[col] = m[col] || [];
+    let l = m[col].find(x => norm(x.label) === norm(label));
+    if (!l) { l = { id: uid(), label, amount: 0, items: [] }; m[col].push(l); }
+    if (!l.items || !l.items.length) l.items = (+l.amount ? [{ id: uid(), label: 'Already entered', amount: r2(l.amount) }] : []);
+    l.items.push({ id: uid(), label: t.desc.slice(0, 80), amount: Math.abs(r2(t.amount)), note: fmtDate(t.date) });
+    l.amount = sumFlat(l.items);
+    m.imported = [...(m.imported || []), t.fp];
+    const mk = merchantKey(t.desc); if (mk) { S.catMap = { ...(S.catMap || {}), [mk]: t.cat }; }
+    touched.add(t.key); added++;
+  }
+  for (const k of touched) Store.markDirty(k);
+  if (added) Store.saveCatMap();
+  S.imp = null; closeOverlay();
+  toast(added ? `${added} transaction${added === 1 ? '' : 's'} added to ${[...touched].map(monthLabel).join(' and ')}` : 'Nothing to add', 4000);
+  render();
 }
 
 /* ---------- boot ---------- */

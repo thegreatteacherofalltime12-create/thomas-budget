@@ -3,6 +3,10 @@ private/
 *.backup.json
 thomas-budget-*.json
 *.xlsx
+*.pdf
+*.csv
+*.qfx
+*.ofx
 
 node_modules/
 .wrangler/
