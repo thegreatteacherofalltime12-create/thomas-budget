@@ -447,6 +447,8 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   .top{position:static;backdrop-filter:none;background:var(--bg)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.askrow{margin:12px 6px}.askrow .q{font-weight:650}.askrow .a{margin-top:4px;white-space:pre-wrap;line-height:1.5;color:var(--ink-2)}
+.askbar{display:flex;gap:8px;padding:12px 6px 0}.askbar input{flex:1;min-width:0;font-size:14px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:inherit}
 </style>
 
 <header class="top"><div class="wrap">
@@ -503,7 +505,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, catMap:null, imp:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, catMap:null, imp:null, ask:[], ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -733,7 +735,7 @@ function currentKey() { const keys = sortedKeys(); if (!keys.length) return null
 
 function renderNav() {
   const who = $('#who'); if (!who) return;
-  if (S.mode === 'firebase' && S.user) who.innerHTML = `<button class="btn sm" data-act="sign-out" title="Signed in as ${esc(S.user.email)}">${S.user.photo ? `<img src="${esc(S.user.photo)}" alt="" width="18" height="18" style="border-radius:50%" referrerpolicy="no-referrer">` : ''}<span>Sign out</span></button>`;
+  if (S.mode === 'firebase' && S.user) who.innerHTML = `<button class="btn sm" data-act="ask" title="Ask questions about your numbers">✨ Ask Budget</button><button class="btn sm" data-act="sign-out" title="Signed in as ${esc(S.user.email)}">${S.user.photo ? `<img src="${esc(S.user.photo)}" alt="" width="18" height="18" style="border-radius:50%" referrerpolicy="no-referrer">` : ''}<span>Sign out</span></button>`;
   else who.innerHTML = '';
 }
 function renderSignIn() {
@@ -1404,7 +1406,7 @@ function openEditor(key, sec) {
 function refreshEditor() {
   if (!dialogCtx.sec || !dlg.open) return;
   const body = $('.dlg-body.editor', dlg); if (!body) return;
-  const st = body.scrollTop; setTimeout(() => { if (dialogCtx.sec === 'accounts') updateAppr(dialogCtx.key); }, 0); body.innerHTML = dialogCtx.sec === 'import' ? importBody() : dialogCtx.sec === 'feedback' ? feedbackBody() : dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
+  const st = body.scrollTop; setTimeout(() => { if (dialogCtx.sec === 'accounts') updateAppr(dialogCtx.key); }, 0); body.innerHTML = dialogCtx.sec === 'ask' ? askBody() : dialogCtx.sec === 'import' ? importBody() : dialogCtx.sec === 'feedback' ? feedbackBody() : dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
 }
 function lineHTML(key, colKey, l) {
   const hasItems = l.items && l.items.length;
@@ -1503,6 +1505,7 @@ function onKey(e) {
   if (e.key === 'Enter' && e.target.matches('.row input')) { e.preventDefault(); const rows = $$('.row input', e.target.closest('.col-body, .items')); const i = rows.indexOf(e.target); if (rows[i+2]) rows[i+2].focus(); else e.target.blur(); }
   if (e.key === 'Enter' && e.target.matches('tr[data-act="open"], .card[role="button"], .p[role="button"]')) e.target.click();
   if (e.key === 'Enter' && e.target.matches('.ch-title-inp')) { e.preventDefault(); e.target.blur(); }
+  if (e.key === 'Enter' && e.target.id === 'ask-q') { e.preventDefault(); askSend(); }
 }
 for (const el of [app, $('#dlg')]) { el.addEventListener('input', onInput); el.addEventListener('change', onChange); el.addEventListener('keydown', onKey); }
 
@@ -1511,7 +1514,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -1525,6 +1528,8 @@ async function onAction(e) {
     case 'imp-csv': pickStatement(t.dataset.key || key, 'csv'); break;
     case 'imp-add': commitImport(); break;
     case 'imp-ai': aiSuggest(); break;
+    case 'ask': openAsk(); break;
+    case 'ask-send': askSend(); break;
     case 'church': openChurch(); break;
     case 'feedback': openFeedback(); break;
     case 'fb-send': { const ta = $('#fb-text'), text = (ta && ta.value || '').trim(); if (!text) { if (ta) ta.focus(); break; }
@@ -1986,7 +1991,7 @@ function openRestore() {
   openTrends = wrap(openTrends); openBalances = wrap(openBalances); openEditor = wrap(openEditor);
   openChurch = wrap(openChurch); openYearOutlook = wrap(openYearOutlook); openOutlook = wrap(openOutlook);
   openFeedback = wrap(openFeedback); openYear = wrap(openYear); openRetire = wrap(openRetire);
-  openImportPick = wrap(openImportPick); openImport = wrap(openImport); openNewMonth = wrap(openNewMonth);
+  openImportPick = wrap(openImportPick); openImport = wrap(openImport); openAsk = wrap(openAsk); openNewMonth = wrap(openNewMonth);
   confirmDelete = wrap(confirmDelete); openRestore = wrap(openRestore);
 }
 
@@ -2096,6 +2101,59 @@ const cleanDesc = s => String(s)
   .replace(/\s+\d{6,}\b/g, '')
   .replace(/\s{2,}/g, ' ').trim();
 const fingerprint = t => `${t.date}|${Math.round(Math.abs(t.amount) * 100)}|${merchantKey(t.desc).slice(0, 14)}`;
+
+/* ---------- Ask Budget: plain-English questions answered from the months ---------- */
+function budgetDigest() {
+  const keys = sortedKeys(), out = ['Budget: ' + appTitle() + '. Today: ' + today() + '. All amounts are US dollars. "kept" means net income minus expenses, abnormal and wealth building. Lines under income, expenses, wealth and abnormal are flows during that month (wealth = money moved into savings or investments that month, not a balance). card balance, savings and asset lines are balances as of that month.'];
+  for (const k of keys.slice(-24)) { const m = S.months[k], c = calc(m);
+    out.push(`\n== ${monthLabel(k)} (${k}) — net income ${c.net}, expenses ${c.exp}, abnormal ${c.abn}, wealth building ${c.wealth}, kept ${c.retained}, credit-card balance ${c.cc}, savings in cash ${c.cash}`);
+    for (const col of ['income', 'expenses', 'wealth', 'abnormal'])
+      for (const l of m[col] || []) if (l.label.trim() && lineAmt(l)) out.push(`${col} ${l.label}: ${lineAmt(l)}`);
+    for (const b of m.budgets || []) if (b.label) out.push(`budget cap ${b.label}: ${b.amount}`);
+    for (const x of m.cards || []) if (x.label && +x.amount) out.push(`card balance ${x.label}: ${x.amount}`);
+    for (const x of m.savings || []) if (x.label && +x.amount) out.push(`savings ${x.label}: ${x.amount}`);
+    for (const x of m.accounts || []) if (x.label && +x.amount) out.push(`asset ${x.label}${x.kind ? ' (' + x.kind + ')' : ''}: ${x.amount}`);
+  }
+  for (const k of keys.slice(-3)) { const m = S.months[k], its = [];
+    for (const col of ['income', 'expenses', 'wealth', 'abnormal'])
+      for (const l of m[col] || []) for (const it of l.items || []) if (+it.amount) its.push(`${monthLabel(k)} ${l.label} — ${it.label}: ${it.amount}${it.note ? ' (' + it.note + ')' : ''}`);
+    if (its.length) out.push(`\n== Individual entries, ${monthLabel(k)}:`, ...its);
+  }
+  return out.join('\n').slice(0, 30000);
+}
+function askBody() {
+  const rows = S.ask.map(x => `<div class="askrow"><div class="q">${esc(x.q)}</div><div class="a${x.a === null ? ' muted' : ''}">${x.a === null ? 'Thinking…' : esc(x.a)}</div></div>`).join('');
+  return `${rows || `<p class="chart-note">Ask anything about your numbers — “what did we spend on groceries last month?”, “how are the credit cards trending?”, “what did all the Walmart runs add up to?” The answer is read from this budget's own months and stays between you and it.</p>`}
+    <div class="askbar"><input type="text" id="ask-q" placeholder="Ask about your budget…" autocomplete="off" enterkeyhint="send"><button class="btn primary sm" data-act="ask-send">Ask</button></div>`;
+}
+function openAsk() {
+  dialogCtx = { key: null, sec: 'ask' };
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Ask Budget</h2><span class="muted" style="font-size:13px">Questions about your numbers, answered from this budget's data</span></div></div>
+    <div class="dlg-body editor">${askBody()}</div>`);
+  dlg.style.maxWidth = '560px';
+  scrollAsk(); const i = $('#ask-q', dlg); if (i) i.focus();
+}
+function scrollAsk() { const b = $('.dlg-body.editor', dlg); if (b) b.scrollTop = b.scrollHeight; }
+async function askSend() {
+  const inp = $('#ask-q', dlg), q = inp && inp.value.replace(/\s+/g, ' ').trim();
+  if (!q) { if (inp) inp.focus(); return; }
+  if (S.ask.some(x => x.a === null)) return; // one at a time
+  if (!FB || !FB.auth.currentUser) { toast('Sign in to ask'); return; }
+  const entry = { q: q.slice(0, 400), a: null };
+  S.ask.push(entry); if (S.ask.length > 12) S.ask = S.ask.slice(-12);
+  refreshEditor(); scrollAsk();
+  try {
+    const token = await FB.auth.currentUser.getIdToken();
+    const res = await fetch('/api/ask', { method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+      body: JSON.stringify({ question: entry.q, digest: budgetDigest(), history: S.ask.filter(x => x.a && x !== entry).slice(-4) }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'The AI is unavailable right now');
+    entry.a = String((await res.json()).answer || '').trim() || 'No answer came back — try again.';
+  } catch (e) { console.error(e); entry.a = (e && e.message) || 'The AI is unavailable right now'; }
+  const show = () => { if (dialogCtx.sec === 'ask') { refreshEditor(); scrollAsk(); const i2 = $('#ask-q', dlg); if (i2) i2.focus(); } };
+  if (!isEditing()) show(); // mid-typing: wait, same pattern as the categorizer
+  else { const w = setInterval(() => { if (!isEditing()) { clearInterval(w); show(); } }, 350); }
+}
 
 /* ---------- the review window: nothing is committed until Add is tapped ---------- */
 const aiWants = t => !t.dupe && !t.user && !t.learned && !t.newCat && S.months[t.key]; // rows the AI may fill: not filed by a person, in a month that exists
