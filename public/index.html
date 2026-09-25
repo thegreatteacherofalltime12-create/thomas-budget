@@ -454,6 +454,8 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
 .icon.pre{color:var(--ink-3)}.icon.pre.on{color:var(--accent);background:var(--accent-soft)}
 .row[data-col=wealth]{grid-template-columns:minmax(0,1fr) 86px 26px 22px 22px}
 .row[data-col=wealth] input[data-f=label]{font-size:13.5px}
+.lwrap .lrow{touch-action:pan-y;background:var(--surface);border-bottom:0;position:relative;z-index:1;width:100%}
+.lwrap.moving .lrow{box-shadow:0 4px 14px rgba(0,0,0,.12)}
 </style>
 
 <header class="top"><div class="wrap">
@@ -862,7 +864,7 @@ function renderMonth(key) {
   </section>
 
   <section class="section">
-    <div class="card list">${SECTIONS.filter(s => s.kind !== 'bal').map(s => `<button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${s.kind==='budgets' ? (budgetStats(m).count ? `${budgetStats(m).count} budget${budgetStats(m).count===1?'':'s'}${budgetStats(m).over?` · ${budgetStats(m).over} over`:''}${standardExpenses(key).size?` · ${standardExpenses(key).size} standard`:''}` : standardExpenses(key).size ? `${standardExpenses(key).size} standard expense${standardExpenses(key).size===1?'':'s'}` : 'set spending limits') : `${(m[s.key]||[]).length} ${s.kind==='lines'?'line':'entr'}${(m[s.key]||[]).length===1?(s.kind==='lines'?'':'y'):(s.kind==='lines'?'s':'ies')}`}</span></span><span class="v num" data-total="${s.key}">${s.key==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, s.key))}</span>${ICON.chev}</button>`).join('')}</div>
+    <div class="card list" data-arrlist="sec">${applyOrder(SECTIONS.filter(s => s.kind !== 'bal'), 'sec').map(s => `<div class="lwrap" data-arr="${s.key}"><span class="swipe-hint"></span><span class="swipe-flag">${ICON.grip} Move tab</span><button class="lrow" data-act="edit" data-sec="${s.key}"><span class="sw ${s.sw||'none'}"></span><span class="t">${s.title}<span class="n">${s.kind==='budgets' ? (budgetStats(m).count ? `${budgetStats(m).count} budget${budgetStats(m).count===1?'':'s'}${budgetStats(m).over?` · ${budgetStats(m).over} over`:''}${standardExpenses(key).size?` · ${standardExpenses(key).size} standard`:''}` : standardExpenses(key).size ? `${standardExpenses(key).size} standard expense${standardExpenses(key).size===1?'':'s'}` : 'set spending limits') : `${(m[s.key]||[]).length} ${s.kind==='lines'?'line':'entr'}${(m[s.key]||[]).length===1?(s.kind==='lines'?'':'y'):(s.kind==='lines'?'s':'ies')}`}</span></span><span class="v num" data-total="${s.key}">${s.key==='budgets' ? fmtBudgets(m) : fmt(secTotal(m, s.key))}</span>${ICON.chev}</button></div>`).join('')}</div>
   </section>
 
   <div class="imp-row"><button class="btn ghost sm" data-act="import" data-key="${key}">${ICON.upload} Import a statement</button></div>
@@ -1262,7 +1264,7 @@ function balancesBody(key) {
   const empty = !((m.cards||[]).length || (m.savings||[]).length || (m.accounts||[]).length);
   const prevHas = prev && ((S.months[prev].cards||[]).length || (S.months[prev].savings||[]).length || (S.months[prev].accounts||[]).length);
   return (empty && prevHas ? `<div class="bud-form" style="grid-template-columns:1fr auto;align-items:center;margin:8px"><span class="muted" style="font-size:13px">Start from ${esc(monthLabel(prev))}’s balances?</span><button class="btn sm" data-act="copy-bal" data-from="${prev}">Copy them</button></div>` : '') +
-    `<div class="list" style="margin:0">${BAL_GROUPS.map(g => `<button class="lrow" data-act="edit" data-sec="${g.key}"><span class="sw ${g.sw}"></span><span class="t">${g.title}<span class="n">${esc(g.sub(m))}</span></span><span class="v num" data-total="${g.key}">${fmt(secTotal(m, g.key))}</span>${ICON.chev}</button>`).join('')}</div>`;
+    `<div class="list" style="margin:0" data-arrlist="bal">${applyOrder(BAL_GROUPS, 'bal').map(g => `<div class="lwrap" data-arr="${g.key}"><span class="swipe-hint"></span><span class="swipe-flag">${ICON.grip} Move tab</span><button class="lrow" data-act="edit" data-sec="${g.key}"><span class="sw ${g.sw}"></span><span class="t">${g.title}<span class="n">${esc(g.sub(m))}</span></span><span class="v num" data-total="${g.key}">${fmt(secTotal(m, g.key))}</span>${ICON.chev}</button></div>`).join('')}</div>`;
 }
 /* Trends & balances: the home card opens this list; each row opens its own window, which can come back here. */
 function trendsFacts(key) {
@@ -1333,6 +1335,61 @@ function wireArrange() {
   });
   list.addEventListener('click', e => { if (arranging) { e.preventDefault(); e.stopPropagation(); } }, true);
 }
+/* Reordering the month page sections and the balances groups: swipe a row to the right (the left side
+   turns green and says Move tab), then drag it up or down. The order lives in localStorage — it is this
+   device's preference, not shared data, so his and Jess's phones can each have their own. */
+function applyOrder(arr, which) {
+  try { const o = JSON.parse(localStorage.getItem('tb-order-' + which) || '0');
+    if (Array.isArray(o)) return [...arr].sort((a, b) => { const ia = o.indexOf(a.key), ib = o.indexOf(b.key); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
+  } catch (e) {}
+  return arr;
+}
+function moveGesture(rootEl) {
+  let p = null;
+  const noScroll = e => e.preventDefault(); // the page stays still while a row is being carried
+  const onMove = e => {
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (!p.mode) {
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+        if (dx < 0) { end(); return; } // only a rightward slide moves — these sections cannot be deleted
+        p.mode = 'move'; arranging = true;
+        p.row.classList.add('moving'); p.list.classList.add('arranging');
+        document.addEventListener('touchmove', noScroll, { passive: false });
+        try { p.row.setPointerCapture(e.pointerId); p.captured = e.pointerId; } catch (err) {}
+        try { if (navigator.vibrate) navigator.vibrate(20); } catch (err) {}
+      } else if (Math.abs(dy) > 12) { end(); return; } // scrolling
+      else return;
+    }
+    p.inner.style.transform = `translateX(${Math.max(0, Math.min(dx, 96))}px)`;
+    for (const s of $$('[data-arr]', p.list)) { // place it by where the finger is
+      if (s === p.row) continue;
+      const b = s.getBoundingClientRect();
+      if (e.clientY >= b.top && e.clientY <= b.bottom) { p.list.insertBefore(p.row, e.clientY < b.top + b.height / 2 ? s : s.nextSibling); break; }
+    }
+  };
+  const end = () => {
+    if (!p) return; const { list, row, inner, mode, captured } = p; p = null;
+    if (captured != null) try { row.releasePointerCapture(captured); } catch (err) {}
+    document.removeEventListener('pointermove', onMove); document.removeEventListener('touchmove', noScroll);
+    inner.style.transform = ''; row.classList.remove('moving');
+    if (!mode) return;
+    list.classList.remove('arranging');
+    setTimeout(() => { arranging = false; }, 60); // let the click that ends the gesture fall away
+    try { localStorage.setItem('tb-order-' + list.dataset.arrlist, JSON.stringify($$('[data-arr]', list).map(el => el.dataset.arr))); } catch (e) {}
+    toast('Order saved on this device');
+  };
+  rootEl.addEventListener('pointerdown', e => {
+    const list = e.target.closest('[data-arrlist]'); if (!list) return;
+    const row = e.target.closest('[data-arr]'); if (!row || p || arranging) return;
+    p = { list, row, inner: row.querySelector('.lrow') || row, x: e.clientX, y: e.clientY, mode: null };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', end, { once: true });
+    document.addEventListener('pointercancel', end, { once: true });
+  });
+  rootEl.addEventListener('click', e => { if (arranging && e.target.closest('[data-arrlist]')) { e.preventDefault(); e.stopPropagation(); } }, true);
+}
+
 function openTrends(key) {
   if (!S.months[key]) key = currentKey(); if (!key) return;
   const t = trendsFacts(key), yo = yearOutlook(), cm = S.months[key], nCards = (cm.cards||[]).filter(x => x.amount).length, nBal = (cm.cards||[]).length + (cm.savings||[]).length + (cm.accounts||[]).length;
@@ -2304,6 +2361,7 @@ function commitImport() {
 
 /* ---------- boot ---------- */
 paintTheme();
+moveGesture(app); moveGesture(dlg);
 render();
 Store.init();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
