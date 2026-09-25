@@ -566,6 +566,7 @@ function calc(m) {
 function toast(msg, ms=2200) { const t=$('#toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('on'), ms); }
 function setSync(state, text) { const p=$('#sync'); p.className='pill '+state; p.hidden = state !== 'bad'; $('#sync-t').textContent=text; }
 const ICON = {
+  home: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L8 3l5.5 4.5"/><path d="M4 6.8V13h8V6.8"/></svg>',
   pay: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><circle cx="8" cy="8" r="2"/></svg>',
   chart: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 13h12M4 10V7M8 10V4M12 10V6"/></svg>',
   undo: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L2.5 7 6 10.5"/><path d="M2.5 7h7a3.5 3.5 0 0 1 0 7H8"/></svg>',
@@ -992,7 +993,7 @@ function editorBody(key, sec) {
     <div class="bud-form" id="bud-form" hidden><select id="bud-name" class="sel" aria-label="Category">${(() => { const std = standardExpenses(key), taken = new Set((m.budgets||[]).map(b => norm(b.label))); const opts = (m.expenses||[]).filter(l => l.label.trim() && !taken.has(norm(l.label)) && !std.has(norm(l.label))); return `<option value="">Choose a category…</option>${opts.map(l => `<option value="${esc(l.label)}">${esc(l.label)}</option>`).join('')}<option value="__new__">Other — type a new one…</option>`; })()}</select><input type="text" id="bud-name-new" placeholder="New category name" autocomplete="off" hidden><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="bud-limit" placeholder="Don’t go over"><button class="btn primary sm" data-act="bud-add">Add</button></div>
     ${rows.filter(b => !isStandard(m, b.label)).map(b => `<div class="bud" data-bud="${b.id}"><div class="row bud-row"><input type="text" id="f-${b.id}-label" data-f="bud-label" value="${esc(b.label)}" placeholder="Name" autocomplete="off"><span class="faint" style="font-size:12px;white-space:nowrap">limit</span><span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${b.id}-limit" data-f="bud-limit" value="${fmtIn(b.limit)}" aria-label="Limit" autocomplete="off">${undoBtn(`f-${b.id}-limit`)}</span><button class="icon" data-act="del-bud" title="Remove budget">${ICON.x}</button></div>${meterHTML(b, m)}</div>`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Tap + to add one.</div>`}
     </div>`;
-  if (s.kind === 'lines') return `<div class="col-body" data-col="${sec}">${rows.map(l => lineHTML(key, sec, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Add a line below.</div>`}</div>${sec === 'wealth' ? `<p class="chart-note">Money that comes straight out of a paycheck or another payment — a 401k, an HSA, mortgage principal — never goes through the bank account. Turn on the little card icon on those lines: they still count as money put away, but they stop reducing Income Retained.</p>` : ''}`;
+  if (s.kind === 'lines') return `<div class="col-body" data-col="${sec}">${rows.map(l => lineHTML(key, sec, l)).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}. Add a line below.</div>`}</div>${sec === 'wealth' ? `<p class="chart-note">Some of this money never goes through the bank account. Tap the icon on a line once for straight out of a paycheck (a 401k, an HSA — the card), twice for principal already paid inside another payment (mortgage principal — the house). Either way it still counts as money put away but stops reducing Income Retained; a third tap counts it from the bank again.</p>` : ''}`;
   const app = sec === 'accounts';
   return `${app ? appreciationHead(key) : ''}<div class="col-body bal" data-bal="${sec}">${rows.map(r => `<div class="row ${app ? 'arow' : ''}" data-brow="${r.id}" data-bal="${sec}">
       <input type="text" id="f-${r.id}-label" data-f="blabel" value="${esc(r.label)}" placeholder="${sec==='cards'?'Card name':sec==='savings'?'Account':'e.g. Home value, Mortgage'}" enterkeyhint="next" autocomplete="off">
@@ -1479,7 +1480,7 @@ function lineHTML(key, colKey, l) {
     <input type="text" id="f-${l.id}-label" data-f="label" value="${esc(l.label)}" placeholder="Label" aria-label="Line label" enterkeyhint="next" autocomplete="off">
     ${hasItems ? `<span class="calc num" data-line-amt="${l.id}" data-act="toggle-items" title="Sum of ${l.items.length} items — click to see them">${fmt(lineAmt(l))}</span>`
                : `<span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${l.id}-amount" data-f="amount" value="${fmtIn(l.amount)}" aria-label="Amount" enterkeyhint="next" autocomplete="off">${undoBtn(`f-${l.id}-amount`)}</span>`}
-    ${colKey === 'wealth' ? `<button class="icon pre ${l.pre ? 'on' : ''}" data-act="pre-toggle" title="${l.pre ? 'Comes straight out of a paycheck or another payment — not counted against the bank account. Tap to change.' : 'Tap if this comes straight out of a paycheck or another payment instead of the bank account'}">${ICON.pay}</button>` : ''}
+    ${colKey === 'wealth' ? `<button class="icon pre ${l.pre ? 'on' : ''}" data-act="pre-toggle" title="${l.pre === 2 ? 'The principal is already paid inside another payment, like the mortgage — not counted against the bank account again. Tap to change.' : l.pre ? 'Comes straight out of a paycheck — not counted against the bank account. Tap to change.' : 'Tap once if this comes straight out of a paycheck, twice if it is already paid inside another payment (like mortgage principal)'}">${l.pre === 2 ? ICON.home : ICON.pay}</button>` : ''}
     <button class="icon ${open||hasItems?'on':''}" data-act="toggle-items" title="${hasItems?'Breakdown items':'Break this line into items'}">${ICON.list}</button>
     <button class="icon" data-act="del-line" title="Remove line">${ICON.x}</button>
   </div>
@@ -1631,11 +1632,14 @@ async function onAction(e) {
     case 'delete-month': confirmDelete(t.dataset.key || key); break;
     case 'add-line': { const col = t.dataset.col; m[col] = m[col]||[]; const l = {id:uid(), label:'', amount:0, items:[]}; m[col].push(l); Store.markDirty(key); render(); const inp = $('#f-'+l.id+'-label'); if (inp) inp.focus(); break; }
     case 'pre-toggle': { const row = t.closest('[data-line]'); const l = row && (S.months[key].wealth || []).find(x => x.id === row.dataset.line); if (!l) break;
-      const on = !l.pre, name = norm(l.label); let n = 0;
-      if (!name) { if (on) l.pre = 1; else delete l.pre; Store.markDirty(key); n = 1; } // an unnamed line changes only itself
-      else for (const k of sortedKeys()) for (const x of (S.months[k].wealth || [])) if (norm(x.label) === name) { if (on) x.pre = 1; else delete x.pre; Store.markDirty(k); n++; } // the same line means the same thing in every month
+      const next = l.pre === 1 ? 2 : l.pre === 2 ? 0 : 1, name = norm(l.label); let n = 0; // bank → paycheck → already inside another payment → bank
+      const set = x => { if (next) x.pre = next; else delete x.pre; n++; };
+      if (!name) { set(l); Store.markDirty(key); } // an unnamed line changes only itself
+      else for (const k of sortedKeys()) for (const x of (S.months[k].wealth || [])) if (norm(x.label) === name) { set(x); Store.markDirty(k); } // the same line means the same thing in every month
       refreshEditor(); updateTotals(key);
-      toast(on ? `Marked as straight from the paycheck in ${n === 1 ? 'this month' : n + ' months'} — it no longer reduces Income Retained` : `Counted as paid from the bank account again${n > 1 ? ' in all ' + n + ' months' : ''}`, 4000);
+      toast(next === 1 ? `Marked as straight from the paycheck${n > 1 ? ' in ' + n + ' months' : ''} — it no longer reduces Income Retained`
+          : next === 2 ? `Marked as principal already paid inside another payment${n > 1 ? ' in ' + n + ' months' : ''} — still money put away, never charged twice`
+          : `Counted as paid from the bank account again${n > 1 ? ' in all ' + n + ' months' : ''}`, 4200);
       break; }
     case 'del-line': { const row = t.closest('[data-line]'); const col = row.dataset.col; const l = findLine(key, col, row.dataset.line); if (!l) break; if ((lineAmt(l) || l.label) && !(await ask(`Remove “${l.label||'this line'}”${lineAmt(l)?` (${fmt(lineAmt(l))})`:''} from ${COLS.find(c=>c.key===col).title}?`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur[col] = (cur[col]||[]).filter(x=>x.id!==l.id); Store.markDirty(key); render(); break; }
     case 'toggle-items': { const row = t.closest('[data-line]'); const l = findLine(key, row.dataset.col, row.dataset.line); if (!l) break; S.view[l.id] = !S.view[l.id]; if (S.view[l.id] && !(l.items&&l.items.length) && l.amount) { l.items = [{id:uid(), label:'', amount:l.amount}]; Store.markDirty(key); } render(); break; }
@@ -1746,7 +1750,7 @@ function openCharts(chart, key, keepTable) {
   if (chart === 'where') {
     title = 'Where the money went'; sub = `${monthLabel(key)} · ${fmt(c.net)} came in`;
     body = donutHTML(m, {size:300});
-    note = c.retained < 0 ? `Spending plus wealth building exceeded income by ${fmt(-c.retained)} this month, so there is no retained slice. The ring shows how the money that went out splits up.` : `Income Retained is what is left of the ${fmt(c.net)} that came in after expenses, abnormal expenses and wealth building paid from the bank. Wealth building (${fmt(c.wealthBank)} from the bank this month) is money you kept, just not in your pocket — it has its own slice.${c.wealth !== c.wealthBank ? ` Another ${fmt(r2(c.wealth - c.wealthBank))} went to wealth building straight from paychecks, so it never touched this money and isn't in the ring.` : ''}`;
+    note = c.retained < 0 ? `Spending plus wealth building exceeded income by ${fmt(-c.retained)} this month, so there is no retained slice. The ring shows how the money that went out splits up.` : `Income Retained is what is left of the ${fmt(c.net)} that came in after expenses, abnormal expenses and wealth building paid from the bank. Wealth building (${fmt(c.wealthBank)} from the bank this month) is money you kept, just not in your pocket — it has its own slice.${c.wealth !== c.wealthBank ? ` Another ${fmt(r2(c.wealth - c.wealthBank))} was put away without touching this money — straight from a paycheck, or already inside another payment — so it isn't in the ring.` : ''}`;
     const rows = donutSegments(m).map(s => [s.label, s.value, c.net ? Math.round(s.value/c.net*1000)/10 + '%' : '']);
     table = tableHTML(['Category','Amount','Share of income'], rows, ['Net Income', c.net, '100%']);
   } else if (barCol) {
@@ -1943,7 +1947,7 @@ function buildMonth(key, srcKey, prefill, carry) {
   const doc = { key, label: monthLabel(key), year, month, updatedOn: today(), notes:'', cards:[], savings:[], accounts:[] };
   const lineIds = {}; // old line id → the new month's line id, so a mortgage keeps the line it follows
   for (const col of COLS) {
-    if (src) doc[col.key] = (src[col.key]||[]).map(l => { const id = uid(); lineIds[l.id] = id; return {id, label:l.label, amount: (prefill && (col.key==='expenses'||col.key==='wealth')) ? lineAmt(l) : 0, items:[], ...(l.pre ? {pre:1} : {})}; });
+    if (src) doc[col.key] = (src[col.key]||[]).map(l => { const id = uid(); lineIds[l.id] = id; return {id, label:l.label, amount: (prefill && (col.key==='expenses'||col.key==='wealth')) ? lineAmt(l) : 0, items:[], ...(l.pre ? {pre: l.pre} : {})}; });
     else doc[col.key] = mk(DEFAULT_LINES[col.key]);
   }
   if (src) for (const b of BALS) doc[b.key] = (src[b.key]||[]).map(r => ({id:uid(), label:r.label, amount:r.amount, ...(r.kind?{kind:r.kind}:{}), ...(r.src && lineIds[r.src] ? {src: lineIds[r.src]} : {})}));
@@ -2180,7 +2184,7 @@ function budgetDigest() {
   for (const k of keys.slice(-24)) { const m = S.months[k], c = calc(m);
     out.push(`\n== ${monthLabel(k)} (${k}) — net income ${c.net}, expenses ${c.exp}, abnormal ${c.abn}, wealth building ${c.wealth}, kept ${c.retained}, credit-card balance ${c.cc}, savings in cash ${c.cash}`);
     for (const col of ['income', 'expenses', 'wealth', 'abnormal'])
-      for (const l of m[col] || []) if (l.label.trim() && lineAmt(l)) out.push(`${col} ${l.label}: ${lineAmt(l)}${col === 'wealth' && l.pre ? ' (from-paycheck)' : ''}`);
+      for (const l of m[col] || []) if (l.label.trim() && lineAmt(l)) out.push(`${col} ${l.label}: ${lineAmt(l)}${col === 'wealth' && l.pre ? (l.pre === 2 ? ' (principal already paid inside another payment)' : ' (from-paycheck)') : ''}`);
     for (const b of m.budgets || []) if (b.label) out.push(`budget cap ${b.label}: ${b.amount}`);
     for (const x of m.cards || []) if (x.label && +x.amount) out.push(`card balance ${x.label}: ${x.amount}`);
     for (const x of m.savings || []) if (x.label && +x.amount) out.push(`savings ${x.label}: ${x.amount}`);
