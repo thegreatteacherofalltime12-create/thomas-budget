@@ -475,6 +475,15 @@ card-bonus-tracker::part(title){display:none}
 .prow input:focus{background:var(--surface);outline:1px solid var(--accent-line);box-shadow:none}
 .prow>input[data-f=pt-label]{font-size:13.5px}
 .prow .amt{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+.hsa-tot{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:4px 6px 12px}.hsa-tot .big{font-size:24px;font-weight:700}
+.hsa-row{border-bottom:1px solid var(--line)}.hsa-row:last-child{border-bottom:0}.hsa-row.open{background:var(--surface-2)}
+.hsa-sum{display:grid;grid-template-columns:minmax(0,1fr) auto 18px;gap:12px;align-items:center;width:100%;text-align:left;padding:12px 10px;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
+.hsa-sum .t{font-weight:600;display:flex;flex-direction:column;gap:2px;min-width:0}.hsa-sum .n{font-size:12px;color:var(--ink-3);font-weight:400}
+.hsa-edit{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;padding:2px 10px 12px}
+.hsa-edit label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--ink-3)}.hsa-edit .full{grid-column:1/-1}
+.hsa-edit input{font:inherit;font-size:14px;color:var(--ink);padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-width:0;width:100%}
+.hsa-edit .amtw{display:flex}.hsa-edit .amt{text-align:right}
+.hsa-acts{display:flex;align-items:center;gap:8px}.hsa-photo{text-align:center}.hsa-photo img{max-width:100%;height:auto;border-radius:8px;border:1px solid var(--line)}
 </style>
 
 <header class="top"><div class="wrap">
@@ -531,7 +540,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, catMap:null, imp:null, ask:[], hid:null, house:null, names:{}, shareEdit:null, cards:[], cardsOffers:'', cardsLoaded:false, points:[], pointsLoaded:false, noHousehold:false, notice:null, shareLink:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, catMap:null, imp:null, ask:[], hid:null, house:null, names:{}, shareEdit:null, hsa:{ title:'', rows:[] }, hsaLoaded:false, hsaOpen:null, cards:[], cardsOffers:'', cardsLoaded:false, points:[], pointsLoaded:false, noHousehold:false, notice:null, shareLink:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -794,6 +803,10 @@ const Store = {
       if (this._pointsDirty || snap.metadata.hasPendingWrites) return;
       S.points = snap.exists() && Array.isArray(snap.data().rows) ? clone(snap.data().rows) : []; S.pointsLoaded = true; requestRender();
     }, err => console.warn('points', err)));
+    this._unsubs.push(F.onSnapshot(this.ref('ledgers', 'hsa'), snap => {
+      if (this._hsaDirty || snap.metadata.hasPendingWrites) return;
+      const d = snap.exists() ? snap.data() : {}; S.hsa = { title: String(d.title || ''), rows: Array.isArray(d.rows) ? clone(d.rows) : [] }; S.hsaLoaded = true; requestRender();
+    }, err => console.warn('hsa', err)));
     this._unsubs.push(F.onSnapshot(this.ref('ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; S.churchTitle = snap.exists() ? String(snap.data().title || '') : ''; requestRender(); }, err => this.onError(err)));
   },
   markCards() { this._cardsDirty = true; setSync('busy', 'Saving…'); clearTimeout(this._cardsTimer); this._cardsTimer = setTimeout(() => this.saveCards(), 700); },
@@ -806,6 +819,24 @@ const Store = {
     this._pointsDirty = false; clearTimeout(this._pointsTimer);
     if (S.mode === 'firebase') { const { F } = FB; this.write(() => F.setDoc(this.ref('ledgers', 'points'), { rows: S.points || [] }), 'the points'); }
     else { try { localStorage.setItem('tb-points', JSON.stringify(S.points || [])); } catch (e) {} }
+  },
+  markHsa() { this._hsaDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._hsaTimer); this._hsaTimer = setTimeout(() => this.saveHsa(), 700); },
+  saveHsa() {
+    this._hsaDirty = false; clearTimeout(this._hsaTimer);
+    if (S.mode === 'firebase') { const { F } = FB; this.write(() => F.setDoc(this.ref('ledgers', 'hsa'), { title: S.hsa.title || '', rows: S.hsa.rows || [] }), 'the HSA receipts'); }
+    else { try { localStorage.setItem('tb-hsa', JSON.stringify(S.hsa)); } catch (e) {} }
+  },
+  async saveHsaPhoto(id, img) { // a photo is ~0.2–0.9 MB of text: one document each, so the list itself stays light
+    if (S.mode === 'firebase') { const { F } = FB; await F.setDoc(this.ref('ledgers', 'hsaimg_' + id), { img }); }
+    else localStorage.setItem('tb-hsaimg-' + id, img);
+  },
+  async loadHsaPhoto(id) {
+    if (S.mode === 'firebase') { const { F } = FB; const s = await F.getDoc(this.ref('ledgers', 'hsaimg_' + id)); return s.exists() ? s.data().img : ''; }
+    return localStorage.getItem('tb-hsaimg-' + id) || '';
+  },
+  dropHsaPhoto(id) {
+    if (S.mode === 'firebase') { const { F } = FB; F.deleteDoc(this.ref('ledgers', 'hsaimg_' + id)).catch(e => console.warn('photo', e)); }
+    else try { localStorage.removeItem('tb-hsaimg-' + id); } catch (e) {}
   },
   markChurch() { this._churchDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._churchTimer); this._churchTimer = setTimeout(() => this.saveChurch(), 700); },
   saveCatMap() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(this.ref('settings', 'app'), { catMap: S.catMap || {} }, { merge: true }), 'the categories'); } else this.saveLocal(); },
@@ -854,7 +885,7 @@ const Store = {
       this.write(() => F.setDoc(this.ref('months', key), body), monthLabel(key));
     } else { this.saveLocal(); }
   },
-  async flushAll() { for (const k of Object.keys(dirty)) if (dirty[k]) await this.flush(k); if (this._churchDirty) this.saveChurch(); if (this._cardsDirty) this.saveCards(); if (this._pointsDirty) this.savePoints(); },
+  async flushAll() { for (const k of Object.keys(dirty)) if (dirty[k]) await this.flush(k); if (this._churchDirty) this.saveChurch(); if (this._cardsDirty) this.saveCards(); if (this._pointsDirty) this.savePoints(); if (this._hsaDirty) this.saveHsa(); },
   async saveMonthNow(key) { dirty[key] = true; await this.flush(key); },
   async deleteMonth(key) {
     delete S.months[key]; dirty[key] = false; clearTimeout(timers[key]);
@@ -1072,8 +1103,8 @@ const SECTIONS = [
    The Home equity line under wealth building is the principal paid, so entering it comes straight off the
    mortgage marked “principal” — the balance, the equity and the year's equity build always agree.
    Each row is marked worth / owed / other; only worth and owed make up the equity. */
-const TRENDS_DEFAULTS = ['trend', 'savings', 'retire', 'retained', 'outlook', 'equity', 'debt', 'balances'];
-const TRENDS_KEEP = ['retire', 'outlook', 'balances']; // no window of their own to be added back from
+const TRENDS_DEFAULTS = ['trend', 'savings', 'retire', 'retained', 'outlook', 'hsa', 'equity', 'debt', 'balances'];
+const TRENDS_KEEP = ['retire', 'outlook', 'balances', 'hsa']; // no window of their own to be added back from
 const rowKind = r => ['value', 'owed', 'other'].includes(r.kind) ? r.kind : (OWED_LIKE.test(r.label || '') ? 'owed' : /home|house|property|condo|land|cabin/i.test(r.label || '') ? 'value' : 'other');
 const KIND_LABEL = { value: 'worth', owed: 'owed', other: 'other' };
 const homeEquityAmt = m => r2(((m && m.wealth) || []).filter(l => /equity/i.test(l.label || '')).reduce((s, l) => s + lineAmt(l), 0));
@@ -1431,6 +1462,8 @@ function openYearOutlook() {
         <span class="k">Projected expenses${yo.abn ? ' (incl. abnormal)' : ''}</span><span class="v">− ${fmt(r2(yo.exp + yo.abn))}</span>
         <span class="k">Projected wealth building</span><span class="v">− ${fmt(yo.wealth)}</span>
         <span class="k tot">Projected kept by year end</span><span class="v tot ${signCls(yo.kept)}">${fmt(yo.kept)}</span>
+        ${(() => { const hy = hsaYear(yo.year); return hy.total ? `<span class="k" style="margin-top:8px">${esc(hsaTitle())} you can reimburse (${hy.n})</span><span class="v" style="margin-top:8px">+ ${fmt(hy.total)}</span>
+        <span class="k tot">Kept + HSA reimbursements</span><span class="v tot ${signCls(yo.kept + hy.total)}">${fmt(r2(yo.kept + hy.total))}</span>` : ''; })()}
         ${yo.last ? `<span class="k faint">${yo.prevYear}: ${fmt(yo.last.net)} net income, ${fmt(yo.last.kept)} kept${yo.last.n < 12 ? ` (${yo.last.n} months)` : ''}</span><span class="v faint ${signCls(yo.kept - yo.last.kept)}">${fmt(yo.kept - yo.last.kept, {sign:true})}</span>` : ''}
       </div>
       <p class="chart-note">${yo.matched ? `Against the same months of ${yo.prevYear}, income is running ${pct(yo.rIn)} and spending ${pct(yo.rOut)}; the months still to come start from last year's figures scaled by that.` : yo.last ? `No month of ${yo.year} has a matching month in ${yo.prevYear} yet, so remaining months use last year's figures as they were.` : `There is no ${yo.prevYear} data, so the months still to come use this year's monthly average.`} The current month uses its end-of-month outlook. Money left over from the previous month is not counted as income.</p>
@@ -1591,7 +1624,8 @@ function openTrends(key) {
     { id: 'savings', act: 'chart', chart: 'savings', sw: 'income', title: 'Savings & wealth building', sub: `in cash · ${fmt(t.c.wealth)} to wealth building this month · ${fmt(t.ytdWealth)} in ${key.slice(0, 4)}`, v: fmt(t.c.cash) },
     (() => { const pl = retirePlan(); return { id: 'retire', act: 'retire', sw: 'wealth', title: 'Retirement', sub: `${pl.p.years} year${pl.p.years === 1 ? '' : 's'} away · ${fmt(pl.todays)} a month in today’s money`, v: `${fmt(pl.monthly)}/mo` }; })(),
     { id: 'retained', act: 'chart', chart: 'trend', sw: 'ret', title: 'Income retained by month', sub: t.pc ? `${fmt(t.c.retained - t.pc.retained, {sign:true})} vs ${shortMonth(t.prevKey)}` : 'first month on record', v: fmt(t.c.retained), cls: signCls(t.c.retained) },
-    { id: 'outlook', act: 'year', sw: 'ret', title: `${yo.year} outlook`, sub: `kept by year end · ${yo.entered} of 12 months in`, v: fmt(yo.kept), cls: signCls(yo.kept) },
+    { id: 'outlook', act: 'year', sw: 'ret', title: `${yo.year} outlook`, sub: `kept by year end · ${yo.entered} of 12 months in${hsaYear().total ? ' · + ' + fmt(hsaYear().total) + ' HSA to reimburse' : ''}`, v: fmt(yo.kept), cls: signCls(yo.kept) },
+    (() => { const y = hsaYear(); return { id: 'hsa', act: 'hsa', sw: 'income', title: hsaTitle(), sub: y.n ? `${y.n} receipt${y.n === 1 ? '' : 's'} in ${y.year} · eligible to reimburse` : 'snap HSA-eligible receipts · running total for the year', v: fmt(y.total) }; })(),
     ...(equityStats(cm).has ? [(() => { const e = equityStats(cm), y = equityYTD(key); return { id: 'equity', act: 'chart', chart: 'equity', sw: 'wealth', title: 'Home equity', sub: `${fmt(e.value)} worth − ${fmt(e.owed)} owed · ${fmt(y.total)} built in ${key.slice(0, 4)}`, v: fmt(e.equity) }; })()] : []),
     { id: 'debt', act: 'chart', chart: 'debt', sw: 'debt', title: 'Total credit card debt', sub: t.bc ? `${t.bpc ? fmt(t.bc.cc - t.bpc.cc, {sign:true}) + ' since ' + shortMonth(t.bPrev) + ' · ' : ''}as of ${monthLabel(t.withBal)}` : 'add card balances in a month to track this', v: t.bc ? fmt(t.bc.cc) : '—' },
     { id: 'balances', act: 'balances', sw: 'income', title: `Balances · ${monthLabel(key)}`, sub: nBal ? `${nCards} card${nCards === 1 ? '' : 's'} with a balance · ${(cm.savings||[]).length} savings · ${(cm.accounts||[]).length} on the house · tap to edit` : `nothing recorded yet for ${shortMonth(key)} · tap to add`, v: '' },
@@ -1663,7 +1697,7 @@ function openEditor(key, sec) {
 function refreshEditor() {
   if (!dialogCtx.sec || !dlg.open) return;
   const body = $('.dlg-body.editor', dlg); if (!body) return;
-  const st = body.scrollTop; setTimeout(() => { if (dialogCtx.sec === 'accounts') updateAppr(dialogCtx.key); }, 0); body.innerHTML = dialogCtx.sec === 'cardtabs' ? cardTabsBody() : dialogCtx.sec === 'points' ? pointsBody() : dialogCtx.sec === 'share' ? shareBody() : dialogCtx.sec === 'ask' ? askBody() : dialogCtx.sec === 'import' ? importBody() : dialogCtx.sec === 'feedback' ? feedbackBody() : dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
+  const st = body.scrollTop; setTimeout(() => { if (dialogCtx.sec === 'accounts') updateAppr(dialogCtx.key); }, 0); body.innerHTML = dialogCtx.sec === 'hsa' ? hsaBody() : dialogCtx.sec === 'cardtabs' ? cardTabsBody() : dialogCtx.sec === 'points' ? pointsBody() : dialogCtx.sec === 'share' ? shareBody() : dialogCtx.sec === 'ask' ? askBody() : dialogCtx.sec === 'import' ? importBody() : dialogCtx.sec === 'feedback' ? feedbackBody() : dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
 }
 function lineHTML(key, colKey, l) {
   const hasItems = l.items && l.items.length;
@@ -1720,6 +1754,12 @@ function onInput(e) {
     S.retire = cur; updateRetire(); Store.markRetire(); return;
   }
   if (f === 'ch-title') { S.churchTitle = el.value.slice(0, 60); Store.markChurch(); return; }
+  if (f === 'hsa-title') { S.hsa.title = el.value.slice(0, 60); Store.markHsa(); return; }
+  if (f && f.startsWith('hsa-')) { const row = el.closest('[data-hx]'), r = row && hsaRows().find(x => x.id === row.dataset.hx); if (!r) return;
+    if (f === 'hsa-merchant') r.merchant = el.value.slice(0, 60); else if (f === 'hsa-note') r.note = el.value.slice(0, 160);
+    else if (f === 'hsa-date') { if (/^\d{4}-\d{2}-\d{2}$/.test(el.value)) r.date = el.value; }
+    else if (f === 'hsa-total') r.total = amtOr(el.value, +r.total || 0); else if (f === 'hsa-amount') r.amount = amtOr(el.value, +r.amount || 0);
+    delete r.check; updateHsaTotals(); Store.markHsa(); return; }
   if (f && f.startsWith('ch-')) { const row = el.closest('[data-ch]'); const r = (S.church || []).find(x => x.id === row.dataset.ch); if (!r) return;
     if (f === 'ch-date') { if (/^\d{4}-\d{2}-\d{2}$/.test(el.value)) r.date = el.value; } else if (f === 'ch-label') r.label = el.value; else if (f === 'ch-amount') r.amount = amtOr(el.value, r.amount); else if (f === 'ch-paid') r.paid = el.checked;
     updateChurch(); Store.markChurch(); return; }
@@ -1742,6 +1782,11 @@ function onInput(e) {
 }
 async function onChange(e) {
   const el = e.target, key = viewKey() || dialogCtx.key;
+  if (el.dataset.f && el.dataset.f.startsWith('hsa-')) { // HSA receipts: their own fields, nothing to do with the months
+    if (el.dataset.f === 'hsa-title') { const sp = document.createElement('span'); sp.dataset.hsaTitle = ''; sp.textContent = hsaTitle(); el.replaceWith(sp); requestRender(); }
+    else if (el.classList.contains('amt')) el.value = fmtIn(parseNum(el.value));
+    return;
+  }
   if (el.dataset.f && el.dataset.f.startsWith('pt-')) { // the points tab: tidy a points box when it is left
     if (el.dataset.f === 'pt-amt') { const row = el.closest('[data-pt]'), r = row && pointsList().find(x => x.id === row.dataset.pt); if (r) { r.amount = Math.round(parseNum(el.value)); el.value = fmtIn(r.amount); updatePointsHead(); Store.markPoints(); } }
     return;
@@ -1788,7 +1833,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','cards','card-tab','pt-add','pt-del','pt-kind','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','cards','card-tab','pt-add','pt-del','pt-kind','hsa','hsa-add','hsa-open','hsa-photo','hsa-del','hsa-rename','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -1805,6 +1850,14 @@ async function onAction(e) {
     case 'ask': openAsk(); break;
     case 'share': openShare(); break;
     case 'cards': openCards(); break;
+    case 'hsa': openHsa(); break;
+    case 'hsa-add': pickHsaPhoto(); break;
+    case 'hsa-open': { const id = t.dataset.hx; S.hsaOpen = S.hsaOpen === id ? null : id; refreshEditor(); break; }
+    case 'hsa-photo': openHsaPhoto(t.dataset.hx); break;
+    case 'hsa-del': { const id = t.dataset.hx, r = hsaRows().find(x => x.id === id); if (!r) break;
+      if (!(await ask(`Delete the ${r.merchant || 'receipt'} receipt${+r.amount ? ` (${fmt(r.amount)})` : ''} and its photo?`, 'Delete'))) break;
+      S.hsa.rows = hsaRows().filter(x => x.id !== id); if (r.img) Store.dropHsaPhoto(id); Store.markHsa(); refreshEditor(); updateHsaTotals(); requestRender(); break; }
+    case 'hsa-rename': { const span = $('[data-hsa-title]', dlg); if (!span) break; const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'ch-title-inp'; inp.dataset.f = 'hsa-title'; inp.maxLength = 60; inp.value = hsaTitle(); inp.setAttribute('aria-label', 'Name'); inp.autocomplete = 'off'; span.replaceWith(inp); inp.focus(); inp.select(); break; }
     case 'card-tab': if (t.dataset.tab === 'points') openPoints(); else openBonuses(); break;
     case 'pt-add': { const r = { id: uid(), label: '', amount: 0 }; pointsList().push(r); Store.markPoints(); refreshEditor(); updatePointsHead(); const i = $('#f-' + r.id + '-ptlabel', dlg); if (i) i.focus(); break; }
     case 'pt-del': { const row = t.closest('[data-pt]'); if (row) removePoints(row.dataset.pt); break; }
@@ -2304,7 +2357,7 @@ function openRestore() {
   openTrends = wrap(openTrends); openBalances = wrap(openBalances); openEditor = wrap(openEditor);
   openChurch = wrap(openChurch); openYearOutlook = wrap(openYearOutlook); openOutlook = wrap(openOutlook);
   openFeedback = wrap(openFeedback); openYear = wrap(openYear); openRetire = wrap(openRetire);
-  openImportPick = wrap(openImportPick); openImport = wrap(openImport); openAsk = wrap(openAsk); openShare = wrap(openShare); openCards = wrap(openCards); openBonuses = wrap(openBonuses); openPoints = wrap(openPoints); openNewMonth = wrap(openNewMonth);
+  openImportPick = wrap(openImportPick); openImport = wrap(openImport); openAsk = wrap(openAsk); openShare = wrap(openShare); openCards = wrap(openCards); openHsa = wrap(openHsa); openHsaPhoto = wrap(openHsaPhoto); openBonuses = wrap(openBonuses); openPoints = wrap(openPoints); openNewMonth = wrap(openNewMonth);
   confirmDelete = wrap(confirmDelete); openRestore = wrap(openRestore);
 }
 
@@ -2414,6 +2467,84 @@ const cleanDesc = s => String(s)
   .replace(/\s+\d{6,}\b/g, '')
   .replace(/\s{2,}/g, ' ').trim();
 const fingerprint = t => `${t.date}|${Math.round(Math.abs(t.amount) * 100)}|${merchantKey(t.desc).slice(0, 14)}`;
+
+/* ---------- HSA receipts: photos of HSA-eligible receipts, read by the AI, with a running total for the year.
+   The list lives in ledgers/hsa; each photo in its own document, fetched only when someone taps View photo.
+   It shows in the year outlook as money that can still be reimbursed — not mixed into the kept projection. ---------- */
+const hsaTitle = () => (S.hsa.title || '').trim() || 'HSA receipts';
+const hsaRows = () => { if (S.mode !== 'firebase' && !S.hsaLoaded) { try { const d = JSON.parse(localStorage.getItem('tb-hsa') || '{}'); S.hsa = { title: String(d.title || ''), rows: Array.isArray(d.rows) ? d.rows : [] }; } catch (e) {} S.hsaLoaded = true; } return S.hsa.rows || (S.hsa.rows = []); };
+function hsaYear(year = String(new Date().getFullYear())) { const rows = hsaRows().filter(r => String(r.date || r.added || '').startsWith(year)); return { year, n: rows.length, total: r2(rows.reduce((s, r) => s + (+r.amount || 0), 0)) }; }
+function hsaHead() { const y = hsaYear(); return `${fmt(y.total)} saved to reimburse in ${y.year} · ${y.n} receipt${y.n === 1 ? '' : 's'}`; }
+function hsaBody() {
+  const y = hsaYear(), rows = [...hsaRows()].sort((a, b) => String(b.date || b.added || '').localeCompare(String(a.date || a.added || '')));
+  return `<div class="hsa-tot"><span class="muted">Eligible to reimburse in ${y.year}</span><span class="big num" data-hsa-total>${fmt(y.total)}</span></div>
+    <div class="list hsa-list" style="margin:0">${rows.map(r => { const open = S.hsaOpen === r.id; return `<div class="hsa-row${open ? ' open' : ''}" data-hx="${esc(r.id)}">
+      <button class="hsa-sum" data-act="hsa-open" data-hx="${esc(r.id)}"><span class="t">${esc(r.merchant || 'Receipt')}<span class="n">${r.date ? esc(fmtDate(r.date)) : 'no date'}${+r.total && +r.total !== +r.amount ? ' · of ' + fmt(r.total) : ''}${r.check ? ' · <b class="neg">check the details</b>' : ''}</span></span><span class="v num">${fmt(r.amount || 0)}</span>${ICON.chev}</button>
+      ${open ? `<div class="hsa-edit">
+        <label>Store<input type="text" data-f="hsa-merchant" value="${esc(r.merchant || '')}" autocomplete="off"></label>
+        <label>Date<input type="date" data-f="hsa-date" value="${esc(r.date || '')}"></label>
+        <label>Receipt total<span class="amtw"><input type="text" inputmode="decimal" class="amt" id="f-${r.id}-hsatot" data-f="hsa-total" value="${fmtIn(r.total || 0)}">${undoBtn(`f-${r.id}-hsatot`)}</span></label>
+        <label>HSA-eligible<span class="amtw"><input type="text" inputmode="decimal" class="amt" id="f-${r.id}-hsaamt" data-f="hsa-amount" value="${fmtIn(r.amount || 0)}">${undoBtn(`f-${r.id}-hsaamt`)}</span></label>
+        <label class="full">Note<input type="text" data-f="hsa-note" value="${esc(r.note || '')}" placeholder="what it was for" autocomplete="off"></label>
+        ${(r.items || []).length ? `<div class="full muted" style="font-size:12px">${esc(r.items.join(' · '))}</div>` : ''}
+        <div class="full hsa-acts">${r.img ? `<button class="btn sm" data-act="hsa-photo" data-hx="${esc(r.id)}">${ICON.list} View photo</button>` : '<span class="muted" style="font-size:12px">no photo</span>'}<span class="sp"></span><button class="btn sm danger" data-act="hsa-del" data-hx="${esc(r.id)}">Delete</button></div>
+      </div>` : ''}</div>`; }).join('') || '<div class="faint" style="padding:12px 8px;font-size:12.5px">No receipts yet. Add a photo of a pharmacy, doctor, dental or vision receipt below.</div>'}</div>
+    <p class="chart-note">The AI reads each photo for the store, date, total and the HSA-eligible part — check it, especially the eligible amount. Photos are kept in the budget; tap a receipt, then View photo, to pull one up.</p>`;
+}
+function openHsa() {
+  const from = cameFromTrends(); dialogCtx = { key: null, sec: 'hsa', back: from ? 'trends' : null, via: from ? 'trends' : null }; S.hsaOpen = null;
+  openOverlay(`<div class="dlg-head">${trendsBack(currentKey()) || pageBack()}<div class="ttl"><h2 class="ch-title"><span data-hsa-title>${esc(hsaTitle())}</span><button class="icon pencil" data-act="hsa-rename" title="Rename" aria-label="Rename">${ICON.pencil}</button></h2><span class="muted" style="font-size:13px" data-hsa-head>${esc(hsaHead())}</span></div></div>
+    <div class="dlg-body editor">${hsaBody()}</div>
+    <div class="dlg-foot"><button class="btn primary sm" data-act="hsa-add">${ICON.plus} Add receipt</button></div>`);
+  dlg.style.maxWidth = '560px';
+}
+function updateHsaTotals() { const t = $('[data-hsa-total]', dlg); if (t) t.textContent = fmt(hsaYear().total); const hd = $('[data-hsa-head]', dlg); if (hd) hd.textContent = hsaHead(); }
+async function shrinkPhoto(file) { // phone photos are several MB: scale down and re-encode until it fits one document
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('That file isn’t a photo the browser can open')); i.src = url; });
+    for (const [max, q] of [[1600, 0.72], [1300, 0.65], [1000, 0.6], [800, 0.55]]) {
+      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const out = c.toDataURL('image/jpeg', q); if (out.length < 900000) return out;
+    }
+    throw new Error('That photo is too large even after shrinking');
+  } finally { URL.revokeObjectURL(url); }
+}
+function pickHsaPhoto() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = async () => {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    toast('Reading the receipt…', 8000);
+    let img; try { img = await shrinkPhoto(f); } catch (e) { toast(e.message || 'Couldn’t open that photo', 4000); return; }
+    const r = { id: uid(), added: today(), date: '', merchant: '', total: 0, amount: 0, note: '', img: true, by: S.user ? S.user.email : '' };
+    try {
+      if (!FB || !FB.auth.currentUser) throw new Error('offline');
+      const token = await FB.auth.currentUser.getIdToken();
+      const res = await fetch('/api/receipt', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token, 'x-household': Store.hid || '' }, body: JSON.stringify({ image: img }) });
+      const a = await res.json(); if (!res.ok) throw new Error(a.error || 'unreadable');
+      Object.assign(r, { merchant: a.merchant || '', date: a.date || '', total: +a.total || 0, amount: +a.eligible || 0, note: a.note || '', items: a.items || [] });
+      if (!a.hsa) r.check = true;
+    } catch (e) { r.check = true; r.date = today(); }
+    try { await Store.saveHsaPhoto(r.id, img); } catch (e) { r.img = false; toast('Saved the receipt, but the photo didn’t fit — try a smaller one', 5000); }
+    hsaRows().push(r); S.hsaOpen = r.id; Store.markHsa(); refreshEditor(); updateHsaTotals(); requestRender();
+    if (r.check && r.merchant) toast('Read it — it doesn’t look HSA-eligible, so check the amount', 5000);
+    else if (r.check) toast('Couldn’t read that one — fill in the details', 4500);
+    else toast(`${fmt(r.amount)} HSA-eligible from ${r.merchant || 'the receipt'} — check it looks right`, 4500);
+  };
+  inp.click();
+}
+async function openHsaPhoto(id) {
+  const r = hsaRows().find(x => x.id === id); if (!r) return;
+  dialogCtx = { key: null, sec: 'hsa-photo', via: 'hsa' };
+  openOverlay(`<div class="dlg-head"><button class="btn sm ghost back" data-act="nav-back">${ICON.left} ${esc(hsaTitle())}</button><div class="ttl"><h2>${esc(r.merchant || 'Receipt')}</h2><span class="muted" style="font-size:13px">${r.date ? esc(fmtDate(r.date)) + ' · ' : ''}${fmt(r.amount || 0)} eligible</span></div></div>
+    <div class="dlg-body"><div class="hsa-photo" data-hsa-photo><span class="muted">Loading the photo…</span></div></div>`);
+  dlg.style.maxWidth = '640px';
+  let img = ''; try { img = await Store.loadHsaPhoto(id); } catch (e) { console.warn(e); }
+  const box = $('[data-hsa-photo]', dlg); if (!box) return;
+  box.innerHTML = /^data:image\/(jpeg|png|webp);base64,/.test(img) ? `<img src="${img}" alt="Receipt photo">` : '<span class="muted">The photo couldn’t be loaded. Check your connection and try again.</span>';
+}
 
 /* ---------- Card bonuses & points. Deliberately not tied to the budget: no figure, chart, backup or Ask
    Budget answer reads them. Each lives in a document of its own in the household (ledgers/cards,
