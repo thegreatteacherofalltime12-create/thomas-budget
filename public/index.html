@@ -484,6 +484,7 @@ card-bonus-tracker::part(title){display:none}
 .hsa-edit input{font:inherit;font-size:14px;color:var(--ink);padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-width:0;width:100%}
 .hsa-edit .amtw{display:flex}.hsa-edit .amt{text-align:right}
 .hsa-acts{display:flex;align-items:center;gap:8px}.hsa-photo{text-align:center}.hsa-photo img{max-width:100%;height:auto;border-radius:8px;border:1px solid var(--line)}
+.hsa-row.paid .hsa-sum{opacity:.55}
 </style>
 
 <header class="top"><div class="wrap">
@@ -1462,7 +1463,7 @@ function openYearOutlook() {
         <span class="k">Projected expenses${yo.abn ? ' (incl. abnormal)' : ''}</span><span class="v">− ${fmt(r2(yo.exp + yo.abn))}</span>
         <span class="k">Projected wealth building</span><span class="v">− ${fmt(yo.wealth)}</span>
         <span class="k tot">Projected kept by year end</span><span class="v tot ${signCls(yo.kept)}">${fmt(yo.kept)}</span>
-        ${(() => { const hy = hsaYear(yo.year); return hy.total ? `<span class="k" style="margin-top:8px">${esc(hsaTitle())} you can reimburse (${hy.n})</span><span class="v" style="margin-top:8px">+ ${fmt(hy.total)}</span>
+        ${(() => { const hy = hsaYear(yo.year); return hy.total ? `<span class="k" style="margin-top:8px">${esc(hsaTitle())} you can reimburse (${hy.n}${hy.carried ? ', incl. ' + fmt(hy.carried) + ' carried over' : ''})</span><span class="v" style="margin-top:8px">+ ${fmt(hy.total)}</span>
         <span class="k tot">Kept + HSA reimbursements</span><span class="v tot ${signCls(yo.kept + hy.total)}">${fmt(r2(yo.kept + hy.total))}</span>` : ''; })()}
         ${yo.last ? `<span class="k faint">${yo.prevYear}: ${fmt(yo.last.net)} net income, ${fmt(yo.last.kept)} kept${yo.last.n < 12 ? ` (${yo.last.n} months)` : ''}</span><span class="v faint ${signCls(yo.kept - yo.last.kept)}">${fmt(yo.kept - yo.last.kept, {sign:true})}</span>` : ''}
       </div>
@@ -1625,7 +1626,7 @@ function openTrends(key) {
     (() => { const pl = retirePlan(); return { id: 'retire', act: 'retire', sw: 'wealth', title: 'Retirement', sub: `${pl.p.years} year${pl.p.years === 1 ? '' : 's'} away · ${fmt(pl.todays)} a month in today’s money`, v: `${fmt(pl.monthly)}/mo` }; })(),
     { id: 'retained', act: 'chart', chart: 'trend', sw: 'ret', title: 'Income retained by month', sub: t.pc ? `${fmt(t.c.retained - t.pc.retained, {sign:true})} vs ${shortMonth(t.prevKey)}` : 'first month on record', v: fmt(t.c.retained), cls: signCls(t.c.retained) },
     { id: 'outlook', act: 'year', sw: 'ret', title: `${yo.year} outlook`, sub: `kept by year end · ${yo.entered} of 12 months in${hsaYear().total ? ' · + ' + fmt(hsaYear().total) + ' HSA to reimburse' : ''}`, v: fmt(yo.kept), cls: signCls(yo.kept) },
-    (() => { const y = hsaYear(); return { id: 'hsa', act: 'hsa', sw: 'income', title: hsaTitle(), sub: y.n ? `${y.n} receipt${y.n === 1 ? '' : 's'} in ${y.year} · eligible to reimburse` : 'snap HSA-eligible receipts · running total for the year', v: fmt(y.total) }; })(),
+    (() => { const y = hsaYear(); return { id: 'hsa', act: 'hsa', sw: 'income', title: hsaTitle(), sub: y.n ? `${y.n} receipt${y.n === 1 ? '' : 's'} not yet reimbursed${y.carried ? ' · ' + fmt(y.carried) + ' carried over' : ''}` : 'snap HSA-eligible receipts · running total to reimburse', v: fmt(y.total) }; })(),
     ...(equityStats(cm).has ? [(() => { const e = equityStats(cm), y = equityYTD(key); return { id: 'equity', act: 'chart', chart: 'equity', sw: 'wealth', title: 'Home equity', sub: `${fmt(e.value)} worth − ${fmt(e.owed)} owed · ${fmt(y.total)} built in ${key.slice(0, 4)}`, v: fmt(e.equity) }; })()] : []),
     { id: 'debt', act: 'chart', chart: 'debt', sw: 'debt', title: 'Total credit card debt', sub: t.bc ? `${t.bpc ? fmt(t.bc.cc - t.bpc.cc, {sign:true}) + ' since ' + shortMonth(t.bPrev) + ' · ' : ''}as of ${monthLabel(t.withBal)}` : 'add card balances in a month to track this', v: t.bc ? fmt(t.bc.cc) : '—' },
     { id: 'balances', act: 'balances', sw: 'income', title: `Balances · ${monthLabel(key)}`, sub: nBal ? `${nCards} card${nCards === 1 ? '' : 's'} with a balance · ${(cm.savings||[]).length} savings · ${(cm.accounts||[]).length} on the house · tap to edit` : `nothing recorded yet for ${shortMonth(key)} · tap to add`, v: '' },
@@ -1833,7 +1834,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','cards','card-tab','pt-add','pt-del','pt-kind','hsa','hsa-add','hsa-open','hsa-photo','hsa-del','hsa-rename','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','cards','card-tab','pt-add','pt-del','pt-kind','hsa','hsa-add','hsa-open','hsa-photo','hsa-del','hsa-rename','hsa-paid','hsa-paid-all','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -1854,6 +1855,12 @@ async function onAction(e) {
     case 'hsa-add': pickHsaPhoto(); break;
     case 'hsa-open': { const id = t.dataset.hx; S.hsaOpen = S.hsaOpen === id ? null : id; refreshEditor(); break; }
     case 'hsa-photo': openHsaPhoto(t.dataset.hx); break;
+    case 'hsa-paid': { const r = hsaRows().find(x => x.id === t.dataset.hx); if (!r) break; if (r.paid) delete r.paid; else r.paid = today();
+      Store.markHsa(); refreshEditor(); updateHsaTotals(); requestRender(); toast(r.paid ? `Marked reimbursed — ${fmt(r.amount || 0)} off the total` : 'Back on the total to reimburse'); break; }
+    case 'hsa-paid-all': { const y = hsaYear(); if (!y.n) break;
+      if (!(await ask(`Mark all ${y.n} receipt${y.n === 1 ? '' : 's'} (${fmt(y.total)}) as reimbursed today? Do this after you take the money out of the HSA.`, 'Mark reimbursed'))) break;
+      const d0 = today(); for (const r of hsaRows()) if (!r.paid) r.paid = d0;
+      Store.markHsa(); refreshEditor(); updateHsaTotals(); requestRender(); const hd = $('.dlg-foot [data-act="hsa-paid-all"]', dlg); if (hd) hd.remove(); toast(`${fmt(y.total)} marked reimbursed`); break; }
     case 'hsa-del': { const id = t.dataset.hx, r = hsaRows().find(x => x.id === id); if (!r) break;
       if (!(await ask(`Delete the ${r.merchant || 'receipt'} receipt${+r.amount ? ` (${fmt(r.amount)})` : ''} and its photo?`, 'Delete'))) break;
       S.hsa.rows = hsaRows().filter(x => x.id !== id); if (r.img) Store.dropHsaPhoto(id); Store.markHsa(); refreshEditor(); updateHsaTotals(); requestRender(); break; }
@@ -2473,13 +2480,20 @@ const fingerprint = t => `${t.date}|${Math.round(Math.abs(t.amount) * 100)}|${me
    It shows in the year outlook as money that can still be reimbursed — not mixed into the kept projection. ---------- */
 const hsaTitle = () => (S.hsa.title || '').trim() || 'HSA receipts';
 const hsaRows = () => { if (S.mode !== 'firebase' && !S.hsaLoaded) { try { const d = JSON.parse(localStorage.getItem('tb-hsa') || '{}'); S.hsa = { title: String(d.title || ''), rows: Array.isArray(d.rows) ? d.rows : [] }; } catch (e) {} S.hsaLoaded = true; } return S.hsa.rows || (S.hsa.rows = []); };
-function hsaYear(year = String(new Date().getFullYear())) { const rows = hsaRows().filter(r => String(r.date || r.added || '').startsWith(year)); return { year, n: rows.length, total: r2(rows.reduce((s, r) => s + (+r.amount || 0), 0)) }; }
-function hsaHead() { const y = hsaYear(); return `${fmt(y.total)} saved to reimburse in ${y.year} · ${y.n} receipt${y.n === 1 ? '' : 's'}`; }
+const hsaRowYear = r => String(r.date || r.added || '').slice(0, 4);
+function hsaYear(year = String(new Date().getFullYear())) { // still to reimburse as of that year: unreimbursed receipts from it and every year before
+  const rows = hsaRows(), sum = a => r2(a.reduce((s, r) => s + (+r.amount || 0), 0));
+  const open = rows.filter(r => !r.paid && hsaRowYear(r) <= year), carried = open.filter(r => hsaRowYear(r) < year);
+  return { year, n: open.length, total: sum(open), carried: sum(carried), nCarried: carried.length, paid: sum(rows.filter(r => String(r.paid || '').startsWith(year))) };
+}
+function hsaHead() { const y = hsaYear(); return `${fmt(y.total)} to reimburse${y.carried ? ` · ${fmt(y.carried)} carried over` : ''} · ${y.n} receipt${y.n === 1 ? '' : 's'}`; }
+function hsaSub(y) { return [y.carried ? `${fmt(y.carried)} carried over from before ${y.year} (${y.nCarried} receipt${y.nCarried === 1 ? '' : 's'})` : '', y.paid ? `${fmt(y.paid)} reimbursed in ${y.year}` : ''].filter(Boolean).join(' · ') || 'Receipts stay here until you mark them reimbursed, and roll into the next year if you haven’t.'; }
 function hsaBody() {
-  const y = hsaYear(), rows = [...hsaRows()].sort((a, b) => String(b.date || b.added || '').localeCompare(String(a.date || a.added || '')));
-  return `<div class="hsa-tot"><span class="muted">Eligible to reimburse in ${y.year}</span><span class="big num" data-hsa-total>${fmt(y.total)}</span></div>
-    <div class="list hsa-list" style="margin:0">${rows.map(r => { const open = S.hsaOpen === r.id; return `<div class="hsa-row${open ? ' open' : ''}" data-hx="${esc(r.id)}">
-      <button class="hsa-sum" data-act="hsa-open" data-hx="${esc(r.id)}"><span class="t">${esc(r.merchant || 'Receipt')}<span class="n">${r.date ? esc(fmtDate(r.date)) : 'no date'}${+r.total && +r.total !== +r.amount ? ' · of ' + fmt(r.total) : ''}${r.check ? ' · <b class="neg">check the details</b>' : ''}</span></span><span class="v num">${fmt(r.amount || 0)}</span>${ICON.chev}</button>
+  const y = hsaYear(), rows = [...hsaRows()].sort((a, b) => (!!a.paid - !!b.paid) || String(b.date || b.added || '').localeCompare(String(a.date || a.added || ''))); // still to claim first
+  return `<div class="hsa-tot"><span class="muted">Still to reimburse</span><span class="big num" data-hsa-total>${fmt(y.total)}</span></div>
+    <div class="muted" style="font-size:12.5px;padding:0 6px 12px" data-hsa-sub>${hsaSub(y)}</div>
+    <div class="list hsa-list" style="margin:0">${rows.map(r => { const open = S.hsaOpen === r.id; return `<div class="hsa-row${open ? ' open' : ''}${r.paid ? ' paid' : ''}" data-hx="${esc(r.id)}">
+      <button class="hsa-sum" data-act="hsa-open" data-hx="${esc(r.id)}"><span class="t">${esc(r.merchant || 'Receipt')}<span class="n">${r.date ? esc(fmtDate(r.date)) : 'no date'}${+r.total && +r.total !== +r.amount ? ' · of ' + fmt(r.total) : ''}${r.paid ? ' · reimbursed ' + esc(fmtDate(r.paid)) : hsaRowYear(r) < String(new Date().getFullYear()) ? ' · carried over from ' + hsaRowYear(r) : ''}${r.check ? ' · <b class="neg">check the details</b>' : ''}</span></span><span class="v num">${fmt(r.amount || 0)}</span>${ICON.chev}</button>
       ${open ? `<div class="hsa-edit">
         <label>Store<input type="text" data-f="hsa-merchant" value="${esc(r.merchant || '')}" autocomplete="off"></label>
         <label>Date<input type="date" data-f="hsa-date" value="${esc(r.date || '')}"></label>
@@ -2487,7 +2501,7 @@ function hsaBody() {
         <label>HSA-eligible<span class="amtw"><input type="text" inputmode="decimal" class="amt" id="f-${r.id}-hsaamt" data-f="hsa-amount" value="${fmtIn(r.amount || 0)}">${undoBtn(`f-${r.id}-hsaamt`)}</span></label>
         <label class="full">Note<input type="text" data-f="hsa-note" value="${esc(r.note || '')}" placeholder="what it was for" autocomplete="off"></label>
         ${(r.items || []).length ? `<div class="full muted" style="font-size:12px">${esc(r.items.join(' · '))}</div>` : ''}
-        <div class="full hsa-acts">${r.img ? `<button class="btn sm" data-act="hsa-photo" data-hx="${esc(r.id)}">${ICON.list} View photo</button>` : '<span class="muted" style="font-size:12px">no photo</span>'}<span class="sp"></span><button class="btn sm danger" data-act="hsa-del" data-hx="${esc(r.id)}">Delete</button></div>
+        <div class="full hsa-acts">${r.img ? `<button class="btn sm" data-act="hsa-photo" data-hx="${esc(r.id)}">${ICON.list} View photo</button>` : '<span class="muted" style="font-size:12px">no photo</span>'}<button class="btn sm" data-act="hsa-paid" data-hx="${esc(r.id)}">${r.paid ? 'Not reimbursed yet' : 'Mark reimbursed'}</button><span class="sp"></span><button class="btn sm danger" data-act="hsa-del" data-hx="${esc(r.id)}">Delete</button></div>
       </div>` : ''}</div>`; }).join('') || '<div class="faint" style="padding:12px 8px;font-size:12.5px">No receipts yet. Add a photo of a pharmacy, doctor, dental or vision receipt below.</div>'}</div>
     <p class="chart-note">The AI reads each photo for the store, date, total and the HSA-eligible part — check it, especially the eligible amount. Photos are kept in the budget; tap a receipt, then View photo, to pull one up.</p>`;
 }
@@ -2495,10 +2509,10 @@ function openHsa() {
   const from = cameFromTrends(); dialogCtx = { key: null, sec: 'hsa', back: from ? 'trends' : null, via: from ? 'trends' : null }; S.hsaOpen = null;
   openOverlay(`<div class="dlg-head">${trendsBack(currentKey()) || pageBack()}<div class="ttl"><h2 class="ch-title"><span data-hsa-title>${esc(hsaTitle())}</span><button class="icon pencil" data-act="hsa-rename" title="Rename" aria-label="Rename">${ICON.pencil}</button></h2><span class="muted" style="font-size:13px" data-hsa-head>${esc(hsaHead())}</span></div></div>
     <div class="dlg-body editor">${hsaBody()}</div>
-    <div class="dlg-foot"><button class="btn primary sm" data-act="hsa-add">${ICON.plus} Add receipts</button><span class="muted" style="font-size:12px">up to ${HSA_MAX_UPLOAD} photos at a time</span></div>`);
+    <div class="dlg-foot"><button class="btn primary sm" data-act="hsa-add">${ICON.plus} Add receipts</button><span class="muted" style="font-size:12px">up to ${HSA_MAX_UPLOAD} photos at a time</span><span class="sp"></span>${hsaYear().n ? '<button class="btn sm" data-act="hsa-paid-all">Mark all reimbursed</button>' : ''}</div>`);
   dlg.style.maxWidth = '560px';
 }
-function updateHsaTotals() { const t = $('[data-hsa-total]', dlg); if (t) t.textContent = fmt(hsaYear().total); const hd = $('[data-hsa-head]', dlg); if (hd) hd.textContent = hsaHead(); }
+function updateHsaTotals() { const t = $('[data-hsa-total]', dlg); if (t) t.textContent = fmt(hsaYear().total); const sb = $('[data-hsa-sub]', dlg); if (sb) sb.textContent = hsaSub(hsaYear()); const hd = $('[data-hsa-head]', dlg); if (hd) hd.textContent = hsaHead(); }
 async function shrinkPhoto(file) { // phone photos are several MB: scale down and re-encode until it fits one document
   const url = URL.createObjectURL(file);
   try {
