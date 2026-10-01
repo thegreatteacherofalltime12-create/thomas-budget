@@ -464,6 +464,8 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
 .share-cap{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:2px 6px 10px;font-size:13.5px;color:var(--ink-2)}
 .share-cap .ok{color:var(--accent);font-weight:600}.share-cap .full{color:var(--bad);font-weight:600}
 .lrow.member .btn{white-space:nowrap}
+.lrow.member .nm{display:flex;align-items:center;gap:4px}.lrow.member .pencil{width:24px;height:24px;color:var(--ink-3)}.lrow.member .pencil svg{width:14px;height:14px}
+.share-name{font:inherit;font-weight:600;font-size:15px;padding:5px 8px;border:1px solid var(--accent-line);border-radius:8px;background:var(--surface);color:var(--ink);min-width:0;width:100%}
 </style>
 
 <header class="top"><div class="wrap">
@@ -520,7 +522,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, catMap:null, imp:null, ask:[], hid:null, house:null, names:{}, noHousehold:false, notice:null, shareLink:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, catMap:null, imp:null, ask:[], hid:null, house:null, names:{}, shareEdit:null, noHousehold:false, notice:null, shareLink:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -694,8 +696,9 @@ const Store = {
     if (inv.usedBy === u.uid) { clearInvite(); return null; } // already used it: the pointer knows where they went
     if (inv.usedBy) return stop('That invite link has already been used. Each link lets one person in — ask for a new one.');
     if (!inv.expires || inv.expires.toMillis() < Date.now()) return stop('That invite link has expired. Ask for a new one.');
-    let cur = null; // where this account is now, if anywhere
-    try { const p = await F.getDoc(F.doc(db, 'users', u.uid)); cur = (p.exists() && p.data().hid) || null; } catch (e) {}
+    let ptr = null; // the household this account has registered in, if any
+    try { const p = await F.getDoc(F.doc(db, 'users', u.uid)); ptr = (p.exists() && p.data().hid) || null; } catch (e) {}
+    let cur = ptr; // where it is now: its own household, or the first one if it can open it without being registered yet
     if (!cur) try { await F.getDoc(F.doc(db, 'settings', 'app')); cur = 'original'; } catch (e) {}
     if (inv.kind === 'new') {
       if (cur) { clearInvite(); S.notice = 'You already have a budget here. That link is for someone new — it’s still unused, so you can pass it on.'; return null; }
@@ -709,13 +712,14 @@ const Store = {
       clearInvite(); S.notice = 'Welcome — this budget is yours alone. Nobody else can see it unless you invite them with Share.';
       return hid;
     }
-    if (cur === inv.hid) { clearInvite(); return cur; } // already in it
-    if (cur && !(await ask('This link adds you to someone else’s budget. You’ll leave the one you’re in now and won’t see it anymore unless you’re invited back.', 'Join'))) { clearInvite(); return null; }
+    if (ptr === inv.hid) { clearInvite(); return ptr; } // already on its list
+    const leaving = cur && cur !== inv.hid ? cur : null; // a different budget they'd be leaving
+    if (leaving && !(await ask('This link adds you to someone else’s budget. You’ll leave the one you’re in now and won’t see it anymore unless you’re invited back.', 'Join'))) { clearInvite(); return null; }
     const b = F.writeBatch(db);
     b.update(F.doc(db, 'households', inv.hid), { ['members.' + u.uid]: u.email, via: code });
     b.update(F.doc(db, 'invites', code), { usedBy: u.uid });
     b.set(F.doc(db, 'users', u.uid), { hid: inv.hid });
-    if (cur) b.update(F.doc(db, 'households', cur), { ['members.' + u.uid]: F.deleteField() });
+    if (leaving && ptr === leaving) b.update(F.doc(db, 'households', leaving), { ['members.' + u.uid]: F.deleteField() }); // only off a list they are on
     try { await b.commit(); } catch (e) { console.error(e); return stop('Couldn’t join — that budget may already have 5 people, or the link was just used. Ask for a new one.'); }
     clearInvite(); S.notice = 'You’re in. Everything here is shared live with everyone in this budget.';
     return inv.hid;
@@ -747,7 +751,7 @@ const Store = {
     }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(this.ref('settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; S.trendsOrder = snap.exists() && Array.isArray(snap.data().trendsOrder) ? snap.data().trendsOrder : null; S.trendsHidden = snap.exists() && Array.isArray(snap.data().trendsHidden) ? snap.data().trendsHidden : null; S.trendsAdded = snap.exists() && Array.isArray(snap.data().trendsAdded) ? snap.data().trendsAdded : null; S.catMap = snap.exists() && snap.data().catMap ? snap.data().catMap : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor();
       S.names = snap.exists() && snap.data().names ? snap.data().names : {};
-      if (!snap.metadata.fromCache && !this._named && S.user) { this._named = true; const nm = (S.user.name || '').trim().slice(0, 60); if (nm && S.names[S.user.uid] !== nm) F.setDoc(this.ref('settings', 'app'), { names: { [S.user.uid]: nm } }, { merge: true }).catch(e => console.warn('name', e)); }
+      if (!snap.metadata.fromCache && !this._named && S.user) { this._named = true; const nm = (S.user.name || '').trim().slice(0, 60); if (nm && !S.names[S.user.uid]) F.setDoc(this.ref('settings', 'app'), { names: { [S.user.uid]: nm } }, { merge: true }).catch(e => console.warn('name', e)); }
       if (dialogCtx.sec === 'share' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(F.doc(db, 'config', 'admin'), snap => {
       const em = snap.exists() ? String(snap.data().email || '') : '';
@@ -1667,6 +1671,11 @@ function onInput(e) {
 }
 async function onChange(e) {
   const el = e.target, key = viewKey() || dialogCtx.key;
+  if (el.dataset.f === 'share-name') { // a name the household sees for one of its people
+    const id = el.dataset.uid, v = el.value.replace(/\s+/g, ' ').trim().slice(0, 60); S.shareEdit = null;
+    if (id && v !== ((S.names || {})[id] || '') && FB) { S.names = { ...(S.names || {}), [id]: v }; FB.F.setDoc(Store.ref('settings', 'app'), { names: { [id]: v } }, { merge: true }).catch(e => toast('Couldn’t save the name: ' + ((e && e.code) || 'unknown'))); }
+    refreshEditor(); return;
+  }
   if (el.dataset.f === 'tx-cat' || el.dataset.f === 'tx-new') {
     const t = S.imp && S.imp.rows[+el.dataset.tx]; if (!t) return;
     t.user = true; delete t.ai;
@@ -1695,6 +1704,7 @@ function onKey(e) {
   if (e.key === 'Enter' && e.target.matches('tr[data-act="open"], .card[role="button"], .p[role="button"]')) e.target.click();
   if (e.key === 'Enter' && e.target.matches('.ch-title-inp')) { e.preventDefault(); e.target.blur(); }
   if (e.key === 'Enter' && e.target.id === 'ask-q') { e.preventDefault(); askSend(); }
+  if (e.key === 'Enter' && e.target.matches('.share-name')) { e.preventDefault(); e.target.blur(); }
 }
 for (const el of [app, $('#dlg')]) { el.addEventListener('input', onInput); el.addEventListener('change', onChange); el.addEventListener('keydown', onKey); }
 
@@ -1703,7 +1713,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -1719,6 +1729,7 @@ async function onAction(e) {
     case 'imp-ai': aiSuggest(); break;
     case 'ask': openAsk(); break;
     case 'share': openShare(); break;
+    case 'share-rename': { S.shareEdit = t.dataset.uid; refreshEditor(); const i = $('.share-name', dlg); if (i) { i.focus(); i.select(); } break; }
     case 'share-join': case 'share-new': {
       const kind = act === 'share-join' ? 'join' : 'new';
       if (kind === 'join' && Object.keys((S.house || {}).members || {}).length >= 5) { toast('This budget already has 5 people'); break; }
@@ -2327,7 +2338,7 @@ function shareBody() {
   const mem = Object.entries((S.house || {}).members || {}), me = S.user && S.user.uid, full = mem.length >= 5, left = Math.max(0, 5 - mem.length), names = S.names || {};
   mem.sort(([a], [b]) => (b === me) - (a === me)); // you first
   return `<div class="share-cap"><span><b>${mem.length}</b> of 5 people</span><span class="${left ? 'ok' : 'full'}">${left ? left + (left === 1 ? ' spot' : ' spots') + ' left' : 'No spots left'}</span></div>
-    <div class="list" style="margin:0">${mem.map(([id, em]) => `<div class="lrow static member"><span class="sw ${id === me ? 'income' : 'wealth'}"></span><span class="t">${esc(names[id] || em)}<span class="n">${names[id] ? esc(em) : ''}${id === me ? (names[id] ? ' · you' : 'you') : ''}</span></span>${id === me ? '<span></span>' : `<button class="btn sm" data-act="share-remove" data-uid="${esc(id)}" title="Take them out of this household">Remove</button>`}<span></span></div>`).join('') || '<div class="faint" style="padding:10px 8px;font-size:12.5px">Loading who’s here…</div>'}</div>
+    <div class="list" style="margin:0">${mem.map(([id, em]) => `<div class="lrow static member"><span class="sw ${id === me ? 'income' : 'wealth'}"></span><span class="t">${S.shareEdit === id ? `<input class="share-name" data-f="share-name" data-uid="${esc(id)}" value="${esc(names[id] || '')}" placeholder="Name" maxlength="60" autocomplete="off" enterkeyhint="done">` : `<span class="nm">${esc(names[id] || em)}<button class="icon pencil" data-act="share-rename" data-uid="${esc(id)}" title="Change the name shown" aria-label="Change the name shown">${ICON.pencil}</button></span>`}<span class="n">${names[id] ? esc(em) : ''}${id === me ? (names[id] ? ' · you' : 'you') : ''}</span></span>${id === me ? '<span></span>' : `<button class="btn sm" data-act="share-remove" data-uid="${esc(id)}" title="Take them out of this household">Remove</button>`}<span></span></div>`).join('') || '<div class="faint" style="padding:10px 8px;font-size:12.5px">Loading who’s here…</div>'}</div>
     <p class="chart-note">Everyone in this household sees and edits the same budget, live. Removing someone takes away their access right away; their entries stay in the budget.</p>
     <div class="list share-acts">
       <button class="lrow" data-act="share-join"${full ? ' disabled' : ''}><span class="sw income"></span><span class="t">Invite someone to this budget<span class="n">${full ? 'This budget already has 5 people' : 'They see and edit everything here, like you do'}</span></span><span></span>${ICON.chev}</button>
@@ -2338,7 +2349,7 @@ function shareBody() {
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" data-act="share-send">Send…</button><button class="btn sm" data-act="share-copy">Copy link</button></div></div>` : ''}`;
 }
 function openShare() {
-  dialogCtx = { key: null, sec: 'share' }; S.shareLink = null;
+  dialogCtx = { key: null, sec: 'share' }; S.shareLink = null; S.shareEdit = null;
   openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Share</h2><span class="muted" style="font-size:13px">${esc(appTitle())}</span></div></div>
     <div class="dlg-body editor">${shareBody()}</div>`);
   dlg.style.maxWidth = '560px';
