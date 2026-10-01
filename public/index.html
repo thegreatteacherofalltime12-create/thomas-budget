@@ -620,6 +620,7 @@ function captureInvite() { // keep the code until the person is signed in, and t
 captureInvite();
 window.addEventListener('hashchange', () => { if (captureInvite()) location.reload(); }); // already open: start over so the invite is handled at sign-in
 const lastHid = () => { try { return (S.user && localStorage.getItem('tb-hid-' + S.user.uid)) || ''; } catch (e) { return ''; } };
+const forgetHid = () => { try { if (S.user) localStorage.removeItem('tb-hid-' + S.user.uid); } catch (e) {} };
 const randomId = n => { const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'; return Array.from(crypto.getRandomValues(new Uint8Array(n)), x => abc[x % abc.length]).join(''); };
 const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/12.19.0/';
 const Store = {
@@ -647,6 +648,19 @@ const Store = {
       S.denied = false; S.noHousehold = false;
       if (user) {
         S.ready = false; setSync('busy', 'Loading…'); renderNav(); render();
+        const hint = !pendingInvite() && lastHid();
+        if (hint) { // the budget appears at once from this phone's offline copy; whose household it is gets confirmed after
+          this.hinted = true; this.useHousehold(hint); this.subscribe(); renderNav(); render();
+          this.resolve().then(hid => {
+            if (!FB || !S.user || S.user.uid !== user.uid) return; // signed out meanwhile
+            this.hinted = false; try { sessionStorage.removeItem('tb-rehint'); } catch (e) {}
+            if (hid === hint) return; // as expected — the usual case
+            this.unsubscribe(); S.months = {}; S.house = null;
+            if (!hid) { forgetHid(); S.noHousehold = true; S.ready = true; renderNav(); render(); return; }
+            S.ready = false; this.useHousehold(hid); this.subscribe(); renderNav(); render();
+          }).catch(e => console.warn('resolve', e));
+          return;
+        }
         let hid = null; try { hid = await this.resolve(); } catch (e) { console.error(e); }
         if (!FB || !S.user || S.user.uid !== user.uid) return; // signed out while this was running
         if (!hid) { S.noHousehold = true; S.ready = true; renderNav(); render(); return; }
@@ -680,14 +694,16 @@ const Store = {
     const { F, db } = FB, u = FB.auth.currentUser;
     const code = pendingInvite();
     if (code) { const hid = await this.acceptInvite(code); if (hid) return hid; }
-    let offline = false, pointer = null;
-    try {
-      const p = await F.getDoc(F.doc(db, 'users', u.uid)), hid = p.exists() && p.data().hid; pointer = hid || null;
-      if (hid && hid !== 'original') { const hh = await F.getDoc(F.doc(db, 'households', hid)); if (hh.exists() && (hh.data().members || {})[u.uid]) return hid; }
-    } catch (e) { offline = e && e.code === 'unavailable'; }
-    try { await F.getDoc(F.doc(db, 'settings', 'app')); } // only the first household can read this
-    catch (e) { return (offline || (e && e.code === 'unavailable')) ? (lastHid() || null) : null; }
-    try { await this.registerOriginal(pointer === 'original'); } catch (e) { console.warn('register', e); }
+    const [ptr, first] = await Promise.allSettled([F.getDoc(F.doc(db, 'users', u.uid)), F.getDoc(F.doc(db, 'settings', 'app'))]); // only the first household can read settings/app
+    const offline = [ptr, first].some(r => r.status === 'rejected' && r.reason && r.reason.code === 'unavailable');
+    const pointer = ptr.status === 'fulfilled' && ptr.value.exists() ? ptr.value.data().hid || null : null;
+    if (pointer && pointer !== 'original') {
+      try { const hh = await F.getDoc(F.doc(db, 'households', pointer)); if (hh.exists() && (hh.data().members || {})[u.uid]) return pointer; }
+      catch (e) { if (e && e.code === 'unavailable') return lastHid() || pointer; }
+    }
+    if (first.status === 'rejected') return offline ? (lastHid() || null) : null;
+    let registered = false; try { registered = localStorage.getItem('tb-reg-' + u.uid) === '1'; } catch (e) {}
+    if (!registered) this.registerOriginal(pointer === 'original').then(() => { try { localStorage.setItem('tb-reg-' + u.uid, '1'); } catch (e) {} }).catch(e => console.warn('register', e));
     return 'original';
   },
   async registerOriginal(pointed) { // the first household's people put themselves on its member list (and carry the administrator over)
@@ -810,6 +826,7 @@ const Store = {
   },
   onError(err) {
     const code = err && err.code || 'unknown';
+    if (code === 'permission-denied' && this.hinted) { let tried = false; try { tried = !!sessionStorage.getItem('tb-rehint'); sessionStorage.setItem('tb-rehint', '1'); } catch (e) {} if (!tried) { forgetHid(); location.reload(); return; } }
     if (code === 'permission-denied') { S.denied = true; S.ready = true; this.unsubscribe(); setSync('bad', 'Not allowed'); render(); if (FB) { const { F, db } = FB; F.terminate(db).then(() => F.clearIndexedDbPersistence(db)).catch(() => {}); } }
     else { setSync('bad', 'Sync problem'); toast('Sync problem: ' + code); S.ready = true; requestRender(); }
   },
@@ -883,7 +900,12 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) Store
 /* ---------- rendering ---------- */
 const app = $('#app');
 function isEditing() { const a = document.activeElement; return !!(a && (app.contains(a) || dlg.contains(a)) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); }
-function requestRender() { if (isEditing()) { S.pendingRender = true; return; } render(); }
+let renderTimer = null;
+function requestRender() { // coalesced: the snapshots that arrive together get one redraw
+  if (isEditing()) { S.pendingRender = true; return; }
+  if (renderTimer) return;
+  renderTimer = setTimeout(() => { renderTimer = null; if (isEditing()) { S.pendingRender = true; return; } render(); }, 30);
+}
 const onFocusOut = () => { setTimeout(() => { if (S.pendingRender && !isEditing()) { S.pendingRender = false; render(); } }, 60); };
 app.addEventListener('focusout', onFocusOut); $('#dlg').addEventListener('focusout', onFocusOut);
 window.addEventListener('hashchange', render);

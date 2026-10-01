@@ -46,7 +46,7 @@ data is ours; the code is here for anyone.)
 - **Month picker** on the home page and in the month header to jump anywhere in one tap.
 - **Update button** appears when a new version is deployed; one tap reloads to it.
 - **Phone-first**: single-column layout, large touch targets, full-screen overlays,
-  installable (web app manifest + service worker), offline via Firestore's local cache.
+  installable (web app manifest + service worker), offline via Firestore's local cache. It opens without waiting on the network: the service worker answers from the device's copy and refreshes it in the background, and the app opens the household it last opened straight from Firestore's cache, confirming membership after the budget is already on screen.
 
 ## How it's built
 
