@@ -457,6 +457,13 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
 .lwrap .lrow{touch-action:pan-y;background:var(--surface);border-bottom:0;position:relative;z-index:1;width:100%}
 .lwrap.moving .lrow{box-shadow:0 4px 14px rgba(0,0,0,.12)}
 .col-body.bal .row input[data-f=blabel]{font-size:13.5px}
+.lrow.static{cursor:default}.lrow.static:hover{background:transparent}
+.share-acts{margin-top:12px;border:1px solid var(--line);border-radius:12px;overflow:hidden}.share-acts .lrow:last-child{border-bottom:0}.share-acts .lrow[disabled]{opacity:.5;cursor:default}
+.share-out{display:flex;flex-direction:column;gap:8px;margin-top:14px;padding:12px;border:1px solid var(--accent-line);border-radius:12px;background:var(--accent-soft)}
+.share-url{font-size:13px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-family:inherit;width:100%;min-width:0}
+.share-cap{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:2px 6px 10px;font-size:13.5px;color:var(--ink-2)}
+.share-cap .ok{color:var(--accent);font-weight:600}.share-cap .full{color:var(--bad);font-weight:600}
+.lrow.member .btn{white-space:nowrap}
 </style>
 
 <header class="top"><div class="wrap">
@@ -513,7 +520,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, catMap:null, imp:null, ask:[], ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, catMap:null, imp:null, ask:[], hid:null, house:null, names:{}, noHousehold:false, notice:null, shareLink:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -586,6 +593,21 @@ const ICON = {
 
 /* ---------- storage: Firestore (shared, signed-in) or this device only ---------- */
 const LS_KEY = 'thomas-budget:v1';
+/* Households. Every budget belongs to one household of up to five Google accounts; people get in only through
+   a one-time invite link made with the Share button. The first household keeps its data at the database root,
+   where it has always lived; every other one lives under households/<id>. firestore.rules enforces all of it. */
+const INVITE_KEY = 'tb-invite';
+const pendingInvite = () => { try { return localStorage.getItem(INVITE_KEY) || ''; } catch (e) { return ''; } };
+const clearInvite = () => { try { localStorage.removeItem(INVITE_KEY); } catch (e) {} };
+function captureInvite() { // keep the code until the person is signed in, and take it out of the address bar
+  const mi = /^#\/invite\/([A-Za-z0-9]{20,40})$/.exec(location.hash || ''); if (!mi) return false;
+  try { localStorage.setItem(INVITE_KEY, mi[1]); } catch (e) {}
+  history.replaceState(null, '', location.pathname + location.search + '#/'); return true;
+}
+captureInvite();
+window.addEventListener('hashchange', () => { if (captureInvite()) location.reload(); }); // already open: start over so the invite is handled at sign-in
+const lastHid = () => { try { return (S.user && localStorage.getItem('tb-hid-' + S.user.uid)) || ''; } catch (e) { return ''; } };
+const randomId = n => { const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'; return Array.from(crypto.getRandomValues(new Uint8Array(n)), x => abc[x % abc.length]).join(''); };
 const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/12.19.0/';
 const Store = {
   _unsubs: [],
@@ -607,11 +629,17 @@ const Store = {
     try { db = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }); }
     catch (e) { db = F.getFirestore(app); } // private browsing etc.: no offline cache, still works
     FB = { app, auth, db, A, F };
-    A.onAuthStateChanged(auth, user => {
+    A.onAuthStateChanged(auth, async user => {
       S.user = user ? { uid: user.uid, email: user.email || '', name: user.displayName || '', photo: user.photoURL || '' } : null;
-      S.denied = false;
-      if (user) { S.ready = false; this.subscribe(); setSync('busy', 'Loading…'); }
-      else { this.unsubscribe(); S.months = {}; S.ready = true; setSync('local', 'Signed out'); }
+      S.denied = false; S.noHousehold = false;
+      if (user) {
+        S.ready = false; setSync('busy', 'Loading…'); renderNav(); render();
+        let hid = null; try { hid = await this.resolve(); } catch (e) { console.error(e); }
+        if (!FB || !S.user || S.user.uid !== user.uid) return; // signed out while this was running
+        if (!hid) { S.noHousehold = true; S.ready = true; renderNav(); render(); return; }
+        this.useHousehold(hid); this.subscribe();
+        if (S.notice) { toast(S.notice, 6000); S.notice = null; }
+      } else { this.unsubscribe(); S.months = {}; S.ready = true; this.hid = S.hid = null; S.house = null; setSync('local', 'Signed out'); }
       renderNav(); render();
     });
   },
@@ -626,11 +654,87 @@ const Store = {
     }
   },
   async signOut() { await this.flushAll(); this.unsubscribe(); try { await FB.A.signOut(FB.auth); } catch (e) {} await this.wipeCache(); },
-  unsubscribe() { this._unsubs.forEach(u => { try { u(); } catch (e) {} }); this._unsubs = []; },
+  unsubscribe() { this._unsubs.forEach(u => { try { u(); } catch (e) {} }); this._unsubs = []; if (this._fbUnsub) { try { this._fbUnsub(); } catch (e) {} this._fbUnsub = null; } },
+  /* ---- households ---- */
+  hid: null, base: [],
+  ref(...p) { return FB.F.doc(FB.db, ...this.base, ...p); },
+  col(name) { return FB.F.collection(FB.db, ...this.base, name); },
+  useHousehold(hid) {
+    this.hid = S.hid = hid; this.base = hid === 'original' ? [] : ['households', hid];
+    try { localStorage.setItem('tb-hid-' + S.user.uid, hid); } catch (e) {}
+  },
+  async resolve() { // which household this account opens: an invite in hand, then its own pointer, then the first household
+    const { F, db } = FB, u = FB.auth.currentUser;
+    const code = pendingInvite();
+    if (code) { const hid = await this.acceptInvite(code); if (hid) return hid; }
+    let offline = false, pointer = null;
+    try {
+      const p = await F.getDoc(F.doc(db, 'users', u.uid)), hid = p.exists() && p.data().hid; pointer = hid || null;
+      if (hid && hid !== 'original') { const hh = await F.getDoc(F.doc(db, 'households', hid)); if (hh.exists() && (hh.data().members || {})[u.uid]) return hid; }
+    } catch (e) { offline = e && e.code === 'unavailable'; }
+    try { await F.getDoc(F.doc(db, 'settings', 'app')); } // only the first household can read this
+    catch (e) { return (offline || (e && e.code === 'unavailable')) ? (lastHid() || null) : null; }
+    try { await this.registerOriginal(pointer === 'original'); } catch (e) { console.warn('register', e); }
+    return 'original';
+  },
+  async registerOriginal(pointed) { // the first household's people put themselves on its member list (and carry the administrator over)
+    const { F, db } = FB, u = FB.auth.currentUser, href = F.doc(db, 'households', 'original');
+    let hh = null; try { hh = await F.getDoc(href); } catch (e) {}
+    if (!(hh && hh.exists() && (hh.data().members || {})[u.uid])) await F.setDoc(href, { members: { [u.uid]: u.email } }, { merge: true });
+    if (!pointed) F.setDoc(F.doc(db, 'users', u.uid), { hid: 'original' }, { merge: true }).catch(() => {});
+    try { const a = await F.getDoc(F.doc(db, 'config', 'admin'));
+      if (!a.exists()) { const s = await F.getDoc(F.doc(db, 'settings', 'app')), em = s.exists() && s.data().admin; if (em) await F.setDoc(F.doc(db, 'config', 'admin'), { email: em }); } } catch (e) {}
+  },
+  async acceptInvite(code) { // the household to open, or null with S.notice saying why
+    const { F, db } = FB, u = FB.auth.currentUser;
+    const stop = msg => { clearInvite(); S.notice = msg; return null; };
+    let inv;
+    try { const s = await F.getDoc(F.doc(db, 'invites', code)); if (!s.exists()) return stop('That invite link isn’t valid. Ask for a new one.'); inv = s.data(); }
+    catch (e) { if (e && e.code === 'unavailable') { S.notice = 'You’re offline — open the invite link again once you’re connected.'; return null; } return stop('That invite link couldn’t be opened. Ask the person who sent it for a new one.'); }
+    if (inv.usedBy === u.uid) { clearInvite(); return null; } // already used it: the pointer knows where they went
+    if (inv.usedBy) return stop('That invite link has already been used. Each link lets one person in — ask for a new one.');
+    if (!inv.expires || inv.expires.toMillis() < Date.now()) return stop('That invite link has expired. Ask for a new one.');
+    let cur = null; // where this account is now, if anywhere
+    try { const p = await F.getDoc(F.doc(db, 'users', u.uid)); cur = (p.exists() && p.data().hid) || null; } catch (e) {}
+    if (!cur) try { await F.getDoc(F.doc(db, 'settings', 'app')); cur = 'original'; } catch (e) {}
+    if (inv.kind === 'new') {
+      if (cur) { clearInvite(); S.notice = 'You already have a budget here. That link is for someone new — it’s still unused, so you can pass it on.'; return null; }
+      const hid = randomId(20), b = F.writeBatch(db);
+      b.set(F.doc(db, 'households', hid), { owner: u.uid, members: { [u.uid]: u.email }, via: code, created: new Date().toISOString() });
+      b.update(F.doc(db, 'invites', code), { usedBy: u.uid });
+      b.set(F.doc(db, 'users', u.uid), { hid });
+      try { await b.commit(); } catch (e) { console.error(e); return stop('That invite link couldn’t be used — it may have just expired or been used. Ask for a new one.'); }
+      const last = (u.displayName || '').trim().split(/\s+/).pop();
+      try { await F.setDoc(F.doc(db, 'households', hid, 'settings', 'app'), { title: last ? last + ' Budget' : 'Our Budget', ...(u.displayName ? { names: { [u.uid]: u.displayName.trim().slice(0, 60) } } : {}) }, { merge: true }); } catch (e) {}
+      clearInvite(); S.notice = 'Welcome — this budget is yours alone. Nobody else can see it unless you invite them with Share.';
+      return hid;
+    }
+    if (cur === inv.hid) { clearInvite(); return cur; } // already in it
+    if (cur && !(await ask('This link adds you to someone else’s budget. You’ll leave the one you’re in now and won’t see it anymore unless you’re invited back.', 'Join'))) { clearInvite(); return null; }
+    const b = F.writeBatch(db);
+    b.update(F.doc(db, 'households', inv.hid), { ['members.' + u.uid]: u.email, via: code });
+    b.update(F.doc(db, 'invites', code), { usedBy: u.uid });
+    b.set(F.doc(db, 'users', u.uid), { hid: inv.hid });
+    if (cur) b.update(F.doc(db, 'households', cur), { ['members.' + u.uid]: F.deleteField() });
+    try { await b.commit(); } catch (e) { console.error(e); return stop('Couldn’t join — that budget may already have 5 people, or the link was just used. Ask for a new one.'); }
+    clearInvite(); S.notice = 'You’re in. Everything here is shared live with everyone in this budget.';
+    return inv.hid;
+  },
+  async createInvite(kind) {
+    const { F, db } = FB, code = randomId(24);
+    await F.setDoc(F.doc(db, 'invites', code), { kind, hid: this.hid, by: FB.auth.currentUser.uid, expires: new Date(Date.now() + 7 * 864e5) });
+    return location.origin + '/#/invite/' + code;
+  },
+  async removeMember(uid) { const { F, db } = FB; await F.updateDoc(F.doc(db, 'households', this.hid), { ['members.' + uid]: F.deleteField() }); },
+  listenFeedback() { // the administrator listens to every note; everyone else only to their own (the rules allow nothing more)
+    const { F, db } = FB; if (this._fbUnsub) { try { this._fbUnsub(); } catch (e) {} this._fbUnsub = null; }
+    const all = F.collection(db, 'feedback'), q = isAdmin() ? all : F.query(all, F.where('by', '==', S.user.email));
+    this._fbUnsub = F.onSnapshot(q, snap => { S.feedback = snap.docs.map(d => d.data()).filter(x => x && x.text); requestRender(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => console.warn('feedback', err));
+  },
   subscribe() {
     this.unsubscribe();
     const { F, db } = FB;
-    this._unsubs.push(F.onSnapshot(F.collection(db, 'months'), snap => {
+    this._unsubs.push(F.onSnapshot(this.col('months'), snap => {
       const next = {};
       snap.docs.forEach(d => { const data = d.data(); if (data && data.key) next[data.key] = (dirty[data.key] && S.months[data.key]) ? S.months[data.key] : clone(data); });
       // keep months that are dirty locally but not yet in the store
@@ -641,25 +745,33 @@ const Store = {
       requestRender();
       if (!snap.metadata.fromCache) ensureCurrentMonth();
     }, err => this.onError(err)));
-    this._unsubs.push(F.onSnapshot(F.doc(db, 'settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.admin = snap.exists() ? String(snap.data().admin || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; S.trendsOrder = snap.exists() && Array.isArray(snap.data().trendsOrder) ? snap.data().trendsOrder : null; S.trendsHidden = snap.exists() && Array.isArray(snap.data().trendsHidden) ? snap.data().trendsHidden : null; S.trendsAdded = snap.exists() && Array.isArray(snap.data().trendsAdded) ? snap.data().trendsAdded : null; S.catMap = snap.exists() && snap.data().catMap ? snap.data().catMap : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
-    this._unsubs.push(F.onSnapshot(F.collection(db, 'feedback'), snap => { S.feedback = snap.docs.map(d => d.data()).filter(x => x && x.text); requestRender(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
-    this._unsubs.push(F.onSnapshot(F.doc(db, 'ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; S.churchTitle = snap.exists() ? String(snap.data().title || '') : ''; requestRender(); }, err => this.onError(err)));
+    this._unsubs.push(F.onSnapshot(this.ref('settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; S.trendsOrder = snap.exists() && Array.isArray(snap.data().trendsOrder) ? snap.data().trendsOrder : null; S.trendsHidden = snap.exists() && Array.isArray(snap.data().trendsHidden) ? snap.data().trendsHidden : null; S.trendsAdded = snap.exists() && Array.isArray(snap.data().trendsAdded) ? snap.data().trendsAdded : null; S.catMap = snap.exists() && snap.data().catMap ? snap.data().catMap : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor();
+      S.names = snap.exists() && snap.data().names ? snap.data().names : {};
+      if (!snap.metadata.fromCache && !this._named && S.user) { this._named = true; const nm = (S.user.name || '').trim().slice(0, 60); if (nm && S.names[S.user.uid] !== nm) F.setDoc(this.ref('settings', 'app'), { names: { [S.user.uid]: nm } }, { merge: true }).catch(e => console.warn('name', e)); }
+      if (dialogCtx.sec === 'share' && !isEditing()) refreshEditor(); }, err => this.onError(err)));
+    this._unsubs.push(F.onSnapshot(F.doc(db, 'config', 'admin'), snap => {
+      const em = snap.exists() ? String(snap.data().email || '') : '';
+      if (em !== S.admin || !this._fbUnsub) { S.admin = em; this.listenFeedback(); }
+      if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor();
+    }, err => { console.warn('admin', err); if (!this._fbUnsub) this.listenFeedback(); }));
+    this._unsubs.push(F.onSnapshot(F.doc(db, 'households', this.hid), snap => { S.house = snap.exists() ? snap.data() : null; if (dialogCtx.sec === 'share' && !isEditing()) refreshEditor(); }, err => console.warn('household', err)));
+    this._unsubs.push(F.onSnapshot(this.ref('ledgers', 'church'), snap => { if (this._churchDirty) return; S.church = snap.exists() ? clone(snap.data().rows || []) : []; S.churchTitle = snap.exists() ? String(snap.data().title || '') : ''; requestRender(); }, err => this.onError(err)));
   },
   markChurch() { this._churchDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._churchTimer); this._churchTimer = setTimeout(() => this.saveChurch(), 700); },
-  saveCatMap() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { catMap: S.catMap || {} }, { merge: true }), 'the categories'); } else this.saveLocal(); },
-  saveTrendsView() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { trendsOrder: S.trendsOrder || [], trendsHidden: S.trendsHidden || [], trendsAdded: S.trendsAdded || [] }, { merge: true }), 'the list'); } else this.saveLocal(); },
+  saveCatMap() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(this.ref('settings', 'app'), { catMap: S.catMap || {} }, { merge: true }), 'the categories'); } else this.saveLocal(); },
+  saveTrendsView() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(this.ref('settings', 'app'), { trendsOrder: S.trendsOrder || [], trendsHidden: S.trendsHidden || [], trendsAdded: S.trendsAdded || [] }, { merge: true }), 'the list'); } else this.saveLocal(); },
   markRetire() { clearTimeout(this._rtTimer); this._rtTimer = setTimeout(() => this.saveRetire(), 700); },
-  saveRetire() { clearTimeout(this._rtTimer); if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { retire: S.retire || {} }, { merge: true }), 'the retirement settings'); } else this.saveLocal(); },
+  saveRetire() { clearTimeout(this._rtTimer); if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(this.ref('settings', 'app'), { retire: S.retire || {} }, { merge: true }), 'the retirement settings'); } else this.saveLocal(); },
   saveFeedback(item) { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'feedback', item.id), item), 'the note'); } else this.saveLocal(); },
   deleteFeedback(id) { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.deleteDoc(F.doc(db, 'feedback', id)), 'the removal'); } else this.saveLocal(); },
-  saveAdmin() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { admin: S.admin || '' }, { merge: true }), 'the administrator'); } else this.saveLocal(); },
+  saveAdmin() { if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'config', 'admin'), { email: S.admin || '' }), 'the administrator'); } else this.saveLocal(); },
   saveTitle() {
-    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'settings', 'app'), { title: S.title || '' }, { merge: true }), 'the budget name'); }
+    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(this.ref('settings', 'app'), { title: S.title || '' }, { merge: true }), 'the budget name'); }
     else this.saveLocal();
   },
   saveChurch() {
     this._churchDirty = false; clearTimeout(this._churchTimer);
-    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(F.doc(db, 'ledgers', 'church'), { rows: S.church, title: S.churchTitle || '' }), 'church expenses'); }
+    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.setDoc(this.ref('ledgers', 'church'), { rows: S.church, title: S.churchTitle || '' }), 'church expenses'); }
     else this.saveLocal();
   },
   onError(err) {
@@ -688,14 +800,14 @@ const Store = {
     if (S.mode === 'firebase') {
       const body = clone(doc); body.savedAt = new Date().toISOString(); body.savedBy = S.user ? S.user.email : '';
       const { F, db } = FB;
-      this.write(() => F.setDoc(F.doc(db, 'months', key), body), monthLabel(key));
+      this.write(() => F.setDoc(this.ref('months', key), body), monthLabel(key));
     } else { this.saveLocal(); }
   },
   async flushAll() { for (const k of Object.keys(dirty)) if (dirty[k]) await this.flush(k); if (this._churchDirty) this.saveChurch(); },
   async saveMonthNow(key) { dirty[key] = true; await this.flush(key); },
   async deleteMonth(key) {
     delete S.months[key]; dirty[key] = false; clearTimeout(timers[key]);
-    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.deleteDoc(F.doc(db, 'months', key)), 'the deletion'); }
+    if (S.mode === 'firebase') { const { F, db } = FB; this.write(() => F.deleteDoc(this.ref('months', key)), 'the deletion'); }
     else this.saveLocal();
   },
   /* ---- backup & restore (JSON) ---- */
@@ -709,8 +821,8 @@ const Store = {
     for (const m of monthList) {
       if (!m || !/^\d{4}-(0[1-9]|1[0-2])$/.test(m.key || '')) continue;
       const doc = { key: m.key, label: m.label || monthLabel(m.key), year: +m.key.slice(0, 4), month: +m.key.slice(5, 7), updatedOn: m.updatedOn || null, notes: String(m.notes || ''), imported: (Array.isArray(m.imported) ? m.imported : []).map(x => String(x).slice(0, 60)), cards: [], savings: [], accounts: [] };
-      for (const col of COLS) doc[col.key] = (Array.isArray(m[col.key]) ? m[col.key] : []).map(l => ({ id: safeId(l.id), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })) }));
-      for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount), ...(['value','owed','other'].includes(r.kind) ? { kind: r.kind } : {}), ...(r.paid || r.applied ? { paid: r2(r.paid || r.applied) } : {}), ...(r.src ? { src: safeId(r.src) } : {}) }));
+      for (const col of COLS) doc[col.key] = (Array.isArray(m[col.key]) ? m[col.key] : []).map(l => ({ id: safeId(l.id), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })), ...(l.pre === 1 || l.pre === 2 ? { pre: l.pre } : {}) }));
+      for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount), ...(['value','owed','other'].includes(r.kind) ? { kind: r.kind } : {}), ...(r.paid || r.applied ? { paid: r2(r.paid || r.applied) } : {}), ...(r.src ? { src: safeId(r.src) } : {}), ...(Array.isArray(r.items) && r.items.length ? { items: r.items.map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })) } : {}) }));
       doc.budgets = (Array.isArray(m.budgets) ? m.budgets : []).map(b => ({ id: safeId(b.id), label: String(b.label || '').slice(0, 80), limit: r2(b.limit) }));
       months[m.key] = doc;
     }
@@ -746,20 +858,28 @@ function currentKey() { const keys = sortedKeys(); if (!keys.length) return null
 
 function renderNav() {
   const who = $('#who'); if (!who) return;
-  if (S.mode === 'firebase' && S.user) who.innerHTML = `<button class="btn sm" data-act="ask" title="Ask questions about your numbers">✨ Ask Budget</button><button class="btn sm" data-act="sign-out" title="Signed in as ${esc(S.user.email)}">${S.user.photo ? `<img src="${esc(S.user.photo)}" alt="" width="18" height="18" style="border-radius:50%" referrerpolicy="no-referrer">` : ''}<span>Sign out</span></button>`;
+  if (S.mode === 'firebase' && S.user) who.innerHTML = `${S.hid && !S.denied ? '<button class="btn sm" data-act="ask" title="Ask questions about your numbers">✨ Ask Budget</button>' : ''}<button class="btn sm" data-act="sign-out" title="Signed in as ${esc(S.user.email)}">${S.user.photo ? `<img src="${esc(S.user.photo)}" alt="" width="18" height="18" style="border-radius:50%" referrerpolicy="no-referrer">` : ''}<span>Sign out</span></button>`;
   else who.innerHTML = '';
 }
 function renderSignIn() {
   app.innerHTML = `<div class="empty card" style="margin-top:40px;max-width:460px;margin-inline:auto">
-    <div class="eyebrow">${esc(appTitle())}</div><h2 style="margin-top:6px">Sign in to open the budget</h2>
-    <p style="max-width:40ch;margin:8px auto 18px">Use the Google account that has been given access. Everything you enter is shared live with the other person on the budget.</p>
+    <div class="eyebrow">${esc(appTitle())}</div><h2 style="margin-top:6px">${pendingInvite() ? 'You’ve been invited' : 'Sign in to open the budget'}</h2>
+    <p style="max-width:40ch;margin:8px auto 18px">${pendingInvite() ? 'Sign in with your Google account to accept. Each budget is private to the people in it.' : 'Sign in with your Google account. Your budget is shared live with the people in your household, and nobody else can see it.'}</p>
     <button class="btn primary" data-act="sign-in" style="font-size:15px;padding:12px 20px"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.6 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.8 6C12.3 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.8-6A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.7-4.1-13.6-9.9l-7.8 6C6.5 42.6 14.6 48 24 48z"/></svg> Sign in with Google</button>
   </div>`;
 }
 function renderDenied() {
   app.innerHTML = `<div class="empty card" style="margin-top:40px;max-width:460px;margin-inline:auto">
-    <div class="eyebrow">${esc(appTitle())}</div><h2 style="margin-top:6px">This account isn’t on the budget</h2>
-    <p style="max-width:42ch;margin:8px auto 18px">You’re signed in as <b>${esc(S.user ? S.user.email : '')}</b>, but only the two accounts listed in the budget’s security rules can open it. Try the other Google account, or ask to have this one added.</p>
+    <div class="eyebrow">${esc(appTitle())}</div><h2 style="margin-top:6px">This account can’t open this budget</h2>
+    <p style="max-width:42ch;margin:8px auto 18px">You’re signed in as <b>${esc(S.user ? S.user.email : '')}</b>. You may have been removed from it. Ask someone in the budget for a new invite link, or try another Google account.</p>
+    <button class="btn" data-act="sign-out">Switch account</button>
+  </div>`;
+}
+function renderNoHousehold() {
+  app.innerHTML = `<div class="empty card" style="margin-top:40px;max-width:460px;margin-inline:auto">
+    <div class="eyebrow">${esc(appTitle())}</div><h2 style="margin-top:6px">${S.notice ? 'That invite didn’t work' : 'No budget for this account yet'}</h2>
+    ${S.notice ? `<p style="max-width:42ch;margin:8px auto 0"><b>${esc(S.notice)}</b></p>` : ''}
+    <p style="max-width:42ch;margin:8px auto 18px">You’re signed in as <b>${esc(S.user ? S.user.email : '')}</b>. To start a budget or join one, open the invite link someone sent you — they make one with the Share button at the bottom of their budget.</p>
     <button class="btn" data-act="sign-out">Switch account</button>
   </div>`;
 }
@@ -767,6 +887,7 @@ function render() {
   renderNav(); refreshEditor();
   if (S.mode === 'firebase' && !S.user) { renderSignIn(); return; }
   if (S.denied) { renderDenied(); return; }
+  if (S.noHousehold) { renderNoHousehold(); return; }
   if (!S.ready) { app.innerHTML = '<div class="loading">Opening your budget…</div>'; return; }
   const h = location.hash || '#/';
   const m = /^#\/m\/(\d{4}-\d{2})/.exec(h);
@@ -839,7 +960,7 @@ function renderHome() {
       <div class="hint" style="font-size:12px;color:var(--accent);font-weight:600">Tap to open</div>
     </button>`; })()}
   </section>
-  <footer class="foot"><span>${esc(appTitle())}</span><button class="btn ghost sm" data-act="backup">Back up</button><button class="btn ghost sm" data-act="restore">Restore</button><span class="sp"></span><span>${S.mode==='firebase'?`Shared live · signed in as ${esc(S.user?S.user.email:'')}`:'Data is stored in this browser only'}</span></footer>`;
+  <footer class="foot"><span>${esc(appTitle())}</span><button class="btn ghost sm" data-act="backup">Back up</button><button class="btn ghost sm" data-act="restore">Restore</button>${S.mode === 'firebase' && S.user ? '<button class="btn ghost sm" data-act="share">Share</button>' : ''}<span class="sp"></span><span>${S.mode==='firebase'?`Shared live · signed in as ${esc(S.user?S.user.email:'')}`:'Data is stored in this browser only'}</span></footer>`;
 }
 
 /* ----- month view ----- */
@@ -1069,7 +1190,7 @@ const isAdmin = () => S.mode !== 'firebase' || !!(S.user && S.admin && S.user.em
 const myFeedback = () => S.feedback.filter(f => S.mode !== 'firebase' || (S.user && f.by === S.user.email));
 function feedbackBody() {
   const admin = isAdmin(), list = (admin ? S.feedback : myFeedback()).slice().sort((a, b) => (a.status === 'done') - (b.status === 'done') || (a.date < b.date ? 1 : -1));
-  const claim = S.mode === 'firebase' && S.user && !S.admin ? `<div class="fb-admin"><span>No administrator yet.</span><button class="btn sm" data-act="fb-admin">Make this account the administrator</button></div>` : S.admin && S.mode === 'firebase' ? `<div class="fb-admin"><span>Administrator: ${esc(S.admin)}${admin ? ' (you)' : ''}</span></div>` : '';
+  const claim = S.mode === 'firebase' && S.user && !S.admin && Store.hid === 'original' ? `<div class="fb-admin"><span>No administrator yet.</span><button class="btn sm" data-act="fb-admin">Make this account the administrator</button></div>` : S.admin && S.mode === 'firebase' ? `<div class="fb-admin"><span>Administrator: ${esc(S.admin)}${admin ? ' (you)' : ''}</span></div>` : '';
   return `<div class="fb-form"><div class="row2"><select id="fb-kind" class="sel" aria-label="Type"><option value="bug">Bug — something is wrong</option><option value="idea">Suggestion — an idea or a fix</option></select></div>
       <textarea id="fb-text" placeholder="What happened, or what would help? Say which screen it was on." maxlength="1000"></textarea>
       <div class="row2"><span class="muted" style="font-size:12px;flex:1">${admin ? 'Goes on the list below for you to track.' : 'Goes straight to the administrator.'}</span><button class="btn primary sm" data-act="fb-send">Send</button></div></div>
@@ -1473,7 +1594,7 @@ function openEditor(key, sec) {
 function refreshEditor() {
   if (!dialogCtx.sec || !dlg.open) return;
   const body = $('.dlg-body.editor', dlg); if (!body) return;
-  const st = body.scrollTop; setTimeout(() => { if (dialogCtx.sec === 'accounts') updateAppr(dialogCtx.key); }, 0); body.innerHTML = dialogCtx.sec === 'ask' ? askBody() : dialogCtx.sec === 'import' ? importBody() : dialogCtx.sec === 'feedback' ? feedbackBody() : dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
+  const st = body.scrollTop; setTimeout(() => { if (dialogCtx.sec === 'accounts') updateAppr(dialogCtx.key); }, 0); body.innerHTML = dialogCtx.sec === 'share' ? shareBody() : dialogCtx.sec === 'ask' ? askBody() : dialogCtx.sec === 'import' ? importBody() : dialogCtx.sec === 'feedback' ? feedbackBody() : dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
 }
 function lineHTML(key, colKey, l) {
   const hasItems = l.items && l.items.length;
@@ -1582,7 +1703,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -1597,6 +1718,27 @@ async function onAction(e) {
     case 'imp-add': commitImport(); break;
     case 'imp-ai': aiSuggest(); break;
     case 'ask': openAsk(); break;
+    case 'share': openShare(); break;
+    case 'share-join': case 'share-new': {
+      const kind = act === 'share-join' ? 'join' : 'new';
+      if (kind === 'join' && Object.keys((S.house || {}).members || {}).length >= 5) { toast('This budget already has 5 people'); break; }
+      t.disabled = true;
+      try { S.shareLink = { kind, url: await Store.createInvite(kind) }; refreshEditor(); }
+      catch (err) { console.error(err); toast('Couldn’t make a link: ' + ((err && err.code) || 'unknown'), 4000); t.disabled = false; }
+      break; }
+    case 'share-send': { const L = S.shareLink; if (!L) break;
+      const text = L.kind === 'join' ? `Join our budget on ${appTitle()} — this link works once, for 7 days:` : 'Start your own private budget with this app — this link works once, for 7 days:';
+      if (navigator.share) { try { await navigator.share({ title: appTitle(), text, url: L.url }); } catch (err) {} }
+      else { try { await navigator.clipboard.writeText(L.url); toast('Link copied'); } catch (err) { toast('Copy the link above'); } }
+      break; }
+    case 'share-copy': { const L = S.shareLink; if (!L) break;
+      try { await navigator.clipboard.writeText(L.url); toast('Link copied — it works once, for 7 days'); }
+      catch (err) { const i = $('#share-url', dlg); if (i) { i.focus(); i.select(); } toast('Press and hold the link to copy it'); }
+      break; }
+    case 'share-remove': { const id = t.dataset.uid, em0 = ((S.house || {}).members || {})[id] || 'this person', em = (S.names || {})[id] ? `${S.names[id]} (${em0})` : em0;
+      if (!(await ask(`Remove ${em} from this budget? They lose access right away. You can invite them back later.`, 'Remove'))) break;
+      try { await Store.removeMember(id); toast('Removed'); } catch (err) { toast('Couldn’t remove: ' + ((err && err.code) || 'unknown')); }
+      break; }
     case 'ask-send': askSend(); break;
     case 'church': openChurch(); break;
     case 'feedback': openFeedback(); break;
@@ -2069,7 +2211,7 @@ function openRestore() {
   openTrends = wrap(openTrends); openBalances = wrap(openBalances); openEditor = wrap(openEditor);
   openChurch = wrap(openChurch); openYearOutlook = wrap(openYearOutlook); openOutlook = wrap(openOutlook);
   openFeedback = wrap(openFeedback); openYear = wrap(openYear); openRetire = wrap(openRetire);
-  openImportPick = wrap(openImportPick); openImport = wrap(openImport); openAsk = wrap(openAsk); openNewMonth = wrap(openNewMonth);
+  openImportPick = wrap(openImportPick); openImport = wrap(openImport); openAsk = wrap(openAsk); openShare = wrap(openShare); openNewMonth = wrap(openNewMonth);
   confirmDelete = wrap(confirmDelete); openRestore = wrap(openRestore);
 }
 
@@ -2180,6 +2322,28 @@ const cleanDesc = s => String(s)
   .replace(/\s{2,}/g, ' ').trim();
 const fingerprint = t => `${t.date}|${Math.round(Math.abs(t.amount) * 100)}|${merchantKey(t.desc).slice(0, 14)}`;
 
+/* ---------- Share: one-time invite links, into this household or to a private one of their own ---------- */
+function shareBody() {
+  const mem = Object.entries((S.house || {}).members || {}), me = S.user && S.user.uid, full = mem.length >= 5, left = Math.max(0, 5 - mem.length), names = S.names || {};
+  mem.sort(([a], [b]) => (b === me) - (a === me)); // you first
+  return `<div class="share-cap"><span><b>${mem.length}</b> of 5 people</span><span class="${left ? 'ok' : 'full'}">${left ? left + (left === 1 ? ' spot' : ' spots') + ' left' : 'No spots left'}</span></div>
+    <div class="list" style="margin:0">${mem.map(([id, em]) => `<div class="lrow static member"><span class="sw ${id === me ? 'income' : 'wealth'}"></span><span class="t">${esc(names[id] || em)}<span class="n">${names[id] ? esc(em) : ''}${id === me ? (names[id] ? ' · you' : 'you') : ''}</span></span>${id === me ? '<span></span>' : `<button class="btn sm" data-act="share-remove" data-uid="${esc(id)}" title="Take them out of this household">Remove</button>`}<span></span></div>`).join('') || '<div class="faint" style="padding:10px 8px;font-size:12.5px">Loading who’s here…</div>'}</div>
+    <p class="chart-note">Everyone in this household sees and edits the same budget, live. Removing someone takes away their access right away; their entries stay in the budget.</p>
+    <div class="list share-acts">
+      <button class="lrow" data-act="share-join"${full ? ' disabled' : ''}><span class="sw income"></span><span class="t">Invite someone to this budget<span class="n">${full ? 'This budget already has 5 people' : 'They see and edit everything here, like you do'}</span></span><span></span>${ICON.chev}</button>
+      <button class="lrow" data-act="share-new"><span class="sw exp"></span><span class="t">Invite someone to start their own<span class="n">They get a private budget. You won’t see theirs, and they won’t see yours</span></span><span></span>${ICON.chev}</button>
+    </div>
+    ${S.shareLink ? `<div class="share-out"><div class="muted" style="font-size:12.5px">${S.shareLink.kind === 'join' ? 'Link to join this budget' : 'Link to start their own budget'} — it works once, for 7 days:</div>
+      <input class="share-url" id="share-url" readonly value="${esc(S.shareLink.url)}" aria-label="Invite link">
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" data-act="share-send">Send…</button><button class="btn sm" data-act="share-copy">Copy link</button></div></div>` : ''}`;
+}
+function openShare() {
+  dialogCtx = { key: null, sec: 'share' }; S.shareLink = null;
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Share</h2><span class="muted" style="font-size:13px">${esc(appTitle())}</span></div></div>
+    <div class="dlg-body editor">${shareBody()}</div>`);
+  dlg.style.maxWidth = '560px';
+}
+
 /* ---------- Ask Budget: plain-English questions answered from the months ---------- */
 function budgetDigest() {
   const keys = sortedKeys(), out = ['Budget: ' + appTitle() + '. Today: ' + today() + '. All amounts are US dollars. "kept" means net income minus expenses, abnormal and the wealth building paid from the bank account (wealth lines tagged from-paycheck are put away straight out of a paycheck or another payment, so they do not reduce kept). Lines under income, expenses, wealth and abnormal are flows during that month (wealth = money moved into savings or investments that month, not a balance). card balance, savings and asset lines are balances as of that month.'];
@@ -2223,7 +2387,7 @@ async function askSend() {
   try {
     const token = await FB.auth.currentUser.getIdToken();
     const res = await fetch('/api/ask', { method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token, 'x-household': Store.hid || '' },
       body: JSON.stringify({ question: entry.q, digest: budgetDigest(), history: S.ask.filter(x => x.a && x !== entry).slice(-4) }) });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'The AI is unavailable right now');
     entry.a = String((await res.json()).answer || '').trim() || 'No answer came back — try again.';
@@ -2252,7 +2416,7 @@ async function aiSuggest() {
     let applied = 0;
     for (let at = 0; at < want.length; at += 80) { // the worker takes 80 at a time
       const res = await fetch('/api/ai', { method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token, 'x-household': Store.hid || '' },
         body: JSON.stringify({ cats: [...cats], txns: want.slice(at, at + 80).map(x => ({ i: x.i, desc: x.t.desc.slice(0, 90), amount: r2(x.t.amount) })) }) });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'The AI is unavailable right now');
       for (const p of (await res.json()).picks || []) {

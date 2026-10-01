@@ -1,23 +1,99 @@
 rules_version = '2';
-// Thomas Budget — Firestore security rules.
+// Thomas Budget — Firestore security rules. This file is exactly what is deployed: it holds no
+// addresses or secrets, because who may open what is decided by data the app keeps, not by a list here.
 //
-// Every document is readable and writable only by the household's own Google accounts.
-// The page and this repository contain no financial data; this allow-list is the boundary.
-// The deployed rules carry the real addresses; this committed copy uses placeholders.
-// Deploy by pasting into Firebase console → Firestore Database → Rules → Publish
-// (or: firebase deploy --only firestore:rules).
+// Every budget belongs to a household of at most five Google accounts. People get in only through a
+// one-time invite link that someone already inside creates with the Share button:
+//   • a "join" link adds the person to the inviter's household (they see and edit everything there);
+//   • a "new" link lets the person start a private household of their own.
+// Households never see each other's data. The first household (the one this app was built for) keeps
+// its data at the top of the database, where it has always lived; every other household lives under
+// households/{id}. The app-wide administrator (config/admin) reads every suggestion and can always open
+// the first household's data, so its owner can never be locked out of it.
+//
+// Deploy: Firebase console → Firestore Database → Rules → paste this file → Publish.
 service cloud.firestore {
   match /databases/{database}/documents {
-    function household() {
-      return request.auth != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in [
-          'first-person@example.com',
-          'second-person@example.com'
-        ];
+    function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    function household(hid) { return /databases/$(database)/documents/households/$(hid); }
+    function member(hid) { return signedIn() && exists(household(hid)) && request.auth.uid in get(household(hid)).data.members; }
+    function admin() {
+      let path = /databases/$(database)/documents/config/admin;
+      return signedIn() && exists(path) && get(path).data.email.lower() == request.auth.token.email.lower();
     }
-    match /{document=**} {
-      allow read, write: if household();
+    function original() { return member('original') || admin(); }
+
+    // An invite spent by this very write: it existed unspent and unexpired, it is of this kind,
+    // and the same write marks it spent by the caller.
+    function spends(code, kind) {
+      let path = /databases/$(database)/documents/invites/$(code);
+      let before = get(path).data;
+      return before.kind == kind && !('usedBy' in before) && request.time < before.expires
+        && getAfter(path).data.usedBy == request.auth.uid;
+    }
+
+    // ---- the first household: its data has always lived here ----
+    match /months/{key}  { allow read, write: if original(); }
+    match /ledgers/{id}  { allow read, write: if original(); }
+    match /settings/{id} { allow read, write: if original(); }
+
+    // ---- each household's membership, and every other household's data ----
+    match /households/{hid} {
+      allow get: if member(hid) || (hid == 'original' && admin());
+      allow list, delete: if false;
+      // starting one: you are its only member, holding a "new" invite (or, for the first household, the administrator)
+      allow create: if signedIn()
+        && request.resource.data.members.keys().hasOnly([request.auth.uid])
+        && request.resource.data.members[request.auth.uid] == request.auth.token.email
+        && ((hid == 'original' && admin()) || (hid != 'original' && spends(request.resource.data.via, 'new')));
+      // members manage it freely, up to five people; anyone else may only add themselves, with a "join" invite for it
+      allow update: if request.resource.data.members.size() <= 5 && (
+        member(hid) || (hid == 'original' && admin())
+        || (signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'via'])
+          && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.members[request.auth.uid] == request.auth.token.email
+          && spends(request.resource.data.via, 'join')
+          && get(/databases/$(database)/documents/invites/$(request.resource.data.via)).data.hid == hid));
+      match /{rest=**} { allow read, write: if hid != 'original' && member(hid); }
+    }
+
+    // ---- each account's pointer to its household (only the account itself can see or change it) ----
+    match /users/{uid} { allow read, write: if signedIn() && request.auth.uid == uid; }
+
+    // ---- invite links: knowing the code is the permission, and nobody can browse for codes ----
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && code.size() >= 20
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.kind in ['join', 'new']
+        && (member(request.resource.data.hid) || (request.resource.data.hid == 'original' && admin()))
+        && request.resource.data.expires is timestamp
+        && request.resource.data.expires < request.time + duration.value(8, 'd')
+        && !('usedBy' in request.resource.data);
+      // spending it: once, by the person using it, before it expires
+      allow update: if signedIn()
+        && !('usedBy' in resource.data)
+        && request.time < resource.data.expires
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedBy'])
+        && request.resource.data.usedBy == request.auth.uid;
+      allow delete: if signedIn() && resource.data.by == request.auth.uid;
+    }
+
+    // ---- the app-wide administrator: everyone can see who it is; the first household decides ----
+    match /config/admin {
+      allow get: if signedIn();
+      allow write: if original();
+    }
+
+    // ---- suggestions & bugs: anyone can send one; each person sees their own, the administrator sees them all ----
+    match /feedback/{id} {
+      allow create: if signedIn() && request.resource.data.by == request.auth.token.email;
+      allow read, delete: if signedIn() && (admin() || resource.data.by == request.auth.token.email);
+      allow update: if signedIn() && (admin()
+        || (resource.data.by == request.auth.token.email && request.resource.data.by == request.auth.token.email));
     }
   }
 }

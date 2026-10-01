@@ -1,8 +1,9 @@
 # Thomas Budget
 
-A shared monthly household budget for two people, rebuilt as a web app from the
-spreadsheet we had been keeping by hand. Installable on a phone, syncs live between
-both of us, works offline, and keeps the spreadsheet's own vocabulary and math.
+A shared monthly household budget, rebuilt as a web app from the spreadsheet we had been
+keeping by hand. Installable on a phone, syncs live between everyone in a household, works
+offline, and keeps the spreadsheet's own vocabulary and math. Built for the two of us, and
+shareable: anyone we invite gets a private budget of their own, or joins ours.
 
 **Live:** https://shiny-mouse-ee83.prior-mixed-theme.workers.dev (sign-in required — the
 data is ours; the code is here for anyone.)
@@ -31,6 +32,7 @@ data is ours; the code is here for anyone.)
 - **End-of-month outlook** — starts from what last month left over and assumes every income, expense and wealth-building line reaches at least its usual amount (average of the last three months it had a value); abnormal expenses count only as entered. Tap the card for the line-by-line breakdown.
 - **LDS church expenses** — a separate reimbursable ledger at the bottom of the home page (date, description, amount, paid), with a graph of spend per month; a pencil in its window renames it. Stored on its own and never counted in any budget figure.
 - **Backup / restore** as JSON.
+- **Households & Share** — every budget belongs to a household of up to five Google accounts. The Share button (beside Back up and Restore) lists who is in it by name, how many of the five spots are left, and a Remove button for each other person; it makes one-time invite links (7 days) of two kinds: **join this budget** (they see and edit everything here) or **start their own** (a private budget nobody else can see). Households never see each other's data — not even the administrator. Our original household keeps its data where it always lived, at the database root; every other household lives under `households/{id}`. Suggestions & bugs stays one inbox across every household, read by the administrator.
 - **Rename the budget** — tap its name in the header; the name is shared (Firestore `settings/app`). The header stays quiet: no sync pill unless something failed to save.
 - **Light or dark** — a sun/moon switch beside the budget name; it follows the phone until you pick one, then that choice is remembered on that device (`localStorage`), so each person can have their own.
 - **Appreciation assets** — the home: what it is worth and the mortgages against it. Each row is tagged worth / owed / other, and the group shows equity, the share of the value it represents, and what has been built this year. Every mortgage row picks where its principal comes from: a dropdown of the Home equity lines in wealth building (add one line per mortgage), or a box to type it in. Whatever the linked line says comes straight off that balance and follows it as it changes, so the balances, the equity and the year’s build always agree; links and amounts carry into each new month. It carries into each new month and has its own worth / owed / equity chart.
@@ -52,8 +54,8 @@ data is ours; the code is here for anyone.)
 | App | One HTML file, vanilla JS, hand-drawn SVG charts (`public/index.html`) | No build step; the whole thing is readable in one sitting |
 | Hosting | Cloudflare Worker: static assets + one AI route (`wrangler.jsonc`, `worker.js`) | Free, global, one-command deploy |
 | Sign-in | Firebase Authentication, Google provider | Both of us already have Google accounts; no passwords to manage |
-| Data | Firestore — one document per month, `months/{YYYY-MM}`; the church ledger in `ledgers/church` | Real-time listeners for live sync, offline persistence on phones |
-| Access | `firestore.rules` allow-listing two Google accounts | The security boundary lives server-side, not in the page |
+| Data | Firestore — one document per month, `months/{YYYY-MM}`; the church ledger in `ledgers/church`; other households under `households/{id}/…` | Real-time listeners for live sync, offline persistence on phones |
+| Access | `firestore.rules`: households of up to five, membership kept as data, one-time invite links checked in the same write that spends them | The security boundary lives server-side, not in the page — and the rules file holds no addresses |
 
 Editing model: inputs update in-memory state and recompute totals instantly; writes are
 debounced (700 ms) and the month document is replaced whole. Incoming snapshots never
@@ -67,21 +69,32 @@ in every chart and on every tile.
 ## Privacy and security
 
 - **No data in this repo or in the page.** The site's HTML is public; every figure lives in
-  Firestore and is only readable by the two allow-listed accounts. The Firebase web config in
-  the page is a public identifier by design; the rules are the boundary.
-- The committed `firestore.rules` uses placeholder addresses; the deployed copy has the real ones.
+  Firestore and is only readable by the members of its own household. The Firebase web config
+  in the page is a public identifier by design; the rules are the boundary.
+- The committed `firestore.rules` is exactly what is deployed: membership lives in the
+  database (`households/{id}.members`), so there are no addresses to hide. Invite links are
+  random 24-character codes that work once, expire in 7 days, and can only be minted by a
+  member of the household they lead into; a newcomer can add only themselves, only under the
+  five-person cap, and only in the same write that marks the invite spent.
+- The administrator (`config/admin`) can always open the original household, so it can never
+  be locked out of its own data, and reads every suggestion — but cannot open anyone else's budget.
+- The rules were tested against the Firestore emulator before going live (94 cases: isolation
+  between households, single-use and expiring links, the cap, forged emails, the lock-out guard).
 - Security headers via `public/_headers`; `robots.txt` and `X-Robots-Tag` keep it out of search.
 - The `private/` folder (our backup files) is git-ignored and never deployed.
 
 ## Running your own copy
 
 1. Create a Firebase project → enable **Authentication → Google** → create a **Firestore**
-   database → paste `firestore.rules` with your two emails → **Publish**.
+   database → in its **Data** tab add a document `config/admin` with a string field `email`
+   set to your Google address (that makes you the administrator and lets you start the first
+   household) → paste `firestore.rules` → **Publish**.
 2. Project settings → Your apps → Web app → copy the config into `FIREBASE_CONFIG` near the
    top of the script in `public/index.html`.
 3. `npx wrangler login`, set your Worker name in `wrangler.jsonc`, `node deploy.js`.
 4. Add the deployed domain under **Authentication → Settings → Authorized domains**.
-5. Open the site, sign in, and start a month (or **Restore** a backup).
+5. Open the site, sign in, and start a month (or **Restore** a backup). Bring everyone else in
+   with **Share** → *Invite someone to this budget*.
 
 Without a `FIREBASE_CONFIG`, the page runs in a this-device-only mode using local storage.
 

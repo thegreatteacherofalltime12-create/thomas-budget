@@ -8,10 +8,12 @@
 // and both see only what the browser chooses to send — descriptions and numbers,
 // never a statement file.
 //
-// Auth borrows the Firestore allow-list instead of keeping its own copy: the request
-// carries the caller's Firebase ID token, and we simply try to read settings/app with
-// it. The security rules only let the household read that document, so a 200 from
-// Google IS the membership check — no secrets here and nothing to rotate.
+// Auth borrows the Firestore rules instead of keeping its own list: the request carries
+// the caller's Firebase ID token and the household it is asking about (x-household), and
+// we simply try to read that household's document with the token. The rules only let a
+// household's own members read it, so a 200 from Google IS the membership check — no
+// secrets here and nothing to rotate. (The first household's people may be on an older
+// app that sends no header; for them the same check runs against settings/app.)
 const PROJECT = 'something-1078c';
 const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const COLS = ['expenses', 'income', 'wealth', 'abnormal'];
@@ -33,8 +35,10 @@ async function gate(req, env) {
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
   if (!token) return Response.json({ error: 'Sign in first' }, { status: 401 });
   if (env.DEV_NOAUTH) return null; // exists only on a local `wrangler dev` command line, never in production
+  const hid = (req.headers.get('x-household') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 40);
+  const path = hid && hid !== 'original' ? 'households/' + hid : 'settings/app';
   const check = await fetch(
-    `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/settings/app`,
+    `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/${path}`,
     { headers: { authorization: 'Bearer ' + token } });
   return check.ok ? null : Response.json({ error: 'This account is not on the budget' }, { status: 403 });
 }
