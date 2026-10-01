@@ -2225,7 +2225,7 @@ const isTouch = () => matchMedia('(pointer:coarse)').matches || navigator.maxTou
 let calcbar = null;
 function showCalcbar(inp) {
   hideCalcbar();
-  const host = inp.closest('.row') || inp.closest('.bud-form') || inp.parentElement; if (!host) return;
+  const host = inp.closest('.row') || inp.closest('.prow') || inp.closest('.bud-form') || inp.parentElement; if (!host) return; // the strip goes under the whole row
   calcbar = document.createElement('div'); calcbar.className = 'calcbar';
   calcbar.innerHTML = ['+', '−', '×', '÷', '(', ')'].map(k => `<button type="button" data-k="${k}">${k}</button>`).join('') + '<button type="button" data-k="bs" aria-label="Backspace">⌫</button><button type="button" data-k="done" class="done">Done</button>';
   calcbar.addEventListener('pointerdown', e => { e.preventDefault(); }); // keep the keyboard and the caret where they are
