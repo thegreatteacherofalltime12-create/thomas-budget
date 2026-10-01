@@ -117,14 +117,16 @@ class CardBonusTracker extends HTMLElement {
   exportJSON() { return JSON.stringify(this._cards, null, 2); }
 
   /** Merge offers in. Matches existing cards by issuer+name; updates offer fields only,
-   *  never your personal progress (spendSoFar, approvedDate, status, notes). */
+   *  never your personal progress (spendSoFar, approvedDate, status, notes) — and only while the
+   *  card is still being considered: a card you have applied for keeps the terms you got. */
   importOffers(offers) {
     const offerKeys = ["category", "bonusPoints", "bonusValue", "spendRequired", "spendWindowDays", "annualFee", "offerExpires", "link"];
     const key = (c) => `${(c.issuer || "").toLowerCase().trim()}|${(c.name || "").toLowerCase().trim()}`;
-    let added = 0, updated = 0;
+    let added = 0, updated = 0, kept = 0;
     for (const o of offers || []) {
       if (!o || !o.name) continue;
       const existing = this._cards.find((c) => key(c) === key(o));
+      if (existing && existing.status && existing.status !== "Considering") { kept++; continue; }
       if (existing) {
         offerKeys.forEach((k) => { if (o[k] !== undefined && o[k] !== "") existing[k] = o[k]; });
         existing.lastReviewed = o.lastReviewed || isoDate(today());
@@ -135,7 +137,7 @@ class CardBonusTracker extends HTMLElement {
       }
     }
     this._commit();
-    return { added, updated };
+    return { added, updated, kept };
   }
 
   // ---------- internals ----------
@@ -188,6 +190,8 @@ class CardBonusTracker extends HTMLElement {
     const s = this._summary();
     const editing = this._editingId ? (this._editingId === "new" ? {} : this._cards.find((c) => c.id === this._editingId) || {}) : null;
     const rows = this._visibleCards();
+    const isOffer = ({ c }) => (c.status || "Considering") === "Considering";
+    const mine = rows.filter((x) => !isOffer(x)), offers = rows.filter(isOffer);
 
     this.shadowRoot.innerHTML = `
       <style>${STYLES}</style>
@@ -217,10 +221,9 @@ class CardBonusTracker extends HTMLElement {
 
         ${editing ? this._formHTML(editing) : ""}
 
-        <div class="list">
-          ${rows.length ? rows.map(({ c, d }) => this._cardHTML(c, d)).join("") :
-            `<p class="empty">${this._cards.length ? "Nothing in this view." : "No cards yet. Add one you're considering or already working on."}</p>`}
-        </div>
+        ${mine.length ? `<h4 class="sec">Your cards</h4><div class="list" data-move="1">${mine.map(({ c, d }) => this._cardHTML(c, d)).join("")}</div>` : ""}
+        ${offers.length ? this._offersHTML(offers) : ""}
+        ${rows.length ? "" : `<p class="empty">${this._cards.length ? "Nothing in this view." : "No cards yet. Add one you're considering or already working on."}</p>`}
       </div>`;
 
     this._bind();
@@ -262,6 +265,37 @@ class CardBonusTracker extends HTMLElement {
       </article></div>`;
   }
 
+  /** Offers to consider: grouped by type, best value first, two short lines each — tap one for its link and actions. */
+  _offersHTML(list) {
+    const groups = ["Travel", "Airline", "Hotel", "Cash back", "Other"], by = {};
+    for (const x of list) { const g = groups.includes(x.c.category) ? x.c.category : "Other"; (by[g] = by[g] || []).push(x); }
+    const latest = list.map((x) => x.c.lastReviewed || "").sort().pop();
+    return `<h4 class="sec">Offers to consider <small>${latest ? "checked " + fmtDate(parseDate(latest)) + " · " : ""}terms change often, so check the issuer's site before applying</small></h4>
+      ${groups.filter((g) => by[g]).map((g) => `<div class="grp">${g} <span>${by[g].length}</span></div>
+        <div class="list olist">${by[g].sort((a, b) => (Number(b.c.bonusValue) || 0) - (Number(a.c.bonusValue) || 0)).map(({ c, d }) => this._offerHTML(c, d)).join("")}</div>`).join("")}`;
+  }
+
+  _offerHTML(c, d) {
+    const open = this._openId === c.id;
+    const span = (n) => { n = Number(n) || 90; return n % 30 === 0 ? `${n / 30} month${n === 30 ? "" : "s"}` : `${n} days`; };
+    const spend = Number(c.spendRequired) > 1 ? `spend ${money(c.spendRequired)} in ${span(c.spendWindowDays)}` : `any purchase in ${span(c.spendWindowDays)}`;
+    const fee = Number(c.annualFee) ? `${money(c.annualFee)}/yr fee` : "no annual fee";
+    return `
+      <div class="lwrap" data-arr="${esc(c.id)}"><span class="del-hint"></span><span class="del-flag">${DEL_ICON} Delete</span>
+      <article class="offer ${open ? "open" : ""}" data-open="${esc(c.id)}">
+        <div class="o-top"><span class="o-name">${esc(c.name)}</span><span class="o-val">${Number(c.bonusValue) ? "≈ " + money(c.bonusValue) : ""}</span></div>
+        <div class="o-sub">${esc(c.issuer || "")}${Number(c.bonusPoints) ? " · " + Number(c.bonusPoints).toLocaleString() + " pts" : ""}</div>
+        <div class="o-sub">${spend} · ${fee}${c.offerExpires ? ` · <b>ends ${fmtDate(parseDate(c.offerExpires))}</b>` : ""}${d.reviewDue ? ' · <span class="stale">check offer</span>' : ""}</div>
+        ${open ? `<div class="row-actions">
+          ${/^https?:\/\//i.test(c.link || "") ? `<a class="ghost btn" href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">Offer</a>` : ""}
+          <button class="primary" data-act="applied" data-id="${c.id}">I applied</button>
+          <button class="ghost" data-act="reviewed" data-id="${c.id}">Mark checked</button>
+          <button class="ghost" data-act="edit" data-id="${c.id}">Edit</button>
+          <button class="ghost danger" data-act="delete" data-id="${c.id}">Delete</button>
+        </div>` : ""}
+      </article></div>`;
+  }
+
   _formHTML(c) {
     const field = (f) => {
       const v = c[f.key] ?? (f.key === "status" ? "Considering" : f.key === "lastReviewed" ? isoDate(today()) : "");
@@ -297,6 +331,7 @@ class CardBonusTracker extends HTMLElement {
           if (confirm(`Delete ${c?.name || "this card"}?`)) { this._cards = this._cards.filter((x) => x.id !== id); this._commit(); }
         }
         if (act === "reviewed") { const c = this._cards.find((x) => x.id === id); c.lastReviewed = isoDate(today()); this._commit(); }
+        if (act === "applied") { const c = this._cards.find((x) => x.id === id); if (c) { c.status = "Applied"; this._openId = null; this._commit(); } }
         if (act === "spend") {
           const c = this._cards.find((x) => x.id === id);
           const amt = parseFloat(prompt(`Add spend to ${c.name} ($):`, ""));
@@ -304,6 +339,10 @@ class CardBonusTracker extends HTMLElement {
         }
         if (act === "export") this._download();
       };
+    });
+    root.querySelectorAll("[data-open]").forEach((el) => el.onclick = (e) => {
+      if (this._arranging || e.target.closest("button, a")) return;
+      this._openId = this._openId === el.dataset.open ? null : el.dataset.open; this.render();
     });
     this._bindArrange();
     const form = root.querySelector("form.editor");
@@ -319,9 +358,9 @@ class CardBonusTracker extends HTMLElement {
   }
 
   /** Slide right to carry a card to a new place; slide left past the red panel to delete it. */
-  _bindArrange() {
-    const list = this.shadowRoot.querySelector(".list");
-    if (!list || !list.querySelector("[data-arr]")) return;
+  _bindArrange() { this.shadowRoot.querySelectorAll(".list").forEach((list) => this._bindList(list)); }
+  _bindList(list) {
+    if (!list.querySelector("[data-arr]")) return;
     let p = null;
     const noScroll = (e) => e.preventDefault(); // the page stays still while a card is being carried
     const onMove = (e) => {
@@ -329,6 +368,7 @@ class CardBonusTracker extends HTMLElement {
       const dx = e.clientX - p.x, dy = e.clientY - p.y;
       if (!p.mode) {
         if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) { // a sideways slide: right moves it, left deletes it
+          if (dx > 0 && !list.dataset.move) { end(); return; } // offers are kept sorted by value: they only swipe away
           p.mode = dx > 0 ? "move" : "del"; this._arranging = true;
           p.row.classList.add(p.mode === "move" ? "moving" : "deleting"); list.classList.add("arranging");
           document.addEventListener("touchmove", noScroll, { passive: false });
@@ -369,7 +409,7 @@ class CardBonusTracker extends HTMLElement {
     list.addEventListener("pointerdown", (e) => {
       const row = e.target.closest("[data-arr]");
       if (!row || p || this._arranging || e.target.closest("input, select, textarea")) return;
-      p = { row, inner: row.querySelector(".card") || row, x: e.clientX, y: e.clientY, mode: null, far: false };
+      p = { row, inner: row.querySelector(".card, .offer") || row, x: e.clientX, y: e.clientY, mode: null, far: false };
       document.addEventListener("pointermove", onMove);
       document.addEventListener("pointerup", end, { once: true });
       document.addEventListener("pointercancel", end, { once: true });
@@ -466,6 +506,19 @@ const STYLES = `
   .lwrap.deleting.armed .del-flag { background:var(--bad); color:#fff; }
   .lwrap.moving, .lwrap.deleting { box-shadow:var(--shadow); z-index:2; }
   .list.arranging { cursor:grabbing; user-select:none; }
+  /* offers to consider: grouped, compact, easy to scan */
+  .sec { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin:18px 2px 8px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  .sec small { text-transform:none; letter-spacing:0; font-weight:400; }
+  .grp { margin:14px 2px 6px; font-weight:700; font-size:14px; } .grp span { color:var(--muted); font-weight:500; margin-left:4px; }
+  .olist { gap:0; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .olist .lwrap { border-radius:0; border-bottom:1px solid var(--line); } .olist .lwrap:last-child { border-bottom:0; }
+  .olist .del-hint { border-radius:0; }
+  .offer { position:relative; z-index:1; background:var(--bg); padding:10px 12px; cursor:pointer; touch-action:pan-y; }
+  .offer.open { background:var(--soft); }
+  .o-top { display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
+  .o-name { font-weight:600; } .o-val { font-weight:700; white-space:nowrap; }
+  .o-sub { color:var(--muted); font-size:12.5px; margin-top:2px; } .o-sub b { color:var(--fg); font-weight:600; } .stale { color:var(--warn); }
+  .offer .row-actions { margin-top:8px; }
 `;
 
 if (!customElements.get("card-bonus-tracker")) customElements.define("card-bonus-tracker", CardBonusTracker);

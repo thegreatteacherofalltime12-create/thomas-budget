@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 };
 
 /* ---------- state ---------- */
-const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, catMap:null, imp:null, ask:[], hid:null, house:null, names:{}, shareEdit:null, cards:[], points:[], pointsLoaded:false, noHousehold:false, notice:null, shareLink:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
+const S = { months:{}, church:[], churchTitle:'', title:'', feedback:[], admin:'', retire:null, trendsOrder:null, trendsHidden:null, trendsAdded:null, catMap:null, imp:null, ask:[], hid:null, house:null, names:{}, shareEdit:null, cards:[], cardsOffers:'', cardsLoaded:false, points:[], pointsLoaded:false, noHousehold:false, notice:null, shareLink:null, ready:false, mode:'local', user:null, denied:false, dbEmpty:false, pendingRender:false, view:{} };
 const dirty = {}, timers = {};
 let FB = null; // { app, auth, db, A: auth module, F: firestore module }
 
@@ -788,7 +788,7 @@ const Store = {
     this._unsubs.push(F.onSnapshot(F.doc(db, 'households', this.hid), snap => { S.house = snap.exists() ? snap.data() : null; if (dialogCtx.sec === 'share' && !isEditing()) refreshEditor(); }, err => console.warn('household', err)));
     this._unsubs.push(F.onSnapshot(this.ref('ledgers', 'cards'), snap => {
       if (this._cardsDirty || snap.metadata.hasPendingWrites) return; // our own edit on its way out
-      S.cards = snap.exists() && Array.isArray(snap.data().cards) ? clone(snap.data().cards) : []; syncCardsWindow(); requestRender();
+      S.cards = snap.exists() && Array.isArray(snap.data().cards) ? clone(snap.data().cards) : []; S.cardsOffers = snap.exists() ? String(snap.data().offers || '') : ''; S.cardsLoaded = true; syncCardsWindow(); requestRender();
     }, err => console.warn('cards', err)));
     this._unsubs.push(F.onSnapshot(this.ref('ledgers', 'points'), snap => {
       if (this._pointsDirty || snap.metadata.hasPendingWrites) return;
@@ -799,7 +799,7 @@ const Store = {
   markCards() { this._cardsDirty = true; setSync('busy', 'Saving…'); clearTimeout(this._cardsTimer); this._cardsTimer = setTimeout(() => this.saveCards(), 700); },
   saveCards() { // the sign-up bonus tracker's own document: nothing in the budget reads it
     this._cardsDirty = false; clearTimeout(this._cardsTimer);
-    if (S.mode === 'firebase') { const { F } = FB; this.write(() => F.setDoc(this.ref('ledgers', 'cards'), { cards: S.cards || [] }), 'the card bonuses'); }
+    if (S.mode === 'firebase') { const { F } = FB; this.write(() => F.setDoc(this.ref('ledgers', 'cards'), { cards: S.cards || [], offers: S.cardsOffers || '' }), 'the card bonuses'); }
   },
   markPoints() { this._pointsDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._pointsTimer); this._pointsTimer = setTimeout(() => this.savePoints(), 700); },
   savePoints() { // the points tab's own document: nothing in the budget reads it either
@@ -2459,6 +2459,20 @@ function syncCardsWindow() { // someone else changed the list: show it, unless a
   if (el && el.setCards && !(sr && sr.querySelector('form.editor, .list.arranging'))) el.setCards(S.cards || []);
 }
 const cardsBack = () => `<button class="btn sm ghost back" data-act="nav-back">${ICON.left} Cards & points</button>`; // the tab list these open from
+async function takeInOffers(el) { // the offers file that ships with the app goes into the household's list once
+  try {
+    for (let i = 0; i < 20 && S.mode === 'firebase' && !S.cardsLoaded; i++) await new Promise(r => setTimeout(r, 150));
+    if (S.mode === 'firebase' && !S.cardsLoaded) return; // the list hasn't arrived yet: next time the tab opens
+    const res = await fetch('/card-offers.json'); if (!res.ok) return;
+    const offers = ((await res.json()) || {}).offers; if (!Array.isArray(offers) || !offers.length) return;
+    const stamp = offers.map(o => String(o.lastReviewed || '')).sort().pop();
+    let done = S.cardsOffers; if (S.mode !== 'firebase') try { done = localStorage.getItem('tb-offers-file') || ''; } catch (e) {}
+    if (!stamp || done === stamp || !el.isConnected) return;
+    S.cardsOffers = stamp; if (S.mode !== 'firebase') try { localStorage.setItem('tb-offers-file', stamp); } catch (e) {}
+    const r = el.importOffers(offers); // its cards-change saves the list together with the stamp
+    toast(`${r.added ? r.added + ' card offers added' : 'Card offers updated'} — checked ${fmtDate(stamp)}; verify terms before applying`, 5000);
+  } catch (e) { console.warn('offers', e); }
+}
 function openBonuses() {
   dialogCtx = { key: null, sec: 'bonuses' };
   openOverlay(`<div class="dlg-head">${cardsBack()}<div class="ttl"><h2>Sign-up bonuses</h2><span class="muted" style="font-size:13px">swipe a card right to move it · left to delete it</span></div></div>
@@ -2468,6 +2482,7 @@ function openBonuses() {
     const el = $('card-bonus-tracker', dlg); if (!el || !el.setCards) return;
     if (S.mode === 'firebase') el.setCards(S.cards || []);
     el.addEventListener('cards-change', e => { if (S.mode === 'firebase') { S.cards = e.detail.cards; Store.markCards(); } requestRender(); });
+    takeInOffers(el);
   }).catch(e => { console.error(e); toast('Couldn’t load the card tracker — check your connection', 4000); });
 }
 function pointsBody() {
