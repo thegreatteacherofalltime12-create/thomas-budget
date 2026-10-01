@@ -2495,7 +2495,7 @@ function openHsa() {
   const from = cameFromTrends(); dialogCtx = { key: null, sec: 'hsa', back: from ? 'trends' : null, via: from ? 'trends' : null }; S.hsaOpen = null;
   openOverlay(`<div class="dlg-head">${trendsBack(currentKey()) || pageBack()}<div class="ttl"><h2 class="ch-title"><span data-hsa-title>${esc(hsaTitle())}</span><button class="icon pencil" data-act="hsa-rename" title="Rename" aria-label="Rename">${ICON.pencil}</button></h2><span class="muted" style="font-size:13px" data-hsa-head>${esc(hsaHead())}</span></div></div>
     <div class="dlg-body editor">${hsaBody()}</div>
-    <div class="dlg-foot"><button class="btn primary sm" data-act="hsa-add">${ICON.plus} Add receipt</button></div>`);
+    <div class="dlg-foot"><button class="btn primary sm" data-act="hsa-add">${ICON.plus} Add receipts</button><span class="muted" style="font-size:12px">up to ${HSA_MAX_UPLOAD} photos at a time</span></div>`);
   dlg.style.maxWidth = '560px';
 }
 function updateHsaTotals() { const t = $('[data-hsa-total]', dlg); if (t) t.textContent = fmt(hsaYear().total); const hd = $('[data-hsa-head]', dlg); if (hd) hd.textContent = hsaHead(); }
@@ -2512,26 +2512,40 @@ async function shrinkPhoto(file) { // phone photos are several MB: scale down an
     throw new Error('That photo is too large even after shrinking');
   } finally { URL.revokeObjectURL(url); }
 }
+const HSA_MAX_UPLOAD = 20;
+async function readHsaPhoto(f) { // one photo → one receipt row (the AI fills it in; a person checks it)
+  const img = await shrinkPhoto(f);
+  const r = { id: uid(), added: today(), date: '', merchant: '', total: 0, amount: 0, note: '', img: true, by: S.user ? S.user.email : '' };
+  try {
+    if (!FB || !FB.auth.currentUser) throw new Error('offline');
+    const token = await FB.auth.currentUser.getIdToken();
+    const res = await fetch('/api/receipt', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token, 'x-household': Store.hid || '' }, body: JSON.stringify({ image: img }) });
+    const a = await res.json(); if (!res.ok) throw new Error(a.error || 'unreadable');
+    Object.assign(r, { merchant: a.merchant || '', date: a.date || '', total: +a.total || 0, amount: +a.eligible || 0, note: a.note || '', items: a.items || [] });
+    if (!a.hsa) r.check = true;
+  } catch (err) { r.check = true; r.date = today(); }
+  try { await Store.saveHsaPhoto(r.id, img); } catch (err) { r.img = false; r.check = true; }
+  return r;
+}
 function pickHsaPhoto() {
-  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
   inp.onchange = async () => {
-    const f = inp.files && inp.files[0]; if (!f) return;
-    toast('Reading the receipt…', 8000);
-    let img; try { img = await shrinkPhoto(f); } catch (e) { toast(e.message || 'Couldn’t open that photo', 4000); return; }
-    const r = { id: uid(), added: today(), date: '', merchant: '', total: 0, amount: 0, note: '', img: true, by: S.user ? S.user.email : '' };
-    try {
-      if (!FB || !FB.auth.currentUser) throw new Error('offline');
-      const token = await FB.auth.currentUser.getIdToken();
-      const res = await fetch('/api/receipt', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token, 'x-household': Store.hid || '' }, body: JSON.stringify({ image: img }) });
-      const a = await res.json(); if (!res.ok) throw new Error(a.error || 'unreadable');
-      Object.assign(r, { merchant: a.merchant || '', date: a.date || '', total: +a.total || 0, amount: +a.eligible || 0, note: a.note || '', items: a.items || [] });
-      if (!a.hsa) r.check = true;
-    } catch (e) { r.check = true; r.date = today(); }
-    try { await Store.saveHsaPhoto(r.id, img); } catch (e) { r.img = false; toast('Saved the receipt, but the photo didn’t fit — try a smaller one', 5000); }
-    hsaRows().push(r); S.hsaOpen = r.id; Store.markHsa(); refreshEditor(); updateHsaTotals(); requestRender();
-    if (r.check && r.merchant) toast('Read it — it doesn’t look HSA-eligible, so check the amount', 5000);
-    else if (r.check) toast('Couldn’t read that one — fill in the details', 4500);
-    else toast(`${fmt(r.amount)} HSA-eligible from ${r.merchant || 'the receipt'} — check it looks right`, 4500);
+    const all = [...(inp.files || [])]; if (!all.length) return;
+    const files = all.slice(0, HSA_MAX_UPLOAD), n = files.length;
+    const added = []; let failed = 0;
+    for (let i = 0; i < n; i++) { // one at a time: each is a separate AI read and a ~0.5 MB save
+      toast(n > 1 ? `Reading receipt ${i + 1} of ${n}…` : 'Reading the receipt…', 60000);
+      try { const r = await readHsaPhoto(files[i]); hsaRows().push(r); added.push(r); Store.markHsa(); if (dialogCtx.sec === 'hsa' && !isEditing()) refreshEditor(); updateHsaTotals(); }
+      catch (err) { console.warn(err); failed++; }
+    }
+    if (added.length) { S.hsaOpen = added.length === 1 ? added[0].id : null; if (dialogCtx.sec === 'hsa' && !isEditing()) refreshEditor(); updateHsaTotals(); requestRender(); }
+    const sum = r2(added.reduce((t, r) => t + (+r.amount || 0), 0)), check = added.filter(r => r.check).length;
+    const parts = [];
+    if (added.length === 1 && !check) parts.push(`${fmt(sum)} HSA-eligible from ${added[0].merchant || 'the receipt'} — check it looks right`);
+    else if (added.length) parts.push(`${added.length} receipt${added.length === 1 ? '' : 's'} added · ${fmt(sum)} HSA-eligible${check ? ` · ${check} to check` : ''}`);
+    if (failed) parts.push(`${failed} photo${failed === 1 ? '' : 's'} couldn’t be opened`);
+    if (all.length > n) parts.push(`only the first ${HSA_MAX_UPLOAD} of ${all.length} were added — add the rest next`);
+    toast(parts.join(' · ') || 'Nothing was added', 6000);
   };
   inp.click();
 }
