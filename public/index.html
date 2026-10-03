@@ -401,6 +401,7 @@ dialog::backdrop{background:rgba(10,14,10,.55);backdrop-filter:blur(6px)}
 .loading{padding:80px 20px;text-align:center;color:var(--ink-3)}
 .foot{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3);display:flex;gap:12px;flex-wrap:wrap}
 .foot .sp{flex:1}
+.foot{flex-direction:column;gap:8px}.foot-btns{display:flex;gap:6px;flex-wrap:nowrap;margin-left:-10px}.foot-btns .btn{white-space:nowrap}
 kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:4px;padding:0 5px}
 
 @media (max-width:1000px){
@@ -1058,7 +1059,7 @@ function renderHome() {
       <div class="hint" style="font-size:12px;color:var(--accent);font-weight:600">Tap to open</div>
     </button>`; })()}
   </section>
-  <footer class="foot"><span>${esc(appTitle())}</span><button class="btn ghost sm" data-act="backup">Back up</button><button class="btn ghost sm" data-act="restore">Restore</button>${S.mode === 'firebase' && S.user ? '<button class="btn ghost sm" data-act="share">Share</button>' : ''}<span class="sp"></span><span>${S.mode==='firebase'?`Shared live · signed in as ${esc(S.user?S.user.email:'')}`:'Data is stored in this browser only'}</span></footer>`;
+  <footer class="foot"><span class="foot-name">${esc(appTitle())}</span><span class="foot-btns"><button class="btn ghost sm" data-act="backup">Back up</button><button class="btn ghost sm" data-act="restore">Restore</button>${S.mode === 'firebase' && S.user ? '<button class="btn ghost sm" data-act="share">Share</button>' : ''}</span><span class="foot-who">${S.mode==='firebase'?`Shared live · signed in as ${esc(S.user?S.user.email:'')}`:'Data is stored in this browser only'}</span></footer>`;
 }
 
 /* ----- month view ----- */
