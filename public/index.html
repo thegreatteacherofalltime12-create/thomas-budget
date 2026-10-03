@@ -493,6 +493,7 @@ card-bonus-tracker::part(title){display:none}
 .goal-t{display:flex;align-items:center;gap:6px;flex:none}.goal-t .muted{font-size:12px}.goal-t input{width:96px;text-align:right;font:inherit;font-weight:500;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
 .goal-bar{height:12px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin:8px 0 5px}.goal-bar span{display:block;height:100%;border-radius:99px;background:var(--s-wealth);transition:width .25s}.goal-bar span.done{background:var(--good)}
 .goal-sub{font-size:12.5px;color:var(--ink-3)}.link-btn{border:0;background:none;color:var(--accent);padding:0;font:inherit;text-decoration:underline;cursor:pointer}
+.sec-btns{display:flex;gap:6px;flex-wrap:wrap}
 </style>
 
 <header class="top"><div class="wrap">
@@ -1033,7 +1034,7 @@ function renderHome() {
   </section>
 
   <section class="section">
-    <div class="sec-head"><h2>Past spreadsheets</h2><span class="muted">${keys.length} on record</span><span class="sp"></span><button class="btn sm" data-act="new-month">${ICON.plus} New month</button></div>
+    <div class="sec-head"><h2>Past spreadsheets</h2><span class="muted">${keys.length} on record</span><span class="sp"></span><span class="sec-btns"><button class="btn sm" data-act="new-month">${ICON.plus} New month</button><button class="btn sm" data-act="year">${new Date().getFullYear()} outlook</button><button class="btn sm" data-act="retire">Retirement</button></span></div>
     <div class="card pick"><label for="year-pick">Choose a year</label><select id="year-pick" class="sel" data-f="yearpick" aria-label="Choose a year"><option value="">Choose…</option>${[...new Set(keys.map(k => k.slice(0,4)))].sort().reverse().map(y => `<option value="${y}">${y} · ${keys.filter(k => k.startsWith(y)).length} month${keys.filter(k => k.startsWith(y)).length===1?'':'s'}</option>`).join('')}</select></div>
   </section>
 
@@ -1046,7 +1047,7 @@ function renderHome() {
         <span class="k">Credit card debt</span><span class="v">${tb.bc ? fmt(tb.bc.cc) : '—'}</span>
         <span class="k">Savings in cash</span><span class="v">${fmt(c.cash)}</span>
       </div>
-      <div class="hint" style="font-size:12px;color:var(--accent);font-weight:600">Tap for the charts, the year outlook and balances</div>
+      <div class="hint" style="font-size:12px;color:var(--accent);font-weight:600">Tap for the charts, receipts, goals and balances</div>
     </button>
   </section>
 
@@ -1643,9 +1644,7 @@ function openTrends(key) {
   const rows = [
     { id: 'trend', act: 'chart', chart: 'trend', sw: 'wealth', title: 'Trends data', sub: `net income, expenses and what was retained · month by month in ${key.slice(0, 4)}`, v: `${yearKeys(key).length} mo` },
     { id: 'savings', act: 'chart', chart: 'savings', sw: 'income', title: 'Savings & wealth building', sub: `in cash · ${fmt(t.c.wealth)} to wealth building this month · ${fmt(t.ytdWealth)} in ${key.slice(0, 4)}`, v: fmt(t.c.cash) },
-    (() => { const pl = retirePlan(); return { id: 'retire', act: 'retire', sw: 'wealth', title: 'Retirement', sub: `${pl.p.years} year${pl.p.years === 1 ? '' : 's'} away · ${fmt(pl.todays)} a month in today’s money`, v: `${fmt(pl.monthly)}/mo` }; })(),
     { id: 'retained', act: 'chart', chart: 'trend', sw: 'ret', title: 'Income retained by month', sub: t.pc ? `${fmt(t.c.retained - t.pc.retained, {sign:true})} vs ${shortMonth(t.prevKey)}` : 'first month on record', v: fmt(t.c.retained), cls: signCls(t.c.retained) },
-    { id: 'outlook', act: 'year', sw: 'ret', title: `${yo.year} outlook`, sub: `kept by year end · ${yo.entered} of 12 months in${hsaYear().total ? ' · + ' + fmt(hsaYear().total) + ' HSA to reimburse' : ''}`, v: fmt(yo.kept), cls: signCls(yo.kept) },
     (() => { const y = hsaYear(); return { id: 'hsa', act: 'hsa', sw: 'income', title: hsaTitle(), sub: y.n ? `${y.n} receipt${y.n === 1 ? '' : 's'} not yet reimbursed${y.carried ? ' · ' + fmt(y.carried) + ' carried over' : ''}` : 'snap HSA-eligible receipts · running total to reimburse', v: fmt(y.total) }; })(),
     (() => { const s = goalsSummary(); return { id: 'goals', act: 'goals', sw: 'wealth', title: goalsTitle(), sub: s.n ? `${s.n} goal${s.n === 1 ? '' : 's'} · ${s.pct}% of ${fmt(s.target)} saved` : 'mark lines in Savings in Cash as goals · a bar for each', v: s.n ? fmt(s.have) : '—' }; })(),
     ...(equityStats(cm).has ? [(() => { const e = equityStats(cm), y = equityYTD(key); return { id: 'equity', act: 'chart', chart: 'equity', sw: 'wealth', title: 'Home equity', sub: `${fmt(e.value)} worth − ${fmt(e.owed)} owed · ${fmt(y.total)} built in ${key.slice(0, 4)}`, v: fmt(e.equity) }; })()] : []),
