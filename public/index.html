@@ -494,6 +494,19 @@ card-bonus-tracker::part(title){display:none}
 .goal-bar{height:12px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin:8px 0 5px}.goal-bar span{display:block;height:100%;border-radius:99px;background:var(--s-wealth);transition:width .25s}.goal-bar span.done{background:var(--good)}
 .goal-sub{font-size:12.5px;color:var(--ink-3)}.link-btn{border:0;background:none;color:var(--accent);padding:0;font:inherit;text-decoration:underline;cursor:pointer}
 .sec-btns{display:flex;gap:4px;flex-wrap:nowrap}.sec-btns .btn{flex:1;min-width:0;padding:6px 5px;font-size:12px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sec-btns [data-act=prep]{flex:0 0 auto;font-size:12px;padding:6px 8px}.sec-btns [data-act=new-month]{flex:0 0 auto}
+.prep-container{display:flex;flex-direction:column;gap:12px;padding:12px;padding-bottom:40px;background:var(--page,var(--surface))}
+.prep-card{background:var(--surface);border:1px solid var(--accent-line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.prep-sec-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;color:var(--ink-2);margin-bottom:2px;border-bottom:1px solid var(--accent-line);padding-bottom:4px}
+.prep-row{display:flex;justify-content:space-between;align-items:center;gap:6px;width:100%}
+.prep-lbl{font-size:13px;font-weight:500;color:var(--ink);flex:1}
+.prep-input{width:80px;padding:6px 8px;border:1px solid var(--accent-line);border-radius:4px;font-size:13px;text-align:right;background:var(--surface);color:var(--ink);outline:none}
+.prep-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.prep-btn-small{background:var(--accent-line);border:none;border-radius:4px;padding:6px 10px;font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer}
+.prep-save-btn{background:var(--ink);color:var(--surface);border:none;border-radius:6px;padding:12px;font-weight:600;letter-spacing:.5px;width:100%;cursor:pointer;margin-top:4px}
+.prep-stat{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-between;border-top:1px dashed var(--accent-line);padding-top:6px;margin-top:2px}
+.prep-stat span{font-weight:600;color:var(--accent)}
+.prep-green{color:#16a34a!important}
+.prep-warn .prep-lbl{color:#dc2626;font-weight:600}
 </style>
 
 <header class="top"><div class="wrap">
@@ -1394,14 +1407,110 @@ function retireBody() {
     <div class="chart-area"><div id="rt-chart"></div></div>
     <p class="chart-note" id="rt-note"></p>`;
 }
+let activePrepState = {};
 function openPrep() {
   dialogCtx = { sec: 'prep' };
-  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Emergency Preparedness</h2><span class="muted" style="font-size:13px">Track your household's emergency readiness</span></div></div>
-    <div class="dlg-body">
-      <p class="chart-note" style="margin-top:16px">Coming soon — track food supply, water, first aid, documents, and more.</p>
-    </div>`);
-  dlg.style.maxWidth = '620px';
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Emergency Preparedness</h2><span class="muted" style="font-size:13px">Command Center</span></div></div>
+    <div class="dlg-body prep-container"><div style="padding:20px;text-align:center" class="faint">Loading...</div></div>`);
+  dlg.style.maxWidth = '375px';
+  const { F } = FB;
+  F.getDoc(Store.ref('ledgers', 'prep'))
+    .then(doc => { activePrepState = doc.exists() ? doc.data() : getDefaultPrepState(); renderPrepView(); })
+    .catch(err => { console.error('EP fetch error', err); activePrepState = getDefaultPrepState(); renderPrepView(); });
 }
+function getDefaultPrepState() {
+  return { members:[], pantryCals:0, deepStorageCals:0, pantryGoal:7, storageGoal:30, staticWaterGal:0, purifierDailyGal:0, waterGoal:14, cash:0, debts:0, financeGoal:3, solarWh:0, solarAgeYears:0, batteryWh:0, consumptionWh:0, goBags:[] };
+}
+function renderPrepView() {
+  const body = dlg && dlg.querySelector('.dlg-body');
+  if (!body) return;
+  const scrollTop = body.scrollTop;
+  body.className = 'dlg-body prep-container';
+  body.innerHTML = prepBody();
+  body.scrollTop = scrollTop;
+}
+function prepBody() {
+  const s = activePrepState;
+  const dailyWaterNeed = (s.members||[]).reduce((sum, m) => sum + (m.age <= 2 ? 0.5 : m.age <= 12 ? 0.75 : 1.0), 0);
+  const dailyCalsNeed = (s.members||[]).length * 2000;
+  const waterDays = dailyWaterNeed > 0 ? (s.staticWaterGal / dailyWaterNeed).toFixed(1) : 0;
+  const isWaterSecure = s.purifierDailyGal >= dailyWaterNeed && dailyWaterNeed > 0;
+  const pantryDays = dailyCalsNeed > 0 ? (s.pantryCals / dailyCalsNeed).toFixed(1) : 0;
+  const storageDays = dailyCalsNeed > 0 ? (s.deepStorageCals / dailyCalsNeed).toFixed(1) : 0;
+  const runway = s.debts > 0 ? (s.cash / s.debts).toFixed(1) : '∞';
+  const degradedSolarWh = s.solarWh * Math.pow(0.995, s.solarAgeYears);
+  const netDraw = s.consumptionWh - degradedSolarWh;
+  const gridStatus = netDraw <= 0 && degradedSolarWh > 0 ? 'Infinite (Solar Surplus)' : (netDraw > 0 && s.batteryWh > 0 ? (s.batteryWh / netDraw).toFixed(1) + ' Hrs' : 'No Backup');
+  const membersHTML = (s.members||[]).map((m, i) => `<div class="prep-row"><span class="prep-lbl">${esc(m.name)} (Age: ${m.age})</span><button data-act="prep-del-member" data-idx="${i}" class="prep-btn-small">×</button></div>`).join('');
+  const bagsHTML = (s.goBags||[]).map((b, i) => `<div class="prep-row${b.weight > 35 ? ' prep-warn' : ''}"><span class="prep-lbl">${esc(b.owner)}'s Bag (${b.weight}lbs) – ${b.foodDays}d Food / ${b.waterDays}d H₂O</span><button data-act="prep-del-bag" data-idx="${i}" class="prep-btn-small">×</button></div>`).join('');
+  return `
+    <div class="prep-card">
+      <div class="prep-sec-title">Household Roster</div>
+      ${membersHTML}
+      <div class="prep-row" style="margin-top:8px">
+        <input type="text" id="new-mem-name" class="prep-input" placeholder="Name" style="flex:1.5">
+        <input type="number" id="new-mem-age" class="prep-input" placeholder="Age" style="width:60px">
+        <button data-act="prep-add-member" class="prep-btn-small">+ Add</button>
+      </div>
+      <div class="prep-stat">Daily Water Need<span>${dailyWaterNeed.toFixed(2)} Gal</span></div>
+    </div>
+    <div class="prep-card">
+      <div class="prep-sec-title">Hydration Logistics</div>
+      <div class="prep-row"><label class="prep-lbl">Static Storage (Gal)</label><input type="number" id="p-water" class="prep-input" value="${s.staticWaterGal}" onchange="window.syncPrepInputs()"></div>
+      <div class="prep-row"><label class="prep-lbl">Purifier Cap. (Gal/Day)</label><input type="number" id="p-purifier" class="prep-input" value="${s.purifierDailyGal}" onchange="window.syncPrepInputs()"></div>
+      <div class="prep-row"><label class="prep-lbl">Goal (Days)</label><input type="number" id="p-w-goal" class="prep-input" value="${s.waterGoal}" onchange="window.syncPrepInputs()"></div>
+      <div class="prep-stat">Status<span class="${isWaterSecure ? 'prep-green' : ''}">${isWaterSecure ? 'SECURE (Renewable)' : waterDays + ' Days Static'}</span></div>
+    </div>
+    <div class="prep-card">
+      <div class="prep-sec-title">Food Reserves (Calories)</div>
+      <div class="prep-row"><label class="prep-lbl">Pantry Inventory</label><input type="number" id="p-pantry" class="prep-input" value="${s.pantryCals}" onchange="window.syncPrepInputs()"></div>
+      <div class="prep-row"><label class="prep-lbl">Deep Storage</label><input type="number" id="p-storage" class="prep-input" value="${s.deepStorageCals}" onchange="window.syncPrepInputs()"></div>
+      <div class="prep-stat">Pantry Runway<span>${pantryDays} / ${s.pantryGoal} Days</span></div>
+      <div class="prep-stat">Storage Runway<span>${storageDays} / ${s.storageGoal} Days</span></div>
+    </div>
+    <div class="prep-card">
+      <div class="prep-sec-title">Energy Grid</div>
+      <div class="prep-row"><label class="prep-lbl">Hourly Draw (Wh)</label><input type="number" id="p-draw" class="prep-input" value="${s.consumptionWh}" onchange="window.syncPrepInputs()"></div>
+      <div class="prep-row"><label class="prep-lbl">Solar Output (Wh)</label><input type="number" id="p-solar" class="prep-input" value="${s.solarWh}" onchange="window.syncPrepInputs()"></div>
+      <div class="prep-row"><label class="prep-lbl">Solar Age (Yrs)</label><input type="number" id="p-solar-age" class="prep-input" value="${s.solarAgeYears}" onchange="window.syncPrepInputs()"></div>
+      <div class="prep-row"><label class="prep-lbl">Battery Cap. (Wh)</label><input type="number" id="p-batt" class="prep-input" value="${s.batteryWh}" onchange="window.syncPrepInputs()"></div>
+      <div class="prep-stat">Battery Runtime<span>${gridStatus}</span></div>
+    </div>
+    <div class="prep-card">
+      <div class="prep-sec-title">Financial Runway</div>
+      <div class="prep-row"><label class="prep-lbl">Liquid Cash ($)</label><input type="number" id="p-cash" class="prep-input" value="${s.cash}" onchange="window.syncPrepInputs()"></div>
+      <div class="prep-row"><label class="prep-lbl">Monthly Debts ($)</label><input type="number" id="p-debts" class="prep-input" value="${s.debts}" onchange="window.syncPrepInputs()"></div>
+      <div class="prep-stat">Runway<span>${runway} / ${s.financeGoal} Months</span></div>
+    </div>
+    <div class="prep-card">
+      <div class="prep-sec-title">Evacuation Fleet (Go-Bags)</div>
+      ${bagsHTML}
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">
+        <input type="text" id="new-bag-owner" class="prep-input" placeholder="Owner" style="flex:2">
+        <input type="number" id="new-bag-wt" class="prep-input" placeholder="Lbs" style="width:50px">
+        <input type="number" id="new-bag-food" class="prep-input" placeholder="Food(d)" style="width:60px">
+        <input type="number" id="new-bag-water" class="prep-input" placeholder="H₂O(d)" style="width:60px">
+        <button data-act="prep-add-bag" class="prep-btn-small" style="width:100%;margin-top:2px">+ Add Go-Bag</button>
+      </div>
+    </div>
+    <button data-act="prep-save" class="prep-save-btn">Save</button>
+  `;
+}
+window.syncPrepInputs = function() {
+  const g = id => { const el = dlg && dlg.querySelector('#' + id); return el ? (Number(el.value) || 0) : (activePrepState[id] || 0); };
+  activePrepState.staticWaterGal = g('p-water');
+  activePrepState.purifierDailyGal = g('p-purifier');
+  activePrepState.waterGoal = g('p-w-goal');
+  activePrepState.pantryCals = g('p-pantry');
+  activePrepState.deepStorageCals = g('p-storage');
+  activePrepState.consumptionWh = g('p-draw');
+  activePrepState.solarWh = g('p-solar');
+  activePrepState.solarAgeYears = g('p-solar-age');
+  activePrepState.batteryWh = g('p-batt');
+  activePrepState.cash = g('p-cash');
+  activePrepState.debts = g('p-debts');
+  renderPrepView();
+};
 function openRetire() {
   const from = cameFromTrends(); dialogCtx = { sec: 'retire', back: from ? 'trends' : null, via: from ? 'trends' : null };
   openOverlay(`<div class="dlg-head">${trendsBack() || pageBack()}<div class="ttl"><h2>Retirement</h2><span class="muted" style="font-size:13px">What the pot pays out each month once you stop working</span></div></div>
@@ -1876,6 +1985,11 @@ async function onAction(e) {
     case 'balances': openBalances(t.dataset.key || key); break;
     case 'nav-back': navBack(); break;
     case 'prep': openPrep(); break;
+    case 'prep-add-member': { window.syncPrepInputs(); const n = dlg.querySelector('#new-mem-name').value.trim(), a = Number(dlg.querySelector('#new-mem-age').value); if (n && a >= 0) { activePrepState.members.push({name:n, age:a}); renderPrepView(); } break; }
+    case 'prep-del-member': { window.syncPrepInputs(); activePrepState.members.splice(Number(t.dataset.idx), 1); renderPrepView(); break; }
+    case 'prep-add-bag': { window.syncPrepInputs(); const o=dlg.querySelector('#new-bag-owner').value.trim(), w=Number(dlg.querySelector('#new-bag-wt').value), fd=Number(dlg.querySelector('#new-bag-food').value), wd=Number(dlg.querySelector('#new-bag-water').value); if (o) { activePrepState.goBags.push({owner:o,weight:w,foodDays:fd,waterDays:wd}); renderPrepView(); } break; }
+    case 'prep-del-bag': { window.syncPrepInputs(); activePrepState.goBags.splice(Number(t.dataset.idx), 1); renderPrepView(); break; }
+    case 'prep-save': { window.syncPrepInputs(); if (S.mode !== 'firebase') { toast('Not connected'); break; } const { F } = FB; const btn = dlg && dlg.querySelector('.prep-save-btn'); if (btn) btn.textContent = 'Saving…'; F.setDoc(Store.ref('ledgers','prep'), activePrepState, {merge:true}).then(() => { if (btn) { btn.textContent = 'Saved'; setTimeout(() => { if (btn) btn.textContent = 'Save'; }, 2000); } }).catch(err => { console.error('EP save',err); if (btn) btn.textContent = 'Error'; }); break; }
     case 'retire': openRetire(); break;
     case 'import': openImportPick(key); break;
     case 'imp-pdf': pickStatement(t.dataset.key || key, 'pdf'); break;
