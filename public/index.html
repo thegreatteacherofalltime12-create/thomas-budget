@@ -502,7 +502,7 @@ card-bonus-tracker::part(title){display:none}
 .prep-input{width:80px;padding:6px 8px;border:1px solid var(--accent-line);border-radius:4px;font-size:13px;text-align:right;background:var(--surface);color:var(--ink);outline:none}
 .prep-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .prep-btn-small{background:var(--accent-line);border:none;border-radius:4px;padding:6px 10px;font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer}
-.prep-save-btn{background:var(--ink);color:var(--surface);border:none;border-radius:6px;padding:12px;font-weight:600;letter-spacing:.5px;width:100%;cursor:pointer;margin-top:4px}
+.prep-collapse-btn{background:none;border:none;padding:0 4px;font-size:10px;color:var(--ink-3);cursor:pointer;margin-left:auto}
 .prep-stat{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-between;border-top:1px dashed var(--accent-line);padding-top:6px;margin-top:2px}
 .prep-stat span{font-weight:600;color:var(--accent)}
 .prep-green{color:#16a34a!important}
@@ -859,6 +859,12 @@ const Store = {
     this._hsaDirty = false; clearTimeout(this._hsaTimer);
     if (S.mode === 'firebase') { const { F } = FB; this.write(() => F.setDoc(this.ref('ledgers', 'hsa'), { title: S.hsa.title || '', rows: S.hsa.rows || [] }), 'the HSA receipts'); }
     else { try { localStorage.setItem('tb-hsa', JSON.stringify(S.hsa)); } catch (e) {} }
+  },
+  markPrep() { this._prepDirty = true; setSync(S.mode === 'firebase' ? 'busy' : 'local', S.mode === 'firebase' ? 'Saving…' : 'Saved on this device'); clearTimeout(this._prepTimer); this._prepTimer = setTimeout(() => this.savePrep(), 700); },
+  savePrep() {
+    this._prepDirty = false; clearTimeout(this._prepTimer);
+    if (S.mode === 'firebase') { const { F } = FB; this.write(() => F.setDoc(this.ref('ledgers', 'prep'), activePrepState), 'the emergency prep data'); }
+    else { try { localStorage.setItem('tb-prep', JSON.stringify(activePrepState)); } catch (e) {} }
   },
   async saveHsaPhoto(id, img) { // a photo is ~0.2–0.9 MB of text: one document each, so the list itself stays light
     if (S.mode === 'firebase') { const { F } = FB; await F.setDoc(this.ref('ledgers', 'hsaimg_' + id), { img }); }
@@ -1408,11 +1414,13 @@ function retireBody() {
     <p class="chart-note" id="rt-note"></p>`;
 }
 let activePrepState = {};
+let prepCollapsed = {};
 function openPrep() {
   dialogCtx = { sec: 'prep' };
   openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Emergency Preparedness</h2><span class="muted" style="font-size:13px">Command Center</span></div></div>
     <div class="dlg-body prep-container"><div style="padding:20px;text-align:center" class="faint">Loading...</div></div>`);
   dlg.style.maxWidth = '375px';
+  try { prepCollapsed = JSON.parse(localStorage.getItem('tb-prep-collapsed') || '{}'); } catch(e) { prepCollapsed = {}; }
   const { F } = FB;
   F.getDoc(Store.ref('ledgers', 'prep'))
     .then(doc => { activePrepState = doc.exists() ? doc.data() : getDefaultPrepState(); renderPrepView(); })
@@ -1443,47 +1451,37 @@ function prepBody() {
   const gridStatus = netDraw <= 0 && degradedSolarWh > 0 ? 'Infinite (Solar Surplus)' : (netDraw > 0 && s.batteryWh > 0 ? (s.batteryWh / netDraw).toFixed(1) + ' Hrs' : 'No Backup');
   const membersHTML = (s.members||[]).map((m, i) => `<div class="prep-row"><span class="prep-lbl">${esc(m.name)} (Age: ${m.age})</span><button data-act="prep-del-member" data-idx="${i}" class="prep-btn-small">×</button></div>`).join('');
   const bagsHTML = (s.goBags||[]).map((b, i) => `<div class="prep-row${b.weight > 35 ? ' prep-warn' : ''}"><span class="prep-lbl">${esc(b.owner)}'s Bag (${b.weight}lbs) – ${b.foodDays}d Food / ${b.waterDays}d H₂O</span><button data-act="prep-del-bag" data-idx="${i}" class="prep-btn-small">×</button></div>`).join('');
+  const card = (key, title, body) => { const col = prepCollapsed[key]; return `<div class="prep-card"><div class="prep-sec-title"><span>${title}</span><button class="prep-collapse-btn" data-act="prep-collapse" data-section="${key}">${col ? '▶' : '▼'}</button></div>${col ? '' : body}</div>`; };
   return `
-    <div class="prep-card">
-      <div class="prep-sec-title">Household Roster</div>
+    ${card('roster','Household Roster',`
       ${membersHTML}
       <div class="prep-row" style="margin-top:8px">
         <input type="text" id="new-mem-name" class="prep-input" placeholder="Name" style="flex:1.5">
         <input type="number" id="new-mem-age" class="prep-input" placeholder="Age" style="width:60px">
         <button data-act="prep-add-member" class="prep-btn-small">+ Add</button>
       </div>
-      <div class="prep-stat">Daily Water Need<span>${dailyWaterNeed.toFixed(2)} Gal</span></div>
-    </div>
-    <div class="prep-card">
-      <div class="prep-sec-title">Hydration Logistics</div>
+      <div class="prep-stat">Daily Water Need<span>${dailyWaterNeed.toFixed(2)} Gal</span></div>`)}
+    ${card('hydration','Hydration Logistics',`
       <div class="prep-row"><label class="prep-lbl">Static Storage (Gal)</label><input type="number" id="p-water" class="prep-input" value="${s.staticWaterGal}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Purifier Cap. (Gal/Day)</label><input type="number" id="p-purifier" class="prep-input" value="${s.purifierDailyGal}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Goal (Days)</label><input type="number" id="p-w-goal" class="prep-input" value="${s.waterGoal}" onchange="window.syncPrepInputs()"></div>
-      <div class="prep-stat">Status<span class="${isWaterSecure ? 'prep-green' : ''}">${isWaterSecure ? 'SECURE (Renewable)' : waterDays + ' Days Static'}</span></div>
-    </div>
-    <div class="prep-card">
-      <div class="prep-sec-title">Food Reserves (Calories)</div>
+      <div class="prep-stat">Status<span class="${isWaterSecure ? 'prep-green' : ''}">${isWaterSecure ? 'SECURE (Renewable)' : waterDays + ' Days Static'}</span></div>`)}
+    ${card('food','Food Reserves (Calories)',`
       <div class="prep-row"><label class="prep-lbl">Pantry Inventory</label><input type="number" id="p-pantry" class="prep-input" value="${s.pantryCals}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Deep Storage</label><input type="number" id="p-storage" class="prep-input" value="${s.deepStorageCals}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-stat">Pantry Runway<span>${pantryDays} / ${s.pantryGoal} Days</span></div>
-      <div class="prep-stat">Storage Runway<span>${storageDays} / ${s.storageGoal} Days</span></div>
-    </div>
-    <div class="prep-card">
-      <div class="prep-sec-title">Energy Grid</div>
+      <div class="prep-stat">Storage Runway<span>${storageDays} / ${s.storageGoal} Days</span></div>`)}
+    ${card('energy','Energy Grid',`
       <div class="prep-row"><label class="prep-lbl">Hourly Draw (Wh)</label><input type="number" id="p-draw" class="prep-input" value="${s.consumptionWh}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Solar Output (Wh)</label><input type="number" id="p-solar" class="prep-input" value="${s.solarWh}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Solar Age (Yrs)</label><input type="number" id="p-solar-age" class="prep-input" value="${s.solarAgeYears}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Battery Cap. (Wh)</label><input type="number" id="p-batt" class="prep-input" value="${s.batteryWh}" onchange="window.syncPrepInputs()"></div>
-      <div class="prep-stat">Battery Runtime<span>${gridStatus}</span></div>
-    </div>
-    <div class="prep-card">
-      <div class="prep-sec-title">Financial Runway</div>
+      <div class="prep-stat">Battery Runtime<span>${gridStatus}</span></div>`)}
+    ${card('finance','Financial Runway',`
       <div class="prep-row"><label class="prep-lbl">Liquid Cash ($)</label><input type="number" id="p-cash" class="prep-input" value="${s.cash}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Monthly Debts ($)</label><input type="number" id="p-debts" class="prep-input" value="${s.debts}" onchange="window.syncPrepInputs()"></div>
-      <div class="prep-stat">Runway<span>${runway} / ${s.financeGoal} Months</span></div>
-    </div>
-    <div class="prep-card">
-      <div class="prep-sec-title">Evacuation Fleet (Go-Bags)</div>
+      <div class="prep-stat">Runway<span>${runway} / ${s.financeGoal} Months</span></div>`)}
+    ${card('bags','Evacuation Fleet (Go-Bags)',`
       ${bagsHTML}
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">
         <input type="text" id="new-bag-owner" class="prep-input" placeholder="Owner" style="flex:2">
@@ -1491,9 +1489,7 @@ function prepBody() {
         <input type="number" id="new-bag-food" class="prep-input" placeholder="Food(d)" style="width:60px">
         <input type="number" id="new-bag-water" class="prep-input" placeholder="H₂O(d)" style="width:60px">
         <button data-act="prep-add-bag" class="prep-btn-small" style="width:100%;margin-top:2px">+ Add Go-Bag</button>
-      </div>
-    </div>
-    <button data-act="prep-save" class="prep-save-btn">Save</button>
+      </div>`)}
   `;
 }
 window.syncPrepInputs = function() {
@@ -1510,6 +1506,7 @@ window.syncPrepInputs = function() {
   activePrepState.cash = g('p-cash');
   activePrepState.debts = g('p-debts');
   renderPrepView();
+  Store.markPrep();
 };
 function openRetire() {
   const from = cameFromTrends(); dialogCtx = { sec: 'retire', back: from ? 'trends' : null, via: from ? 'trends' : null };
@@ -1976,7 +1973,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','cards','card-tab','pt-add','pt-del','pt-kind','hsa','hsa-add','hsa-open','hsa-photo','hsa-del','hsa-rename','hsa-paid','hsa-paid-all','goals','goals-rename','goal-drop','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin','prep','prep-add-member','prep-del-member','prep-add-bag','prep-del-bag','prep-save'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','cards','card-tab','pt-add','pt-del','pt-kind','hsa','hsa-add','hsa-open','hsa-photo','hsa-del','hsa-rename','hsa-paid','hsa-paid-all','goals','goals-rename','goal-drop','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin','prep','prep-add-member','prep-del-member','prep-add-bag','prep-del-bag','prep-collapse'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -1985,11 +1982,11 @@ async function onAction(e) {
     case 'balances': openBalances(t.dataset.key || key); break;
     case 'nav-back': navBack(); break;
     case 'prep': openPrep(); break;
-    case 'prep-add-member': { const n = dlg.querySelector('#new-mem-name').value.trim(), a = Number(dlg.querySelector('#new-mem-age').value); window.syncPrepInputs(); if (n && a >= 0) { activePrepState.members.push({name:n, age:a}); renderPrepView(); } break; }
-    case 'prep-del-member': { window.syncPrepInputs(); activePrepState.members.splice(Number(t.dataset.idx), 1); renderPrepView(); break; }
-    case 'prep-add-bag': { const o=dlg.querySelector('#new-bag-owner').value.trim(), w=Number(dlg.querySelector('#new-bag-wt').value), fd=Number(dlg.querySelector('#new-bag-food').value), wd=Number(dlg.querySelector('#new-bag-water').value); window.syncPrepInputs(); if (o) { activePrepState.goBags.push({owner:o,weight:w,foodDays:fd,waterDays:wd}); renderPrepView(); } break; }
-    case 'prep-del-bag': { window.syncPrepInputs(); activePrepState.goBags.splice(Number(t.dataset.idx), 1); renderPrepView(); break; }
-    case 'prep-save': { window.syncPrepInputs(); if (S.mode !== 'firebase') { toast('Not connected'); break; } const { F } = FB; const btn = dlg && dlg.querySelector('.prep-save-btn'); if (btn) btn.textContent = 'Saving…'; F.setDoc(Store.ref('ledgers','prep'), activePrepState, {merge:true}).then(() => { if (btn) { btn.textContent = 'Saved'; setTimeout(() => { if (btn) btn.textContent = 'Save'; }, 2000); } }).catch(err => { console.error('EP save',err); if (btn) btn.textContent = 'Error'; }); break; }
+    case 'prep-add-member': { const n = dlg.querySelector('#new-mem-name').value.trim(), a = Number(dlg.querySelector('#new-mem-age').value); window.syncPrepInputs(); if (n && a >= 0) { activePrepState.members.push({name:n, age:a}); renderPrepView(); Store.markPrep(); } break; }
+    case 'prep-del-member': { window.syncPrepInputs(); activePrepState.members.splice(Number(t.dataset.idx), 1); renderPrepView(); Store.markPrep(); break; }
+    case 'prep-add-bag': { const o=dlg.querySelector('#new-bag-owner').value.trim(), w=Number(dlg.querySelector('#new-bag-wt').value), fd=Number(dlg.querySelector('#new-bag-food').value), wd=Number(dlg.querySelector('#new-bag-water').value); window.syncPrepInputs(); if (o) { activePrepState.goBags.push({owner:o,weight:w,foodDays:fd,waterDays:wd}); renderPrepView(); Store.markPrep(); } break; }
+    case 'prep-del-bag': { window.syncPrepInputs(); activePrepState.goBags.splice(Number(t.dataset.idx), 1); renderPrepView(); Store.markPrep(); break; }
+    case 'prep-collapse': { const k = t.dataset.section; prepCollapsed[k] = !prepCollapsed[k]; try { localStorage.setItem('tb-prep-collapsed', JSON.stringify(prepCollapsed)); } catch(e) {} renderPrepView(); break; }
     case 'retire': openRetire(); break;
     case 'import': openImportPick(key); break;
     case 'imp-pdf': pickStatement(t.dataset.key || key, 'pdf'); break;
