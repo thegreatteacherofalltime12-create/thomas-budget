@@ -503,6 +503,7 @@ card-bonus-tracker::part(title){display:none}
 .prep-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .prep-btn-small{background:var(--accent-line);border:none;border-radius:4px;padding:6px 10px;font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer}
 .prep-collapse-btn{background:none;border:none;padding:0 4px;font-size:10px;color:var(--ink-3);cursor:pointer;margin-left:auto}
+.prep-summary{display:flex;flex-direction:column;gap:4px;padding-top:4px}.prep-summary .prep-stat{border-top:none;padding-top:0;margin-top:0}
 .prep-stat{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-between;border-top:1px dashed var(--accent-line);padding-top:6px;margin-top:2px}
 .prep-stat span{font-weight:600;color:var(--accent)}
 .prep-green{color:#16a34a!important}
@@ -1451,7 +1452,7 @@ function prepBody() {
   const gridStatus = netDraw <= 0 && degradedSolarWh > 0 ? 'Infinite (Solar Surplus)' : (netDraw > 0 && s.batteryWh > 0 ? (s.batteryWh / netDraw).toFixed(1) + ' Hrs' : 'No Backup');
   const membersHTML = (s.members||[]).map((m, i) => `<div class="prep-row"><span class="prep-lbl">${esc(m.name)} (Age: ${m.age})</span><button data-act="prep-del-member" data-idx="${i}" class="prep-btn-small">×</button></div>`).join('');
   const bagsHTML = (s.goBags||[]).map((b, i) => `<div class="prep-row${b.weight > 35 ? ' prep-warn' : ''}"><span class="prep-lbl">${esc(b.owner)}'s Bag (${b.weight}lbs) – ${b.foodDays}d Food / ${b.waterDays}d H₂O</span><button data-act="prep-del-bag" data-idx="${i}" class="prep-btn-small">×</button></div>`).join('');
-  const card = (key, title, body) => { const col = prepCollapsed[key]; return `<div class="prep-card"><div class="prep-sec-title"><span>${title}</span><button class="prep-collapse-btn" data-act="prep-collapse" data-section="${key}">${col ? '▶' : '▼'}</button></div>${col ? '' : body}</div>`; };
+  const card = (key, title, body, summary) => { const col = prepCollapsed[key]; return `<div class="prep-card"><div class="prep-sec-title"><span>${title}</span><button class="prep-collapse-btn" data-act="prep-collapse" data-section="${key}">${col ? '▶' : '▼'}</button></div>${col ? `<div class="prep-summary">${summary}</div>` : body}</div>`; };
   return `
     ${card('roster','Household Roster',`
       ${membersHTML}
@@ -1460,27 +1461,27 @@ function prepBody() {
         <input type="number" id="new-mem-age" class="prep-input" placeholder="Age" style="width:60px">
         <button data-act="prep-add-member" class="prep-btn-small">+ Add</button>
       </div>
-      <div class="prep-stat">Daily Water Need<span>${dailyWaterNeed.toFixed(2)} Gal</span></div>`)}
+      <div class="prep-stat">Daily Water Need<span>${dailyWaterNeed.toFixed(2)} Gal</span></div>`,`<div class="prep-stat">Daily Water Need<span>${dailyWaterNeed.toFixed(2)} Gal</span></div>`)}
     ${card('hydration','Hydration Logistics',`
       <div class="prep-row"><label class="prep-lbl">Static Storage (Gal)</label><input type="number" id="p-water" class="prep-input" value="${s.staticWaterGal}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Purifier Cap. (Gal/Day)</label><input type="number" id="p-purifier" class="prep-input" value="${s.purifierDailyGal}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Goal (Days)</label><input type="number" id="p-w-goal" class="prep-input" value="${s.waterGoal}" onchange="window.syncPrepInputs()"></div>
-      <div class="prep-stat">Status<span class="${isWaterSecure ? 'prep-green' : ''}">${isWaterSecure ? 'SECURE (Renewable)' : waterDays + ' Days Static'}</span></div>`)}
+      <div class="prep-stat">Status<span class="${isWaterSecure ? 'prep-green' : ''}">${isWaterSecure ? 'SECURE (Renewable)' : waterDays + ' Days Static'}</span></div>`,`<div class="prep-stat">Status<span class="${isWaterSecure ? 'prep-green' : ''}">${isWaterSecure ? 'SECURE (Renewable)' : waterDays + ' Days Static'}</span></div>`)}
     ${card('food','Food Reserves (Calories)',`
       <div class="prep-row"><label class="prep-lbl">Pantry Inventory</label><input type="number" id="p-pantry" class="prep-input" value="${s.pantryCals}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Deep Storage</label><input type="number" id="p-storage" class="prep-input" value="${s.deepStorageCals}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-stat">Pantry Runway<span>${pantryDays} / ${s.pantryGoal} Days</span></div>
-      <div class="prep-stat">Storage Runway<span>${storageDays} / ${s.storageGoal} Days</span></div>`)}
+      <div class="prep-stat">Storage Runway<span>${storageDays} / ${s.storageGoal} Days</span></div>`,`<div class="prep-stat">Pantry Runway<span>${pantryDays} / ${s.pantryGoal} Days</span></div><div class="prep-stat">Storage Runway<span>${storageDays} / ${s.storageGoal} Days</span></div>`)}
     ${card('energy','Energy Grid',`
       <div class="prep-row"><label class="prep-lbl">Hourly Draw (Wh)</label><input type="number" id="p-draw" class="prep-input" value="${s.consumptionWh}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Solar Output (Wh)</label><input type="number" id="p-solar" class="prep-input" value="${s.solarWh}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Solar Age (Yrs)</label><input type="number" id="p-solar-age" class="prep-input" value="${s.solarAgeYears}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Battery Cap. (Wh)</label><input type="number" id="p-batt" class="prep-input" value="${s.batteryWh}" onchange="window.syncPrepInputs()"></div>
-      <div class="prep-stat">Battery Runtime<span>${gridStatus}</span></div>`)}
+      <div class="prep-stat">Battery Runtime<span>${gridStatus}</span></div>`,`<div class="prep-stat">Battery Runtime<span>${gridStatus}</span></div>`)}
     ${card('finance','Financial Runway',`
       <div class="prep-row"><label class="prep-lbl">Liquid Cash ($)</label><input type="number" id="p-cash" class="prep-input" value="${s.cash}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Monthly Debts ($)</label><input type="number" id="p-debts" class="prep-input" value="${s.debts}" onchange="window.syncPrepInputs()"></div>
-      <div class="prep-stat">Runway<span>${runway} / ${s.financeGoal} Months</span></div>`)}
+      <div class="prep-stat">Runway<span>${runway} / ${s.financeGoal} Months</span></div>`,`<div class="prep-stat">Runway<span>${runway} / ${s.financeGoal} Months</span></div>`)}
     ${card('bags','Evacuation Fleet (Go-Bags)',`
       ${bagsHTML}
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">
@@ -1489,7 +1490,7 @@ function prepBody() {
         <input type="number" id="new-bag-food" class="prep-input" placeholder="Food(d)" style="width:60px">
         <input type="number" id="new-bag-water" class="prep-input" placeholder="H₂O(d)" style="width:60px">
         <button data-act="prep-add-bag" class="prep-btn-small" style="width:100%;margin-top:2px">+ Add Go-Bag</button>
-      </div>`)}
+      </div>`,`<div class="prep-stat">Go-bags<span>${(s.goBags||[]).length} bag${(s.goBags||[]).length !== 1 ? 's' : ''}</span></div>`)}
   `;
 }
 window.syncPrepInputs = function() {
