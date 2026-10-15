@@ -496,23 +496,29 @@ card-bonus-tracker::part(title){display:none}
 .sec-btns{display:flex;gap:4px;flex-wrap:nowrap}.sec-btns .btn{flex:1;min-width:0;padding:6px 5px;font-size:12px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sec-btns [data-act=prep]{flex:0 0 auto;font-size:12px;padding:6px 8px}.sec-btns [data-act=new-month]{flex:0 0 auto}
 .prep-container{display:flex;flex-direction:column;gap:12px;padding:12px;padding-bottom:40px;background:var(--page,var(--surface))}
 .prep-card{background:var(--surface);border:1px solid var(--accent-line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px}
-.prep-sec-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;color:var(--ink-2);margin-bottom:2px;border-bottom:1px solid var(--accent-line);padding-bottom:4px}
+.prep-sec-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;color:var(--ink-2);margin-bottom:2px;border-bottom:1px solid var(--accent-line);padding-bottom:4px;cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center}
 .prep-row{display:flex;justify-content:space-between;align-items:center;gap:6px;width:100%}
 .prep-lbl{font-size:13px;font-weight:500;color:var(--ink);flex:1}
 .prep-input{width:80px;padding:6px 8px;border:1px solid var(--accent-line);border-radius:4px;font-size:13px;text-align:right;background:var(--surface);color:var(--ink);outline:none}
 .prep-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .prep-btn-small{background:var(--accent-line);border:none;border-radius:4px;padding:6px 10px;font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer}
-.prep-collapse-btn{background:none;border:none;padding:0 4px;font-size:10px;color:var(--ink-3);cursor:pointer;margin-left:auto}
+.prep-collapse-arrow{font-size:10px;color:var(--ink-3);pointer-events:none}
 .prep-food-row{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px dashed var(--accent-line)}
 .prep-food-name{flex:2;font-size:13px;font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .prep-food-meta{flex:3;font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .prep-food-total{font-size:12px;font-weight:600;color:var(--accent);white-space:nowrap}
 .prep-food-summary{font-size:11px;color:var(--ink-3);margin-right:4px}
+.amt.amt-zero,.prep-input.amt-zero{background:var(--zero-hl,#fef3c7)!important;border-color:#d97706!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .amt.amt-zero,:root:not([data-theme=light]) .prep-input.amt-zero{background:var(--zero-hl,#451a03)!important;border-color:#d97706!important}}
+:root[data-theme=dark] .amt.amt-zero,:root[data-theme=dark] .prep-input.amt-zero{background:var(--zero-hl,#451a03)!important;border-color:#d97706!important}
 .prep-summary{display:flex;flex-direction:column;gap:4px;padding-top:4px}.prep-summary .prep-stat{border-top:none;padding-top:0;margin-top:0}
 .prep-stat{font-size:12px;color:var(--ink-3);display:flex;justify-content:space-between;border-top:1px dashed var(--accent-line);padding-top:6px;margin-top:2px}
 .prep-stat span{font-weight:600;color:var(--accent)}
 .prep-green{color:#16a34a!important}
 .prep-warn .prep-lbl{color:#dc2626;font-weight:600}
+.prep-input[value="0"]{background:var(--zero-hl,#fef3c7)!important;border-color:#d97706!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .prep-input[value="0"]{background:var(--zero-hl,#451a03)!important;border-color:#d97706!important}}
+:root[data-theme=dark] .prep-input[value="0"]{background:var(--zero-hl,#451a03)!important;border-color:#d97706!important}
 </style>
 
 <header class="top"><div class="wrap">
@@ -949,7 +955,7 @@ const Store = {
     for (const m of monthList) {
       if (!m || !/^\d{4}-(0[1-9]|1[0-2])$/.test(m.key || '')) continue;
       const doc = { key: m.key, label: m.label || monthLabel(m.key), year: +m.key.slice(0, 4), month: +m.key.slice(5, 7), updatedOn: m.updatedOn || null, notes: String(m.notes || ''), imported: (Array.isArray(m.imported) ? m.imported : []).map(x => String(x).slice(0, 60)), cards: [], savings: [], accounts: [] };
-      for (const col of COLS) doc[col.key] = (Array.isArray(m[col.key]) ? m[col.key] : []).map(l => ({ id: safeId(l.id), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })), ...(l.pre === 1 || l.pre === 2 ? { pre: l.pre } : {}) }));
+      for (const col of COLS) doc[col.key] = (Array.isArray(m[col.key]) ? m[col.key] : []).map(l => ({ id: safeId(l.id), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })), ...(l.pre === 1 || l.pre === 2 ? { pre: l.pre } : {}), ...(l.ep ? { ep: true } : {}) }));
       for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount), ...(['value','owed','other'].includes(r.kind) ? { kind: r.kind } : {}), ...(r.paid || r.applied ? { paid: r2(r.paid || r.applied) } : {}), ...(r.src ? { src: safeId(r.src) } : {}), ...(Array.isArray(r.items) && r.items.length ? { items: r.items.map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })) } : {}) }));
       doc.budgets = (Array.isArray(m.budgets) ? m.budgets : []).map(b => ({ id: safeId(b.id), label: String(b.label || '').slice(0, 80), limit: r2(b.limit) }));
       months[m.key] = doc;
@@ -1433,7 +1439,7 @@ function openPrep() {
     .catch(err => { console.error('EP fetch error', err); activePrepState = getDefaultPrepState(); renderPrepView(); });
 }
 function getDefaultPrepState() {
-  return { members:[], pantryItems:[], storageItems:[], waterItems:[], purifierItems:[], pantryGoal:7, storageGoal:30, waterGoal:14, cash:0, debts:0, financeGoal:3, solarWh:0, solarAgeYears:0, batteryWh:0, consumptionWh:0, goBags:[] };
+  return { members:[], pantryItems:[], storageItems:[], waterItems:[], purifierItems:[], pantryGoal:7, storageGoal:30, waterGoal:14, financeGoal:3, solarWh:0, solarAgeYears:0, batteryWh:0, consumptionWh:0, goBags:[] };
 }
 function renderPrepView() {
   const body = dlg && dlg.querySelector('.dlg-body');
@@ -1455,13 +1461,18 @@ function prepBody() {
   const deepStorageCals = (s.storageItems||[]).reduce((sum, it) => sum + (it.calsPer||0)*(it.qty||0), 0);
   const pantryDays = dailyCalsNeed > 0 ? (pantryCals / dailyCalsNeed).toFixed(1) : 0;
   const storageDays = dailyCalsNeed > 0 ? (deepStorageCals / dailyCalsNeed).toFixed(1) : 0;
-  const runway = s.debts > 0 ? (s.cash / s.debts).toFixed(1) : '∞';
+  const balKey2 = [...sortedKeys()].reverse().find(k => (S.months[k].savings||[]).length);
+  const liquidCash = balKey2 ? (S.months[balKey2].savings||[]).reduce((sum, r) => sum + (r.amount||0), 0) : 0;
+  const curKey2 = currentKey() || sortedKeys().slice(-1)[0];
+  const epLines = curKey2 ? (S.months[curKey2].expenses||[]).filter(l => l.ep) : [];
+  const monthlyDebts = epLines.reduce((sum, l) => sum + lineAmt(l), 0);
+  const runway = monthlyDebts > 0 ? (liquidCash / monthlyDebts).toFixed(1) : (liquidCash > 0 ? '∞' : '—');
   const degradedSolarWh = s.solarWh * Math.pow(0.995, s.solarAgeYears);
   const netDraw = s.consumptionWh - degradedSolarWh;
   const gridStatus = netDraw <= 0 && degradedSolarWh > 0 ? 'Infinite (Solar Surplus)' : (netDraw > 0 && s.batteryWh > 0 ? (s.batteryWh / netDraw).toFixed(1) + ' Hrs' : 'No Backup');
   const membersHTML = (s.members||[]).map((m, i) => `<div class="prep-row"><span class="prep-lbl">${esc(m.name)} (Age: ${m.age})</span><button data-act="prep-del-member" data-idx="${i}" class="prep-btn-small">×</button></div>`).join('');
-  const bagsHTML = (s.goBags||[]).map((b, i) => `<div class="prep-row${b.weight > 35 ? ' prep-warn' : ''}"><span class="prep-lbl">${esc(b.owner)}'s Bag (${b.weight}lbs) – ${b.foodDays}d Food / ${b.waterDays}d H₂O</span><button data-act="prep-del-bag" data-idx="${i}" class="prep-btn-small">×</button></div>`).join('');
-  const card = (key, title, body, summary) => { const col = prepCollapsed[key]; return `<div class="prep-card"><div class="prep-sec-title"><span>${title}</span><button class="prep-collapse-btn" data-act="prep-collapse" data-section="${key}">${col ? '▶' : '▼'}</button></div>${col ? `<div class="prep-summary">${summary}</div>` : body}</div>`; };
+  const bagsHTML = (s.goBags||[]).map((b, i) => { const bfc=(b.foodItems||[]).reduce((s,it)=>s+(it.cals||0)*(it.qty||0),0); const bfd=(bfc/2000).toFixed(1); const bwd=((b.waterGal||0)/1).toFixed(1); const surv=Math.min(parseFloat(bfd),parseFloat(bwd)).toFixed(1); return `<div class="prep-row"><span class="prep-lbl">${esc(b.owner||'Unnamed')}</span><span class="prep-food-summary">${b.weight||0}lbs · ${surv}d survival</span><button data-act="prep-open-bag" data-idx="${i}" class="prep-btn-small">Edit →</button><button data-act="prep-del-bag" data-idx="${i}" class="prep-btn-small">×</button></div>`; }).join('');
+  const card = (key, title, body, summary) => { const col = prepCollapsed[key]; return `<div class="prep-card"><div class="prep-sec-title" data-act="prep-collapse" data-section="${key}"><span>${title}</span><span class="prep-collapse-arrow">${col ? '▶' : '▼'}</span></div>${col ? `<div class="prep-summary">${summary}</div>` : body}</div>`; };
   return `
     ${card('roster','Household Roster',`
       ${membersHTML}
@@ -1490,18 +1501,13 @@ function prepBody() {
       <div class="prep-row"><label class="prep-lbl">Battery Cap. (Wh)</label><input type="number" id="p-batt" class="prep-input" value="${s.batteryWh}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-stat">Battery Runtime<span>${gridStatus}</span></div>`,`<div class="prep-stat">Battery Runtime<span>${gridStatus}</span></div>`)}
     ${card('finance','Financial Runway',`
-      <div class="prep-row"><label class="prep-lbl">Liquid Cash ($)</label><input type="number" id="p-cash" class="prep-input" value="${s.cash}" onchange="window.syncPrepInputs()"></div>
-      <div class="prep-row"><label class="prep-lbl">Monthly Debts ($)</label><input type="number" id="p-debts" class="prep-input" value="${s.debts}" onchange="window.syncPrepInputs()"></div>
-      <div class="prep-stat">Runway<span>${runway} / ${s.financeGoal} Months</span></div>`,`<div class="prep-stat">Runway<span>${runway} / ${s.financeGoal} Months</span></div>`)}
+      <div class="prep-row"><span class="prep-lbl">Liquid Cash</span><span class="prep-food-summary">from Balances · ${balKey2 ? shortMonth(balKey2) : 'none'}</span><span class="prep-food-total">${fmt(liquidCash)}</span></div>
+      <div class="prep-row"><span class="prep-lbl">Monthly Debts</span><span class="prep-food-summary">${epLines.length} EP-tagged line${epLines.length !== 1 ? 's' : ''}</span><span class="prep-food-total">${fmt(monthlyDebts)}</span></div>
+      <div class="prep-row"><label class="prep-lbl">Goal (Months)</label><input type="number" id="p-fin-goal" class="prep-input" value="${s.financeGoal||3}" onchange="window.syncPrepInputs()"></div>
+      <div class="prep-stat">Runway<span>${runway} / ${s.financeGoal||3} Months</span></div>`,`<div class="prep-stat">Runway<span>${runway} / ${s.financeGoal||3} Months</span></div>`)}
     ${card('bags','Evacuation Fleet (Go-Bags)',`
       ${bagsHTML}
-      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">
-        <input type="text" id="new-bag-owner" class="prep-input" placeholder="Owner" style="flex:2">
-        <input type="number" id="new-bag-wt" class="prep-input" placeholder="Lbs" style="width:50px">
-        <input type="number" id="new-bag-food" class="prep-input" placeholder="Food(d)" style="width:60px">
-        <input type="number" id="new-bag-water" class="prep-input" placeholder="H₂O(d)" style="width:60px">
-        <button data-act="prep-add-bag" class="prep-btn-small" style="width:100%;margin-top:2px">+ Add Go-Bag</button>
-      </div>`,`<div class="prep-stat">Go-bags<span>${(s.goBags||[]).length} bag${(s.goBags||[]).length !== 1 ? 's' : ''}</span></div>`)}
+      <button data-act="prep-new-bag" class="prep-btn-small" style="width:100%;margin-top:4px">+ Add Go-Bag</button>`,`<div class="prep-stat">Go-bags<span>${(s.goBags||[]).length} bag${(s.goBags||[]).length !== 1 ? 's' : ''}</span></div>`)}
   `;
 }
 window.syncPrepInputs = function() {
@@ -1513,9 +1519,66 @@ window.syncPrepInputs = function() {
   activePrepState.solarWh = g('p-solar');
   activePrepState.solarAgeYears = g('p-solar-age');
   activePrepState.batteryWh = g('p-batt');
-  activePrepState.cash = g('p-cash');
-  activePrepState.debts = g('p-debts');
+  activePrepState.financeGoal = Number(dlg && dlg.querySelector('#p-fin-goal') ? dlg.querySelector('#p-fin-goal').value : 0) || activePrepState.financeGoal || 3;
   renderPrepView();
+  Store.markPrep();
+};
+function openBagDetail(idx) {
+  dialogCtx = { sec: 'prep-bag', bagIdx: idx };
+  const bag = (activePrepState.goBags||[])[idx] || {};
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>${esc(bag.owner)||'Go-Bag'}</h2><span class="muted" style="font-size:13px">Contents & survival estimate</span></div></div>
+    <div class="dlg-body prep-container" id="bag-detail-body"></div>`);
+  dlg.style.maxWidth = '375px';
+  renderBagDetailView();
+}
+function renderBagDetailView() {
+  const body = dlg && (dlg.querySelector('#bag-detail-body') || dlg.querySelector('.dlg-body'));
+  if (!body || dialogCtx.sec !== 'prep-bag') return;
+  const idx = dialogCtx.bagIdx;
+  const bag = (activePrepState.goBags||[])[idx] || {};
+  const foodCals = (bag.foodItems||[]).reduce((s, it) => s + (it.cals||0)*(it.qty||0), 0);
+  const foodDays = (foodCals / 2000).toFixed(1);
+  const waterDays = ((bag.waterGal||0) / 1).toFixed(1);
+  const survival = Math.min(parseFloat(foodDays), parseFloat(waterDays)).toFixed(1);
+  const limitedBy = parseFloat(foodDays) <= parseFloat(waterDays) ? 'food' : 'water';
+  const foodRows = (bag.foodItems||[]).map((it, i) => `<div class="prep-food-row"><span class="prep-food-name">${esc(it.name)}</span><span class="prep-food-meta">${it.cals} cal · ×${it.qty}</span><span class="prep-food-total">${((it.cals||0)*(it.qty||0)).toLocaleString()} cal</span><button data-act="prep-del-bag-food" data-idx="${i}" class="prep-btn-small">×</button></div>`).join('');
+  const scrollTop = body.scrollTop;
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="prep-row"><label class="prep-lbl">Owner</label><input type="text" id="bag-owner" class="prep-input" value="${esc(bag.owner||'')}" placeholder="Name" style="width:160px" oninput="window.syncBag()"></div>
+      <div class="prep-row"><label class="prep-lbl">Pack weight (lbs)</label><input type="number" id="bag-weight" class="prep-input" value="${bag.weight||0}" oninput="window.syncBag()"></div>
+      <div class="prep-row"><label class="prep-lbl">Water (gallons)</label><input type="number" id="bag-water" class="prep-input" value="${bag.waterGal||0}" step="0.1" oninput="window.syncBag()"></div>
+    </div>
+    <div style="border-top:1px solid var(--accent-line);padding-top:10px;margin-top:10px">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;color:var(--ink-2);margin-bottom:8px">Food Items</div>
+      ${foodRows || '<div class="faint" style="padding:6px 0;text-align:center;font-size:13px">No food items yet</div>'}
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;border-top:1px dashed var(--accent-line);padding-top:8px">
+        <div class="prep-row"><label class="prep-lbl">Item name</label><input type="text" id="bag-food-name" class="prep-input" placeholder="MRE" style="width:140px"></div>
+        <div class="prep-row"><label class="prep-lbl">Calories</label><input type="number" id="bag-food-cals" class="prep-input" placeholder="1200"></div>
+        <div class="prep-row"><label class="prep-lbl">Quantity</label><input type="number" id="bag-food-qty" class="prep-input" placeholder="3"></div>
+        <button data-act="prep-add-bag-food" class="prep-btn-small" style="width:100%">+ Add Food Item</button>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--accent-line);padding-top:10px;margin-top:8px">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;color:var(--ink-2);margin-bottom:6px">Survival Estimate</div>
+      <div class="prep-stat">Food supply<span>${foodDays} days (${foodCals.toLocaleString()} cal)</span></div>
+      <div class="prep-stat">Water supply<span>${waterDays} days (${(bag.waterGal||0).toFixed(1)} gal)</span></div>
+      <div class="prep-stat" style="border-top:2px solid var(--accent-line);padding-top:8px;margin-top:4px;font-size:13px">Survival runway<span style="font-size:14px">${survival} days (limited by ${limitedBy})</span></div>
+    </div>
+  `;
+  body.scrollTop = scrollTop;
+}
+window.syncBag = function() {
+  const idx = dialogCtx.bagIdx;
+  if (idx == null || !(activePrepState.goBags||[])[idx]) return;
+  const bag = activePrepState.goBags[idx];
+  const o = dlg && dlg.querySelector('#bag-owner');
+  const w = dlg && dlg.querySelector('#bag-weight');
+  const wa = dlg && dlg.querySelector('#bag-water');
+  if (o) bag.owner = o.value;
+  if (w) bag.weight = Number(w.value)||0;
+  if (wa) bag.waterGal = Number(wa.value)||0;
+  renderBagDetailView();
   Store.markPrep();
 };
 function openWaterItems(type) {
@@ -1917,8 +1980,9 @@ function lineHTML(key, colKey, l) {
   return `<div class="row" data-line="${l.id}" data-col="${colKey}">
     <input type="text" id="f-${l.id}-label" data-f="label" value="${esc(l.label)}" placeholder="Label" aria-label="Line label" enterkeyhint="next" autocomplete="off">
     ${hasItems ? `<span class="calc num" data-line-amt="${l.id}" data-act="toggle-items" title="Sum of ${l.items.length} items — click to see them">${fmt(lineAmt(l))}</span>`
-               : `<span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${l.id}-amount" data-f="amount" value="${fmtIn(l.amount)}" aria-label="Amount" enterkeyhint="next" autocomplete="off">${undoBtn(`f-${l.id}-amount`)}</span>`}
+               : `<span class="amtw"><input type="text" inputmode="decimal" class="amt${l.amount === 0 ? ' amt-zero' : ''}" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${l.id}-amount" data-f="amount" value="${fmtIn(l.amount)}" aria-label="Amount" enterkeyhint="next" autocomplete="off">${undoBtn(`f-${l.id}-amount`)}</span>`}
     ${colKey === 'wealth' ? `<button class="icon pre ${l.pre ? 'on' : ''}" data-act="pre-toggle" title="${l.pre === 2 ? 'The principal is already paid inside another payment, like the mortgage — not counted against the bank account again. Tap to change.' : l.pre ? 'Comes straight out of a paycheck — not counted against the bank account. Tap to change.' : 'Tap once if this comes straight out of a paycheck, twice if it is already paid inside another payment (like mortgage principal)'}">${l.pre === 2 ? ICON.home : ICON.pay}</button>` : ''}
+    ${colKey === 'expenses' ? `<button class="icon ep-btn ${l.ep ? 'on' : ''}" data-act="ep-toggle" title="${l.ep ? 'Counts toward EP monthly debts — tap to remove' : 'Tap to mark as mandatory monthly expense for EP'}" style="font-size:9px;font-weight:800;letter-spacing:-.5px">EP</button>` : ''}
     <button class="icon ${open||hasItems?'on':''}" data-act="toggle-items" title="${hasItems?'Breakdown items':'Break this line into items'}">${ICON.list}</button>
     <button class="icon" data-act="del-line" title="Remove line">${ICON.x}</button>
   </div>
@@ -1928,7 +1992,7 @@ function itemsHTML(colKey, l) {
   return `<div class="items" data-items="${l.id}">
     ${(l.items||[]).map(it => `<div class="row" data-item="${it.id}">
       <input type="text" id="f-${it.id}-label" data-f="ilabel" value="${esc(it.label||'')}" placeholder="e.g. paycheck, Walmart 9/14">
-      <span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${it.id}-amount" data-f="iamount" value="${fmtIn(it.amount)}" aria-label="Item amount">${undoBtn(`f-${it.id}-amount`)}</span>
+      <span class="amtw"><input type="text" inputmode="decimal" class="amt${it.amount === 0 ? ' amt-zero' : ''}" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${it.id}-amount" data-f="iamount" value="${fmtIn(it.amount)}" aria-label="Item amount">${undoBtn(`f-${it.id}-amount`)}</span>
       <button class="icon" data-act="del-item" title="Remove item">${ICON.x}</button>
     </div>${it.note?`<div class="note">${esc(it.note)}</div>`:''}`).join('')}
     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm add" data-act="add-item">${ICON.plus} Add item</button><button class="btn ghost sm" data-act="toggle-items" data-line="${l.id}" data-col="${colKey}">Hide</button></div>
@@ -2049,7 +2113,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','cards','card-tab','pt-add','pt-del','pt-kind','hsa','hsa-add','hsa-open','hsa-photo','hsa-del','hsa-rename','hsa-paid','hsa-paid-all','goals','goals-rename','goal-drop','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin','prep','prep-add-member','prep-del-member','prep-add-bag','prep-del-bag','prep-collapse','prep-open-food','prep-add-food','prep-del-food','prep-open-water','prep-add-water','prep-del-water'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','ch-add','ch-del','ch-rename','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','cards','card-tab','pt-add','pt-del','pt-kind','hsa','hsa-add','hsa-open','hsa-photo','hsa-del','hsa-rename','hsa-paid','hsa-paid-all','goals','goals-rename','goal-drop','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin','prep','prep-add-member','prep-del-member','prep-add-bag','prep-del-bag','prep-collapse','prep-open-food','prep-add-food','prep-del-food','prep-open-water','prep-add-water','prep-del-water','prep-new-bag','prep-open-bag','prep-add-bag-food','prep-del-bag-food'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -2060,9 +2124,12 @@ async function onAction(e) {
     case 'prep': openPrep(); break;
     case 'prep-add-member': { const n = dlg.querySelector('#new-mem-name').value.trim(), a = Number(dlg.querySelector('#new-mem-age').value); window.syncPrepInputs(); if (n && a >= 0) { activePrepState.members.push({name:n, age:a}); renderPrepView(); Store.markPrep(); } break; }
     case 'prep-del-member': { window.syncPrepInputs(); activePrepState.members.splice(Number(t.dataset.idx), 1); renderPrepView(); Store.markPrep(); break; }
-    case 'prep-add-bag': { const o=dlg.querySelector('#new-bag-owner').value.trim(), w=Number(dlg.querySelector('#new-bag-wt').value), fd=Number(dlg.querySelector('#new-bag-food').value), wd=Number(dlg.querySelector('#new-bag-water').value); window.syncPrepInputs(); if (o) { activePrepState.goBags.push({owner:o,weight:w,foodDays:fd,waterDays:wd}); renderPrepView(); Store.markPrep(); } break; }
-    case 'prep-del-bag': { window.syncPrepInputs(); activePrepState.goBags.splice(Number(t.dataset.idx), 1); renderPrepView(); Store.markPrep(); break; }
-    case 'prep-collapse': { const k = t.dataset.section; prepCollapsed[k] = !prepCollapsed[k]; try { localStorage.setItem('tb-prep-collapsed', JSON.stringify(prepCollapsed)); } catch(e) {} renderPrepView(); break; }
+    case 'prep-new-bag': { activePrepState.goBags = activePrepState.goBags||[]; activePrepState.goBags.push({owner:'',weight:0,foodItems:[],waterGal:0}); const ni=activePrepState.goBags.length-1; openBagDetail(ni); break; }
+    case 'prep-open-bag': { openBagDetail(Number(t.dataset.idx)); break; }
+    case 'prep-add-bag-food': { const bn=dlg.querySelector('#bag-food-name').value.trim(), bc=Number(dlg.querySelector('#bag-food-cals').value), bq=Number(dlg.querySelector('#bag-food-qty').value)||1, bi=dialogCtx.bagIdx; if (bn && bc>0 && bi!=null) { (activePrepState.goBags[bi].foodItems=activePrepState.goBags[bi].foodItems||[]).push({name:bn,cals:bc,qty:bq}); renderBagDetailView(); Store.markPrep(); } break; }
+    case 'prep-del-bag-food': { const bi=dialogCtx.bagIdx; if (bi!=null) { (activePrepState.goBags[bi].foodItems=activePrepState.goBags[bi].foodItems||[]).splice(Number(t.dataset.idx),1); renderBagDetailView(); Store.markPrep(); } break; }
+    case 'prep-del-bag': { activePrepState.goBags.splice(Number(t.dataset.idx), 1); renderPrepView(); Store.markPrep(); break; }
+    case 'prep-collapse': { const k = (t.dataset.section || t.closest('[data-section]') && t.closest('[data-section]').dataset.section); if (!k) break; prepCollapsed[k] = !prepCollapsed[k]; try { localStorage.setItem('tb-prep-collapsed', JSON.stringify(prepCollapsed)); } catch(e) {} renderPrepView(); break; }
     case 'prep-open-food': { openFoodItems(t.dataset.foodtype); break; }
     case 'prep-add-food': { const fn=dlg.querySelector('#food-name').value.trim(), fc=Number(dlg.querySelector('#food-cals').value), fsv=dlg.querySelector('#food-serving').value.trim(), fq=Number(dlg.querySelector('#food-qty').value)||1, ft=t.dataset.foodtype; if (fn && fc>0) { const fk=ft==='pantry'?'pantryItems':'storageItems'; (activePrepState[fk]=activePrepState[fk]||[]).push({name:fn,calsPer:fc,serving:fsv||'—',qty:fq}); renderFoodItemsView(); Store.markPrep(); } break; }
     case 'prep-del-food': { const ft=t.dataset.foodtype, fk=ft==='pantry'?'pantryItems':'storageItems'; (activePrepState[fk]=activePrepState[fk]||[]).splice(Number(t.dataset.idx),1); renderFoodItemsView(); Store.markPrep(); break; }
@@ -2172,6 +2239,7 @@ async function onAction(e) {
           : next === 2 ? `Marked as principal already paid inside another payment${n > 1 ? ' in ' + n + ' months' : ''} — still money put away, never charged twice`
           : `Counted as paid from the bank account again${n > 1 ? ' in all ' + n + ' months' : ''}`, 4200);
       break; }
+    case 'ep-toggle': { const row = t.closest('[data-line]'); const l = row && (S.months[key].expenses||[]).find(x => x.id === row.dataset.line); if (!l) break; const next = !l.ep, name = norm(l.label); let n = 0; const set = x => { if (next) x.ep = true; else delete x.ep; n++; }; if (!name) { set(l); Store.markDirty(key); } else for (const k of sortedKeys()) for (const x of (S.months[k].expenses||[])) if (norm(x.label) === name) { set(x); Store.markDirty(k); } refreshEditor(); updateTotals(key); toast(next ? `Marked as mandatory EP expense${n > 1 ? ' in all ${n} months' : ''}` : `Removed from EP mandatory expenses${n > 1 ? ' in all ${n} months' : ''}`, 4200); break; }
     case 'del-line': { const row = t.closest('[data-line]'); const col = row.dataset.col; const l = findLine(key, col, row.dataset.line); if (!l) break; if ((lineAmt(l) || l.label) && !(await ask(`Remove “${l.label||'this line'}”${lineAmt(l)?` (${fmt(lineAmt(l))})`:''} from ${COLS.find(c=>c.key===col).title}?`, 'Remove'))) break; const cur = S.months[key]; if (!cur) break; cur[col] = (cur[col]||[]).filter(x=>x.id!==l.id); Store.markDirty(key); render(); break; }
     case 'toggle-items': { const row = t.closest('[data-line]'); const l = findLine(key, row.dataset.col, row.dataset.line); if (!l) break; S.view[l.id] = !S.view[l.id]; if (S.view[l.id] && !(l.items&&l.items.length) && l.amount) { l.items = [{id:uid(), label:'', amount:l.amount}]; Store.markDirty(key); } render(); break; }
     case 'add-item': { const wrap = t.closest('[data-items]'); const col = t.closest('[data-col]').dataset.col; const l = findLine(key, col, wrap.dataset.items); if (!l) break; l.items = l.items||[]; const it = {id:uid(), label:'', amount:0}; l.items.push(it); Store.markDirty(key); render(); const inp = $('#f-'+it.id+'-label'); if (inp) inp.focus(); break; }
@@ -2556,9 +2624,9 @@ function showCalcbar(inp) {
   if (host.classList.contains('bud-form')) { calcbar.style.gridColumn = '1 / -1'; host.appendChild(calcbar); } else host.insertAdjacentElement('afterend', calcbar);
 }
 function hideCalcbar() { if (calcbar) { calcbar.remove(); calcbar = null; } }
-document.addEventListener('focusin', e => { const t = e.target; if (!t.matches || !t.matches('input.amt')) return; amtStart = t.id ? fmtIn(parseNum(t.value)) : null; if (parseNum(t.value) === 0) t.value = ''; else setTimeout(() => { try { t.select(); } catch (err) {} }, 0); if (isTouch()) showCalcbar(t); });
+document.addEventListener('focusin', e => { const t = e.target; if (!t.matches || !t.matches('input.amt')) return; t.classList.remove('amt-zero'); amtStart = t.id ? fmtIn(parseNum(t.value)) : null; if (parseNum(t.value) === 0) t.value = ''; else setTimeout(() => { try { t.select(); } catch (err) {} }, 0); if (isTouch()) showCalcbar(t); });
 document.addEventListener('focusout', e => { const t = e.target; if (t.matches && t.matches('.ch-title-inp')) { const span = document.createElement('span'); span.dataset.churchTitle = ''; span.textContent = churchTitle(); t.replaceWith(span); } });
-document.addEventListener('focusout', e => { const t = e.target; if (!t.matches || !t.matches('input.amt')) return; if (t.value.trim() === '') t.value = '0'; recordUndo(t); });
+document.addEventListener('focusout', e => { const t = e.target; if (!t.matches || !t.matches('input.amt')) return; if (t.value.trim() === '') t.value = '0'; recordUndo(t); t.classList.toggle('amt-zero', parseNum(t.value) === 0); });
 document.addEventListener('click', e => { if (isTouch() && e.target.matches && e.target.matches('input.amt') && !(calcbar && calcbar.previousElementSibling && calcbar.previousElementSibling.contains(e.target))) showCalcbar(e.target); });
 document.addEventListener('focusout', e => { if (e.target.matches && e.target.matches('input.amt')) setTimeout(() => { if (!document.activeElement || !document.activeElement.matches('input.amt')) hideCalcbar(); }, 80); });
 
@@ -2597,7 +2665,7 @@ function openRestore() {
   openCharts = (chart, key, keepTable) => keepTable ? charts(chart, key, keepTable) : navOpen(charts, [chart, key]);
   openTrends = wrap(openTrends); openBalances = wrap(openBalances); openEditor = wrap(openEditor);
   openChurch = wrap(openChurch); openYearOutlook = wrap(openYearOutlook); openOutlook = wrap(openOutlook);
-  openFeedback = wrap(openFeedback); openYear = wrap(openYear); openRetire = wrap(openRetire); openPrep = wrap(openPrep); openFoodItems = wrap(openFoodItems); openWaterItems = wrap(openWaterItems);
+  openFeedback = wrap(openFeedback); openYear = wrap(openYear); openRetire = wrap(openRetire); openPrep = wrap(openPrep); openFoodItems = wrap(openFoodItems); openWaterItems = wrap(openWaterItems); openBagDetail = wrap(openBagDetail);
   openImportPick = wrap(openImportPick); openImport = wrap(openImport); openAsk = wrap(openAsk); openShare = wrap(openShare); openCards = wrap(openCards); openHsa = wrap(openHsa); openGoals = wrap(openGoals); openHsaPhoto = wrap(openHsaPhoto); openBonuses = wrap(openBonuses); openPoints = wrap(openPoints); openNewMonth = wrap(openNewMonth);
   confirmDelete = wrap(confirmDelete); openRestore = wrap(openRestore);
 }
