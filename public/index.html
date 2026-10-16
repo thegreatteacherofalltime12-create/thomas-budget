@@ -1068,7 +1068,7 @@ function renderHome() {
   </section>
 
   <section class="section">
-    <div class="sec-head"><h2>Past spreadsheets</h2><span class="muted">${keys.length} on record</span><span class="sp"></span><span class="sec-btns"><button class="btn sm" data-act="new-month">${ICON.plus} New month</button><button class="btn sm" data-act="prep">EP</button><button class="btn sm" data-act="year">${new Date().getFullYear()} outlook</button><button class="btn sm" data-act="retire">Retirement</button><button class="btn sm" data-act="balances">Balances</button></span></div>
+    <div class="sec-head"><h2>Past spreadsheets</h2><span class="muted">${keys.length} on record</span><span class="sp"></span><span class="sec-btns"><button class="btn sm" data-act="new-month">${ICON.plus} New month</button><button class="btn sm" data-act="prep">EP</button><button class="btn sm" data-act="year">${new Date().getFullYear()}</button><button class="btn sm" data-act="retire">Retirement</button><button class="btn sm" data-act="balances">Balances</button></span></div>
     <div class="card pick"><label for="year-pick">Choose a year</label><select id="year-pick" class="sel" data-f="yearpick" aria-label="Choose a year"><option value="">Choose…</option>${[...new Set(keys.map(k => k.slice(0,4)))].sort().reverse().map(y => `<option value="${y}">${y} · ${keys.filter(k => k.startsWith(y)).length} month${keys.filter(k => k.startsWith(y)).length===1?'':'s'}</option>`).join('')}</select></div>
   </section>
 
@@ -2122,7 +2122,7 @@ async function onAction(e) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
     case 'edit': openEditor(key, t.dataset.sec); break;
     case 'outlook': openOutlook(key); break;
-    case 'balances': openBalances(t.dataset.key || key); break;
+    case 'balances': openBalances(t.dataset.key || key || sortedKeys().slice(-1)[0]); break;
     case 'nav-back': navBack(); break;
     case 'prep': openPrep(); break;
     case 'prep-add-member': { const n = dlg.querySelector('#new-mem-name').value.trim(), a = Number(dlg.querySelector('#new-mem-age').value); window.syncPrepInputs(); if (n && a >= 0) { activePrepState.members.push({name:n, age:a}); renderPrepView(); Store.markPrep(); } break; }
