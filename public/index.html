@@ -493,7 +493,7 @@ card-bonus-tracker::part(title){display:none}
 .goal{padding:12px 6px;border-bottom:1px solid var(--line)}.goal:last-child{border-bottom:0}
 .goal-top{display:flex;justify-content:space-between;align-items:center;gap:10px}.goal-name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .goal-name-inp{font-weight:600;flex:1;min-width:0;border:1px solid transparent;border-radius:6px;padding:3px 6px;background:transparent;color:var(--ink);font-size:inherit;font-family:inherit}
-.goal-t{display:flex;align-items:center;gap:6px;flex:none}.goal-t .muted{font-size:12px}.goal-t input{width:30px;text-align:right;font:inherit;font-weight:500;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.goal-t{display:flex;align-items:center;gap:6px;flex:none}.goal-t .muted{font-size:12px}.goal-t input{min-width:2ch;width:2ch;text-align:right;font:inherit;font-weight:500;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
 .goal-bar{height:12px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin:8px 0 5px}.goal-bar span{display:block;height:100%;border-radius:99px;background:var(--s-wealth);transition:width .25s}.goal-bar span.done{background:var(--good)}
 .goal-sub{font-size:12.5px;color:var(--ink-3)}.link-btn{border:0;background:none;color:var(--accent);padding:0;font:inherit;text-decoration:underline;cursor:pointer}
 .sec-btns{display:flex;gap:4px;flex-wrap:nowrap}.sec-btns .btn{flex:1;min-width:0;padding:6px 5px;font-size:12px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sec-btns [data-act=prep]{flex:0 0 auto;font-size:12px;padding:6px 8px}.sec-btns [data-act=new-month]{flex:0 0 auto}
@@ -2637,6 +2637,7 @@ function showCalcbar(inp) {
   if (host.classList.contains('bud-form')) { calcbar.style.gridColumn = '1 / -1'; host.appendChild(calcbar); } else host.insertAdjacentElement('afterend', calcbar);
 }
 function hideCalcbar() { if (calcbar) { calcbar.remove(); calcbar = null; } }
+document.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.f === 'goal-target') { t.style.width = Math.max(2, t.value.length || 1) + 'ch'; } });
 document.addEventListener('focusin', e => { const t = e.target; if (!t.matches || !t.matches('input.amt')) return; t.classList.remove('amt-zero'); amtStart = t.id ? fmtIn(parseNum(t.value)) : null; if (parseNum(t.value) === 0) t.value = ''; if (isTouch()) showCalcbar(t); });
 document.addEventListener('focusout', e => { const t = e.target; if (t.matches && t.matches('.ch-title-inp')) { const span = document.createElement('span'); span.dataset.churchTitle = ''; span.textContent = churchTitle(); t.replaceWith(span); } });
 document.addEventListener('focusout', e => { const t = e.target; if (!t.matches || !t.matches('input.amt')) return; if (t.value.trim() === '') t.value = '0'; recordUndo(t); t.classList.toggle('amt-zero', parseNum(t.value) === 0); });
@@ -2806,7 +2807,7 @@ function goalsHead() { const s = goalsSummary(); return s.n ? `${s.n} goal${s.n 
 function goalsBody() {
   const s = goalsSummary();
   return `<div class="goal-list">${s.list.map(g => `<div class="goal" data-gk="${esc(g.k)}">
-      <div class="goal-top"><input type="text" class="goal-name-inp" data-f="goal-name" value="${esc(g.label)}" placeholder="Goal name" autocomplete="off"><span class="amtw goal-t"><span class="muted">goal</span><input type="text" inputmode="decimal" class="amt" data-simple-calc="1" id="f-goal-${esc(g.k.replace(/[^a-z0-9]/g, '_'))}" data-f="goal-target" value="${fmtIn(g.target)}" placeholder="0" aria-label="Goal amount for ${esc(g.label)}">${undoBtn(`f-goal-${g.k.replace(/[^a-z0-9]/g, '_')}`)}</span></div>
+      <div class="goal-top"><input type="text" class="goal-name-inp" data-f="goal-name" value="${esc(g.label)}" placeholder="Goal name" autocomplete="off"><span class="amtw goal-t"><span class="muted">goal</span><input type="text" inputmode="decimal" class="amt" data-simple-calc="1" id="f-goal-${esc(g.k.replace(/[^a-z0-9]/g, '_'))}" data-f="goal-target" value="${fmtIn(g.target)}" placeholder="0" aria-label="Goal amount for ${esc(g.label)}" style="width:${Math.max(2,fmtIn(g.target).length)}ch">${undoBtn(`f-goal-${g.k.replace(/[^a-z0-9]/g, '_')}`)}</span></div>
       <div class="goal-bar"><span style="width:${goalPct(g)}%" class="${g.target && g.have >= g.target ? 'done' : ''}"></span></div>
       <div class="goal-sub"><span data-goal-line>${esc(goalLine(g))}</span>${g.missing ? ' · <b class="neg">not in Savings in Cash anymore</b> <button class="link-btn" data-act="goal-drop" data-gk="' + esc(g.k) + '">remove</button>' : g.month ? ` · as of ${esc(monthLabel(g.month))}` : ''}</div>
     </div>`).join('') || '<div class="faint" style="padding:12px 8px;font-size:12.5px">No savings goals yet. Open a month → Balances → Savings in Cash, and tap the target icon on a line — it shows up here as a bar.</div>'}</div>
