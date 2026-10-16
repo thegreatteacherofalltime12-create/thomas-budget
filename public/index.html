@@ -312,7 +312,7 @@ h3{font-size:16px;font-weight:700}
 .badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:1px 7px;font-weight:600;border:0;white-space:nowrap}
 .badge:hover{filter:brightness(.95)}
 .col-body.bal .row{grid-template-columns:minmax(0,1fr) 100px 22px 22px}
-.col-body.bal[data-bal=savings] .row{grid-template-columns:minmax(0,1fr) 92px 22px 22px 26px}
+.col-body.bal[data-bal=savings] .row{grid-template-columns:minmax(0,1fr) 92px 22px 22px}
 .notes{margin-top:20px}
 .notes textarea{width:100%;min-height:72px;resize:vertical;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:10px 12px}
 
@@ -428,7 +428,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1p
   .items .row input{font-size:16px;padding:7px 8px}
   .row[data-col=expenses]{grid-template-columns:minmax(0,1fr) 96px 36px 36px 36px}
   .col-body.bal .row{grid-template-columns:minmax(0,1fr) 96px 30px 30px}
-  .col-body.bal[data-bal=savings] .row{grid-template-columns:minmax(0,1fr) 86px 28px 28px 36px}
+  .col-body.bal[data-bal=savings] .row{grid-template-columns:minmax(0,1fr) 86px 28px 28px}
   .bud-row{grid-template-columns:minmax(0,1fr) auto 100px 36px}
   .bud-form{grid-template-columns:1fr} .bud-form input,.bud-form .sel{font-size:16px}
   .btn{padding:11px 16px;min-height:44px} .btn.sm{padding:9px 13px;min-height:40px}
@@ -493,7 +493,7 @@ card-bonus-tracker::part(title){display:none}
 .goal{padding:12px 6px;border-bottom:1px solid var(--line)}.goal:last-child{border-bottom:0}
 .goal-top{display:flex;justify-content:space-between;align-items:center;gap:10px}.goal-name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .goal-name-inp{font-weight:600;flex:1;min-width:0;border:1px solid transparent;border-radius:6px;padding:3px 6px;background:transparent;color:var(--ink);font-size:inherit;font-family:inherit}
-.goal-t{display:flex;align-items:center;gap:6px;flex:none}.goal-t .muted{font-size:12px}.goal-t input{width:40px;text-align:right;font:inherit;font-weight:500;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.goal-t{display:flex;align-items:center;gap:6px;flex:none}.goal-t .muted{font-size:12px}.goal-t input{width:30px;text-align:right;font:inherit;font-weight:500;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
 .goal-bar{height:12px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin:8px 0 5px}.goal-bar span{display:block;height:100%;border-radius:99px;background:var(--s-wealth);transition:width .25s}.goal-bar span.done{background:var(--good)}
 .goal-sub{font-size:12.5px;color:var(--ink-3)}.link-btn{border:0;background:none;color:var(--accent);padding:0;font:inherit;text-decoration:underline;cursor:pointer}
 .sec-btns{display:flex;gap:4px;flex-wrap:nowrap}.sec-btns .btn{flex:1;min-width:0;padding:6px 5px;font-size:12px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sec-btns [data-act=prep]{flex:0 0 auto;font-size:12px;padding:6px 8px}.sec-btns [data-act=new-month]{flex:0 0 auto}
@@ -1274,7 +1274,6 @@ function editorBody(key, sec) {
       ${!app && r.items && r.items.length ? `<span class="calc num" data-line-amt="${r.id}" data-act="toggle-items" title="Sum of ${r.items.length} items — click to see them">${fmt(lineAmt(r))}</span>` : `<span class="amtw"><input type="text" inputmode="decimal" class="amt" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${r.id}-amount" data-f="bamount" value="${fmtIn(r.amount)}" aria-label="Balance" enterkeyhint="next" autocomplete="off">${undoBtn(`f-${r.id}-amount`)}</span>`}
       ${app ? '' : `<button class="icon ${(S.view[r.id] || (r.items && r.items.length)) ? 'on' : ''}" data-act="toggle-items" title="${r.items && r.items.length ? 'Breakdown items' : 'Break this balance into items, e.g. one per deposit'}">${ICON.list}</button>`}
       <button class="icon" data-act="del-bal" title="Remove">${ICON.x}</button>
-      ${sec === 'savings' ? `<button class="icon pre ${goalsMap()[norm(r.label)] ? 'on' : ''}" data-act="goal-toggle" title="${goalsMap()[norm(r.label)] ? 'A savings goal — tap to stop tracking it' : 'Tap to track this as a savings goal'}" aria-label="Savings goal">${ICON.goal}</button>` : ''}
       ${app ? `<span class="tags"><button class="tag ${rowKind(r)}" data-act="bal-kind" title="What this row is — tap to change">${KIND_LABEL[rowKind(r)]}</button>${rowKind(r) === 'owed' ? principalCell(m, r) : ''}</span>` : ''}</div>${!app && S.view[r.id] ? itemsHTML(sec, r) : ''}`).join('') || `<div class="faint" style="padding:10px 8px;font-size:12.5px">${esc(s.hint)}.</div>`}</div>`;
 }
 /* End-of-month outlook. Start from what last month left over; assume every income, expense and
@@ -1996,6 +1995,7 @@ function itemsHTML(colKey, l) {
       <input type="text" id="f-${it.id}-label" data-f="ilabel" value="${esc(it.label||'')}" placeholder="e.g. paycheck, Walmart 9/14">
       <span class="amtw"><input type="text" inputmode="decimal" class="amt${it.amount === 0 ? ' amt-zero' : ''}" placeholder="0" title="You can type math here, e.g. 45+30.50" id="f-${it.id}-amount" data-f="iamount" value="${fmtIn(it.amount)}" aria-label="Item amount">${undoBtn(`f-${it.id}-amount`)}</span>
       <button class="icon" data-act="del-item" title="Remove item">${ICON.x}</button>
+      ${colKey === 'savings' ? `<button class="icon pre ${goalsMap()[norm(it.label||'')] ? 'on' : ''}" data-act="goal-toggle" title="${goalsMap()[norm(it.label||'')] ? 'A savings goal — tap to stop' : 'Track this item as a savings goal'}" aria-label="Savings goal">${ICON.goal}</button>` : ''}
     </div>${it.note?`<div class="note">${esc(it.note)}</div>`:''}`).join('')}
     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm add" data-act="add-item">${ICON.plus} Add item</button><button class="btn ghost sm" data-act="toggle-items" data-line="${l.id}" data-col="${colKey}">Hide</button></div>
     ${(l.items||[]).length ? `<div class="note">The line amount is the sum of these items.</div>` : `<div class="note">Add items and the line total is calculated for you.</div>`}
@@ -2152,9 +2152,19 @@ async function onAction(e) {
     case 'goals': openGoals(); break;
     case 'goal-drop': { delete goalsMap()[t.dataset.gk]; Store.markGoals(); refreshEditor(); requestRender(); break; }
     case 'goals-rename': { const span = $('[data-goals-title]', dlg); if (!span) break; const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'ch-title-inp'; inp.dataset.f = 'goals-title'; inp.maxLength = 60; inp.value = goalsTitle(); inp.setAttribute('aria-label', 'Name'); inp.autocomplete = 'off'; span.replaceWith(inp); inp.focus(); inp.select(); break; }
-    case 'goal-toggle': { const row = t.closest('[data-brow]'), r = row && (m.savings || []).find(x => x.id === row.dataset.brow); if (!r) break;
-      const k = norm(r.label); if (!k) { toast('Give the line a name first'); break; }
-      const gm = goalsMap(); if (gm[k]) { delete gm[k]; toast('No longer a savings goal'); } else { gm[k] = { label: r.label.trim(), target: 0 }; toast(`${r.label.trim()} added to ${goalsTitle()} — set its goal amount there`, 4000); }
+    case 'goal-toggle': {
+      const itemRow = t.closest('[data-item]'), itemWrap = t.closest('[data-items]');
+      let k, displayLabel;
+      if (itemRow && itemWrap) {
+        const parentL = (m.savings||[]).find(x => x.id === itemWrap.dataset.items);
+        const it = parentL && (parentL.items||[]).find(x => x.id === itemRow.dataset.item);
+        if (!it) break; k = norm(it.label); displayLabel = it.label.trim();
+      } else {
+        const row = t.closest('[data-brow]'), r = row && (m.savings || []).find(x => x.id === row.dataset.brow); if (!r) break;
+        k = norm(r.label); displayLabel = r.label.trim();
+      }
+      if (!k) { toast('Give the item a name first'); break; }
+      const gm = goalsMap(); if (gm[k]) { delete gm[k]; toast('No longer a savings goal'); } else { gm[k] = { label: displayLabel, target: 0 }; toast(`${displayLabel} added to ${goalsTitle()} — set its goal amount there`, 4000); }
       Store.markGoals(); refreshEditor(); requestRender(); break; }
     case 'hsa-add': pickHsaPhoto(); break;
     case 'hsa-open': { const id = t.dataset.hx; S.hsaOpen = S.hsaOpen === id ? null : id; refreshEditor(); break; }
@@ -2784,7 +2794,7 @@ const fingerprint = t => `${t.date}|${Math.round(Math.abs(t.amount) * 100)}|${me
    (from the latest month that has it) against a goal typed here. Kept in ledgers/goals, keyed by line name. ---------- */
 const goalsTitle = () => (S.goals.title || '').trim() || 'Savings goals';
 const goalsMap = () => { if (S.mode !== 'firebase' && !S.goalsLoaded) { try { const d = JSON.parse(localStorage.getItem('tb-goals') || '{}'); S.goals = { title: String(d.title || ''), goals: d.goals || {} }; } catch (e) {} S.goalsLoaded = true; } return S.goals.goals || (S.goals.goals = {}); };
-function goalBalance(k) { for (const m of [...sortedKeys()].reverse()) { const r = (S.months[m].savings || []).find(x => norm(x.label) === k); if (r) return { amount: lineAmt(r), key: m, label: r.label }; } return null; }
+function goalBalance(k) { for (const mk of [...sortedKeys()].reverse()) { const m = S.months[mk]; const r = (m.savings || []).find(x => norm(x.label) === k); if (r) return { amount: lineAmt(r), key: mk, label: r.label }; for (const row of (m.savings || [])) { const it = (row.items || []).find(x => norm(x.label) === k); if (it) return { amount: it.amount || 0, key: mk, label: it.label }; } } return null; }
 function goalsSummary() {
   const list = Object.entries(goalsMap()).map(([k, g]) => { const b = goalBalance(k); return { k, label: g.label || (b && b.label) || k, target: +g.target || 0, have: b ? b.amount : 0, month: b && b.key, missing: !b }; });
   const target = r2(list.reduce((s, x) => s + x.target, 0)), have = r2(list.reduce((s, x) => s + Math.min(x.have, x.target || x.have), 0));
