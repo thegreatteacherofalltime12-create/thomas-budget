@@ -538,6 +538,8 @@ card-bonus-tracker::part(title){display:none}
 .prep-food-ph{display:flex;gap:4px;flex:none}
 .prep-food-ph .prep-btn-small{display:inline-flex;align-items:center;justify-content:center;min-width:32px;min-height:32px;padding:0}
 .prep-btn-small.on{background:var(--accent);color:#fff}
+.food-copy{width:100%;text-align:left}
+.food-copy-note{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--ink-3)}
 .amt.amt-zero,.prep-input.amt-zero{background:var(--zero-hl,#fef3c7)!important;border-color:#d97706!important}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .amt.amt-zero,:root:not([data-theme=light]) .prep-input.amt-zero{background:var(--zero-hl,#451a03)!important;border-color:#d97706!important}}
 :root[data-theme=dark] .amt.amt-zero,:root[data-theme=dark] .prep-input.amt-zero{background:var(--zero-hl,#451a03)!important;border-color:#d97706!important}
@@ -1876,6 +1878,36 @@ function openFoodItems(type) {
   renderFoodItemsView();
 }
 const newFoodId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const FOOD_FIELDS = ['name', 'cals', 'serving', 'qty', 'exp'];
+function readFoodForm(body) { // what is typed in the add form, so a redraw does not wipe it
+  if (!body.querySelector('#food-name')) return null;
+  const f = {}; for (const k of FOOD_FIELDS) f[k] = body.querySelector('#food-' + k).value;
+  const c = body.querySelector('[data-f="food-copy"]'); f.copy = c ? c.value : '';
+  return f;
+}
+function writeFoodForm(body, f) {
+  for (const k of FOOD_FIELDS) { const el = body.querySelector('#food-' + k); if (el) el.value = f[k] ?? ''; }
+  const c = body.querySelector('[data-f="food-copy"]'); if (c) c.value = f.copy || '';
+}
+function foodCopyOptions() { // each distinct item from both lists, newest first, so twenty identical cans show once
+  const seen = new Set();
+  return [['pantryItems', 'Pantry Inventory'], ['storageItems', 'Deep Storage']].map(([fk, title]) => {
+    const opts = [...(activePrepState[fk] || [])].reverse().filter(it => {
+      const sig = [it.name, it.calsPer, it.serving, it.qty, it.exp || ''].join('|');
+      if (seen.has(sig)) return false; seen.add(sig); return true;
+    }).map(it => `<option value="${esc(fk + ':' + it.id)}">${esc(it.name)} - ${esc(it.calsPer)} cal, x${esc(it.qty)}${it.exp ? ', exp ' + esc(it.exp) : ''}</option>`).join('');
+    return opts ? `<optgroup label="${title}">${opts}</optgroup>` : '';
+  }).join('');
+}
+function fillFoodFormFrom(v) {
+  const body = dlg && dlg.querySelector('#food-items-body'); if (!body || dialogCtx.sec !== 'prep-food') return;
+  const at = v.indexOf(':'), fk = v.slice(0, at), id = v.slice(at + 1);
+  const it = at > 0 && (activePrepState[fk] || []).find(x => x.id === id);
+  if (!it) { dialogCtx.foodCopy = false; dialogCtx.foodFormReset = true; renderFoodItemsView(); return; }
+  dialogCtx.foodCopy = true; renderFoodItemsView();
+  writeFoodForm(body, { name: it.name, cals: it.calsPer, serving: it.serving === '—' ? '' : it.serving, qty: it.qty, exp: it.exp || '', copy: v });
+  toast('Filled in from ' + it.name + ' - change anything, then tap + Add Item', 4000);
+}
 function renderFoodItemsView() {
   const body = dlg && dlg.querySelector('#food-items-body');
   if (!body || dialogCtx.sec !== 'prep-food') return;
@@ -1888,12 +1920,16 @@ function renderFoodItemsView() {
   let gaveId = false;
   items.forEach(it => { if (!it.id) { it.id = newFoodId(); gaveId = true; } });
   if (gaveId) Store.markPrep();
+  const keep = dialogCtx.foodFormReset ? null : readFoodForm(body); dialogCtx.foodFormReset = false;
+  const copyOpts = foodCopyOptions();
   const rows = items.map((it, i) => `<div class="prep-food-row ${expCls(it.exp)}"><span class="prep-food-txt"><span class="prep-food-name">${esc(it.name)}</span><span class="prep-food-meta">${it.calsPer} cal · ${esc(it.serving||'—')} · ×${it.qty}${it.exp ? ' · exp ' + esc(it.exp) : ''}</span></span><span class="prep-food-total">${((it.calsPer||0)*(it.qty||0)).toLocaleString()} cal</span><button data-act="prep-del-food" data-foodtype="${type}" data-idx="${i}" class="prep-btn-small">×</button><span class="prep-food-ph"><button class="prep-btn-small" data-act="food-cam" data-foodtype="${type}" data-foodid="${esc(it.id)}" title="Take photo" aria-label="Take photo">${ICON.cam}</button><button class="prep-btn-small" data-act="food-lib" data-foodtype="${type}" data-foodid="${esc(it.id)}" title="Choose from library" aria-label="Choose photo from library">${ICON.upload}</button>${it.img ? `<button class="prep-btn-small on" data-act="food-view-photo" data-foodtype="${type}" data-foodid="${esc(it.id)}" title="View photo" aria-label="View photo">${ICON.eye}</button>` : ''}</span></div>`).join('');
   const scrollTop = body.scrollTop;
   body.innerHTML = `
     ${rows || '<div class="faint" style="padding:10px 0;text-align:center;font-size:13px">No items yet — add one below</div>'}
     <div class="prep-stat" style="margin-top:8px;margin-bottom:4px">Total Calories<span>${totalCals.toLocaleString()}</span></div>
     <div style="border-top:1px solid var(--accent-line);padding-top:12px;margin-top:8px;display:flex;flex-direction:column;gap:8px">
+      ${copyOpts ? `<select data-f="food-copy" class="prep-input food-copy" aria-label="Copy a previous item"><option value="">Copy a previous item...</option>${copyOpts}</select>` : ''}
+      ${dialogCtx.foodCopy ? `<div class="food-copy-note"><span>Each + Add Item adds another copy.</span><button class="prep-btn-small" data-act="food-form-clear">Clear form</button></div>` : ''}
       <div class="prep-row"><label class="prep-lbl">Item name</label><input type="text" id="food-name" class="prep-input" placeholder="Canned beans" style="width:160px"></div>
       <div class="prep-row"><label class="prep-lbl">Cal per serving</label><input type="number" id="food-cals" class="prep-input" placeholder="300"></div>
       <div class="prep-row"><label class="prep-lbl">Serving size</label><input type="text" id="food-serving" class="prep-input" placeholder="1 cup" style="width:100px"></div>
@@ -1906,6 +1942,7 @@ function renderFoodItemsView() {
       </div>
     </div>
   `;
+  if (keep) writeFoodForm(body, keep);
   body.scrollTop = scrollTop;
 }
 function openRetire() {
@@ -2326,6 +2363,7 @@ function onInput(e) {
 }
 async function onChange(e) {
   const el = e.target, key = viewKey() || dialogCtx.key;
+  if (el.dataset.f === 'food-copy') { fillFoodFormFrom(el.value); return; }
   if (el.dataset.f === 'goals-title') { const sp = document.createElement('span'); sp.dataset.goalsTitle = ''; sp.textContent = goalsTitle(); el.replaceWith(sp); requestRender(); return; }
   if (el.dataset.f === 'goal-target') { el.value = fmtIn(parseNum(el.value)); return; }
   if (el.dataset.f && el.dataset.f.startsWith('hsa-')) { // HSA receipts: their own fields, nothing to do with the months
@@ -2379,7 +2417,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','rt-draw-toggle','cl-sect-toggle','car-loan','food-cam','food-lib','food-view-photo','food-scan-cam','food-scan-lib','ch-add','ch-del','ch-rename','ch-attach','ch-photo','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','share-privacy-toggle','share-minor-toggle','cards','card-tab','pt-add','pt-del','pt-kind','hsa','hsa-add','hsa-open','hsa-photo','hsa-del','hsa-rename','hsa-paid','hsa-paid-all','goals','goals-rename','goal-drop','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin','prep','prep-add-member','prep-del-member','prep-add-bag','prep-del-bag','prep-collapse','prep-open-food','prep-add-food','prep-del-food','prep-open-water','prep-add-water','prep-del-water','prep-new-bag','prep-open-bag','prep-add-bag-food','prep-del-bag-food'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','rt-draw-toggle','cl-sect-toggle','car-loan','food-cam','food-lib','food-view-photo','food-scan-cam','food-scan-lib','food-form-clear','ch-add','ch-del','ch-rename','ch-attach','ch-photo','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','share-privacy-toggle','share-minor-toggle','cards','card-tab','pt-add','pt-del','pt-kind','hsa','hsa-add','hsa-open','hsa-photo','hsa-del','hsa-rename','hsa-paid','hsa-paid-all','goals','goals-rename','goal-drop','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin','prep','prep-add-member','prep-del-member','prep-add-bag','prep-del-bag','prep-collapse','prep-open-food','prep-add-food','prep-del-food','prep-open-water','prep-add-water','prep-del-water','prep-new-bag','prep-open-bag','prep-add-bag-food','prep-del-bag-food'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -2397,13 +2435,14 @@ async function onAction(e) {
     case 'prep-del-bag': { activePrepState.goBags.splice(Number(t.dataset.idx), 1); renderPrepView(); Store.markPrep(); break; }
     case 'prep-collapse': { const k = (t.dataset.section || t.closest('[data-section]') && t.closest('[data-section]').dataset.section); if (!k) break; prepCollapsed[k] = !prepCollapsed[k]; try { localStorage.setItem('tb-prep-collapsed', JSON.stringify(prepCollapsed)); } catch(e) {} renderPrepView(); break; }
     case 'prep-open-food': { openFoodItems(t.dataset.foodtype); break; }
-    case 'prep-add-food': { const fn=dlg.querySelector('#food-name').value.trim(), fc=Number(dlg.querySelector('#food-cals').value), fsv=dlg.querySelector('#food-serving').value.trim(), fq=Number(dlg.querySelector('#food-qty').value)||1, fexp=(dlg.querySelector('#food-exp')||{}).value||'', ft=t.dataset.foodtype; if (fn && fc>0) { const fk=ft==='pantry'?'pantryItems':'storageItems'; const item={id:newFoodId(),name:fn,calsPer:fc,serving:fsv||'—',qty:fq}; if (fexp) item.exp=fexp; (activePrepState[fk]=activePrepState[fk]||[]).push(item); renderFoodItemsView(); Store.markPrep(); } break; }
+    case 'prep-add-food': { const fn=dlg.querySelector('#food-name').value.trim(), fc=Number(dlg.querySelector('#food-cals').value), fsv=dlg.querySelector('#food-serving').value.trim(), fq=Number(dlg.querySelector('#food-qty').value)||1, fexp=(dlg.querySelector('#food-exp')||{}).value||'', ft=t.dataset.foodtype; if (fn && fc>0) { const fk=ft==='pantry'?'pantryItems':'storageItems'; const item={id:newFoodId(),name:fn,calsPer:fc,serving:fsv||'—',qty:fq}; if (fexp) item.exp=fexp; (activePrepState[fk]=activePrepState[fk]||[]).push(item); if (dialogCtx.foodCopy) toast('Added another ' + fn + ' - tap + Add Item again for one more', 2500); else dialogCtx.foodFormReset = true; renderFoodItemsView(); Store.markPrep(); } break; }
     case 'prep-del-food': { const ft=t.dataset.foodtype, fk=ft==='pantry'?'pantryItems':'storageItems', _fi=Number(t.dataset.idx), _fit=(activePrepState[fk]||[])[_fi]; if (_fit && _fit.img) Store.dropFoodPhoto(_fit.id); (activePrepState[fk]=activePrepState[fk]||[]).splice(_fi,1); renderFoodItemsView(); Store.markPrep(); break; }
     case 'food-cam': { const fid=t.dataset.foodid, ftype=t.dataset.foodtype; if (fid && ftype) pickFoodPhoto(fid, ftype, 'environment'); break; }
     case 'food-lib': { const fid=t.dataset.foodid, ftype=t.dataset.foodtype; if (fid && ftype) pickFoodPhoto(fid, ftype); break; }
     case 'food-view-photo': { const fid=t.dataset.foodid, ftype=t.dataset.foodtype; if (fid && ftype) openFoodPhoto(fid, ftype); break; }
     case 'food-scan-cam': { pickFoodScanNew(t.dataset.foodtype, 'environment'); break; }
     case 'food-scan-lib': { pickFoodScanNew(t.dataset.foodtype); break; }
+    case 'food-form-clear': { dialogCtx.foodCopy = false; dialogCtx.foodFormReset = true; renderFoodItemsView(); break; }
     case 'prep-open-water': { openWaterItems(t.dataset.watertype); break; }
     case 'prep-add-water': { const wn=dlg.querySelector('#water-name').value.trim(), wv=Number(dlg.querySelector('#water-val').value), wt=t.dataset.watertype; if (wn && wv>0) { const wk=wt==='water'?'waterItems':'purifierItems'; (activePrepState[wk]=activePrepState[wk]||[]).push(wt==='water'?{name:wn,gallons:wv}:{name:wn,galPerDay:wv}); renderWaterItemsView(); Store.markPrep(); } break; }
     case 'prep-del-water': { const wt=t.dataset.watertype, wk=wt==='water'?'waterItems':'purifierItems'; (activePrepState[wk]=activePrepState[wk]||[]).splice(Number(t.dataset.idx),1); renderWaterItemsView(); Store.markPrep(); break; }
