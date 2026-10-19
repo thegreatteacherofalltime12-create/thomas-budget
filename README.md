@@ -10,9 +10,10 @@ data is ours; the code is here for anyone.)
 
 ## What it does
 
-- **One page per month** with the four columns from the original sheet — *Net Income,
-  Expenses, Abnormal Expenses, Wealth Building* — and the three figures we care about:
-  Month Performance, Excluding Abnormal Expenses, and **Income Retained**.
+- **One page per month** with three money columns — *Net Income, Expenses, Wealth
+  Building* — and the two figures we care about: Month Performance and **Income Retained**.
+  (The original sheet's Abnormal Expenses column was retired on 2026-10-19: it is no longer
+  shown or counted anywhere, but old entries stay in the saved months and backups.)
 - **Breakdown items** under any line (paychecks, a grocery log, per-card payments); the
   line total is always the sum of its items.
 - **Balances block** — credit cards → total debt, cash savings, 401K and mortgage balances.
@@ -23,13 +24,13 @@ data is ours; the code is here for anyone.)
 - **Import a bank statement** — from a month page: pick PDF or CSV, and the file is read in the browser (pdf.js, lazily loaded) and never uploaded. Each transaction is matched to a category from what you filed that merchant under before, then your own line names, then a small keyword list; you correct anything wrong in the review window and only then does it commit. Transactions land as **items grouped under the line** for their category, in the month their own date falls in, with the line total recomputed (an amount already typed is kept as its own item). Every committed transaction is fingerprinted in the month, so re-importing the same statement adds nothing twice, and each correction is remembered for next time (`settings/app.catMap`).
 - **AI categorizer** — a ✨ button in the review window sends just the description and amount of the still-unfiled transactions (never the file) to `/api/ai`, one route on the same Worker (`worker.js`), which asks **Workers AI** (Llama 3.3 70B, the account's free tier — no API keys) to file them against your own category names, inventing a new category only when nothing fits. Its picks are marked ✨ AI, never touch a row you set by hand or one the app already learned, and still wait for you to tap Add. An AI pick you leave untouched is not written into the learned merchant map — only filings a person set or corrected teach the app. The route authenticates by borrowing the Firestore allow-list: it forwards your Firebase ID token in an attempt to read `settings/app`, which the security rules only permit the household — so there is no second user list and no secret to keep.
 - **Budgets** — name a spending limit; it is tracked against the Expenses line with the same name (created for you if missing), with a meter that turns amber near the limit and red over it. Budgets carry forward into new months. Pick the category from a dropdown of your Expenses lines, or type a new one. An Expenses line whose amount is identical three months running is flagged a **standard monthly expense** and drops out of the budget meters automatically (no model, no network — plain arithmetic over the months already loaded).
-- **Reorder the month page** — swipe any section row (Budgets, Net income, Expenses, Abnormal, Wealth Building) or any group in the Balances window to the right — the left side turns green and says Move tab — then drag it to its spot. The order is a per-device preference kept in localStorage, so each person arranges their own phone; only the money itself is shared. Sections cannot be swiped away, and plain taps still open the editors.
+- **Reorder the month page** — swipe any section row (Budgets, Net income, Expenses, Wealth Building) or any group in the Balances window to the right — the left side turns green and says Move tab — then drag it to its spot. The order is a per-device preference kept in localStorage, so each person arranges their own phone; only the money itself is shared. Sections cannot be swiped away, and plain taps still open the editors.
 - **From-paycheck wealth lines** — a 401k, an HSA or mortgage principal never goes through the bank account (it comes off the paycheck or rides inside another payment), so counting it against income would double-charge it. An icon on each wealth-building line cycles through three states: from-paycheck (card — a 401k, an HSA), principal already paid inside another payment (house — mortgage principal recorded as home equity), and back to paid-from-the-bank. Either marked state still counts in the wealth-building total, the savings chart, the equity build and the retirement predictor, but stops reducing Income Retained, the ring chart, the chips and both outlooks — the loan payoff keeps building assets without being charged against the bank twice. One tap applies to the same-named line in every month, past and future, and the mark rides into each new month.
 - **Balance rows break into items too** — each account under Credit card balances and Savings in cash has the same breakdown-items list the money lines have: tap the list icon, and the first item is seeded from the current balance so nothing is lost; add one item per deposit and the row shows the sum. Appreciation assets stays plain on purpose — its amounts are managed by the mortgage-principal link.
 - **Amount boxes are calculators** — type `45+30.50` or `3*12.99`; totals update as you type, the box shows the result when you leave it, and breakdown items keep the formula as a note (like the sheet did).
 - **Undo on every amount box** — each box remembers what it held before each edit; a small ↶ appears inside it after a change and steps back one edit at a time, in every section (income, expenses, budgets, balances, breakdown items, the church ledger).
 - **Year outlook** — projects net income and money kept by December 31. Entered months count as they are, the current month uses its end-of-month outlook, and each remaining month starts from the same month last year scaled by how this year is running against it (falling back to this year's average). Compared with last year, charted as a running total with the predicted part dashed; resets every January and recomputes on every edit.
-- **End-of-month outlook** — starts from what last month left over and assumes every income, expense and wealth-building line reaches at least its usual amount (average of the last three months it had a value); abnormal expenses count only as entered. Tap the card for the line-by-line breakdown.
+- **End-of-month outlook** — starts from what last month left over and assumes every income, expense and wealth-building line reaches at least its usual amount (average of the last three months it had a value). Tap the card for the line-by-line breakdown.
 - **LDS church expenses** — a separate reimbursable ledger at the bottom of the home page (date, description, amount, paid), with a graph of spend per month; a pencil in its window renames it. Stored on its own and never counted in any budget figure.
 - **HSA receipts** — a row in Trends & balances (renamable with its pencil) for photos of HSA-eligible receipts. A photo is shrunk on the phone, then `/api/receipt` on the Worker has a Workers AI vision model (Llama 4 Scout) read the store, date, total and the HSA-eligible part; you check and correct it. Up to 20 photos can be added at once. Each receipt can be marked reimbursed (one at a time, or all at once after a withdrawal); the running total is everything not yet reimbursed, so unclaimed receipts roll over into the next year and are shown as carried over. That total, which the year outlook shows as money that can still be reimbursed (and kept + reimbursements) without mixing it into the kept projection. Photos are stored in the budget itself, each in its own Firestore document (`ledgers/hsaimg_<id>`, under 1 MB) so the list stays light; one loads only when you tap View photo.
 - **Savings goals** — a row in Trends & balances, under HSA receipts (renamable). A target icon on any line in Savings in Cash makes it a goal; the window shows a horizontal bar for each, its balance (latest month that has the line, deposit items included) against a goal amount typed beside it. Kept in `ledgers/goals`, keyed by the line name, shared in the household.
@@ -66,7 +67,7 @@ overwrite a month with unsaved local edits (a per-month dirty flag), and the two
 case falls back to last-writer-wins on the month document.
 
 Charts follow a fixed, colorblind-checked palette: net income (blue), expenses (orange),
-wealth building (aqua), abnormal (yellow), retained (violet), debt (red) — the same identity
+wealth building (aqua), retained (violet), debt (red) — the same identity
 in every chart and on every tile.
 
 ## Privacy and security
@@ -105,6 +106,5 @@ Without a `FIREBASE_CONFIG`, the page runs in a this-device-only mode using loca
 
 | Figure | Formula |
 |---|---|
-| Month Performance | Net Income − Expenses − Abnormal Expenses |
-| Excluding Abnormal Expenses | Net Income − Expenses |
-| Income Retained | Net Income − Expenses − Abnormal Expenses − Wealth Building |
+| Month Performance | Net Income − Expenses |
+| Income Retained | Net Income − Expenses − Wealth Building |

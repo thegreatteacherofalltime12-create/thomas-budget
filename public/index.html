@@ -591,8 +591,8 @@ card-bonus-tracker::part(title){display:none}
 /* =========================================================
    Thomas Budget — a shared monthly budget for two people.
    Built from the "Budgeting form 2026" workbook: one record per
-   month with four columns (Net Income / Expenses / Abnormal
-   Expenses / Wealth Building), breakdown items under any line,
+   month with three columns (Net Income / Expenses / Wealth
+   Building), breakdown items under any line,
    a balances block, imported bank transactions, and charts that
    open in an overlay.
    ========================================================= */
@@ -601,9 +601,9 @@ const MONTH_NAMES = ['January','February','March','April','May','June','July','A
 const COLS = [
   {key:'income',   title:'Net Income',        sw:'income', color:'var(--s-income)', hint:'Paychecks, side income, money carried over'},
   {key:'expenses', title:'Expenses',          sw:'exp',    color:'var(--s-exp)',    hint:'The regular monthly bills'},
-  {key:'abnormal', title:'Abnormal Expenses', sw:'abn',    color:'var(--s-abn)',    hint:'One-offs that are not part of a normal month'},
   {key:'wealth',   title:'Wealth Building',   sw:'wealth', color:'var(--s-wealth)', hint:'401k, investments, home equity, HSA'},
 ];
+const RETIRED_COLS = ['abnormal']; // no longer shown or counted, but kept in saved months and backups so it can be brought back
 const BALS = [
   {key:'cards',    title:'Credit card balances', total:'Total CC debt'},
   {key:'savings',  title:'Savings in cash',      total:'Total savings'},
@@ -612,7 +612,6 @@ const BALS = [
 const DEFAULT_LINES = {
   income:   ['Paycheck 1','Paycheck 2','Money left over from last month'],
   expenses: ['Mortgage / rent','Car payment','Tithing','Groceries','Bills','Electricity','Gas for heating/oven','Credit Card payment','Insurance','Subscription Services'],
-  abnormal: ['Random life'],
   wealth:   ['401k','Home equity','Robinhood','HSA account','Life insurance'],
 };
 // Firebase web-app config from the Firebase console → Project settings → Your apps → Web app.
@@ -681,9 +680,9 @@ const isFormula = str => /[+*/]|\d\s*-\s*\d/.test(String(str || ''));
 const fmtDate = iso => { if(!iso) return '—'; const d=new Date(iso+'T00:00:00'); return isNaN(d)?iso:d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); };
 const signCls = n => n < 0 ? 'neg' : (n > 0 ? 'pos' : '');
 function calc(m) {
-  const net=sumLines(m.income), exp=sumLines(m.expenses), abn=sumLines(m.abnormal), wealth=sumLines(m.wealth);
+  const net=sumLines(m.income), exp=sumLines(m.expenses), wealth=sumLines(m.wealth);
   const wealthBank = sumLines((m.wealth||[]).filter(l => !l.pre)); // lines marked "from paycheck" never left the bank, so only these count against it
-  return { net, exp, abn, wealth, wealthBank, perf:r2(net-exp-abn), exAbn:r2(net-exp), retained:r2(net-exp-abn-wealthBank), cc:sumFlat(m.cards), cash:sumFlat(m.savings) };
+  return { net, exp, wealth, wealthBank, perf:r2(net-exp), retained:r2(net-exp-wealthBank), cc:sumFlat(m.cards), cash:sumFlat(m.savings) };
 }
 function toast(msg, ms=2200) { const t=$('#toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('on'), ms); }
 function setSync(state, text) { const p=$('#sync'); p.className='pill '+state; p.hidden = state !== 'bad'; $('#sync-t').textContent=text; }
@@ -1048,7 +1047,7 @@ const Store = {
     for (const m of monthList) {
       if (!m || !/^\d{4}-(0[1-9]|1[0-2])$/.test(m.key || '')) continue;
       const doc = { key: m.key, label: m.label || monthLabel(m.key), year: +m.key.slice(0, 4), month: +m.key.slice(5, 7), updatedOn: m.updatedOn || null, notes: String(m.notes || ''), imported: (Array.isArray(m.imported) ? m.imported : []).map(x => String(x).slice(0, 60)), cards: [], savings: [], accounts: [] };
-      for (const col of COLS) doc[col.key] = (Array.isArray(m[col.key]) ? m[col.key] : []).map(l => ({ id: safeId(l.id), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })), ...(l.pre === 1 || l.pre === 2 ? { pre: l.pre } : {}), ...(l.ep ? { ep: true } : {}) }));
+      for (const col of [...COLS.map(c => c.key), ...RETIRED_COLS]) doc[col] = (Array.isArray(m[col]) ? m[col] : []).map(l => ({ id: safeId(l.id), label: String(l.label || ''), amount: r2(l.amount), items: (Array.isArray(l.items) ? l.items : []).map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })), ...(l.pre === 1 || l.pre === 2 ? { pre: l.pre } : {}), ...(l.ep ? { ep: true } : {}) }));
       for (const b of BALS) doc[b.key] = (Array.isArray(m[b.key]) ? m[b.key] : []).map(r => ({ id: safeId(r.id), label: String(r.label || ''), amount: r2(r.amount), ...(['value','owed','other'].includes(r.kind) ? { kind: r.kind } : {}), ...(r.paid || r.applied ? { paid: r2(r.paid || r.applied) } : {}), ...(r.src ? { src: safeId(r.src) } : {}), ...(Array.isArray(r.items) && r.items.length ? { items: r.items.map(i => ({ id: safeId(i.id), label: String(i.label || ''), amount: r2(i.amount), ...(i.note ? { note: String(i.note) } : {}) })) } : {}) }));
       doc.budgets = (Array.isArray(m.budgets) ? m.budgets : []).map(b => ({ id: safeId(b.id), label: String(b.label || '').slice(0, 80), limit: r2(b.limit) }));
       months[m.key] = doc;
@@ -1222,7 +1221,6 @@ function renderMonth(key) {
 
   <section class="perf">
     <button class="card p" data-act="chart" data-chart="where" data-key="${key}"><span class="lab">Month Performance</span><span class="v num ${signCls(c.perf)}" data-perf="perf">${fmt(c.perf)}</span></button>
-    <button class="card p" data-act="chart" data-chart="where" data-key="${key}"><span class="lab">Excl. Abnormal</span><span class="v num ${signCls(c.exAbn)}" data-perf="exAbn">${fmt(c.exAbn)}</span></button>
     <button class="card p" data-act="chart" data-chart="where" data-key="${key}"><span class="lab"><span class="sw ret"></span>Income Retained</span><span class="v num ${signCls(c.retained)}" data-perf="retained">${fmt(c.retained)}</span></button>
     <button class="card p" data-act="edit" data-sec="wealth"><span class="lab"><span class="sw wealth"></span>Wealth Building</span><span class="v num" data-perf="wealth">${fmt(c.wealth)}</span></button>
     <button class="card p" data-act="outlook" title="Tap for the breakdown"><span class="lab">End-of-month outlook</span><span class="v num ${signCls(outlook(key).projected)}" data-outlook>${fmt(outlook(key).projected)}</span></button>
@@ -1319,7 +1317,7 @@ function updateAppr(key) {
   set('paid', paid ? fmt(paid) + (e.nOwed > 1 ? ` across ${owedRows(m).filter(r => rowPaid(r)).length} mortgages` : '') : 'nothing yet');
   set('built', fmt(y.total) + (y.appr ? ` · ${fmt(y.paid)} paid down + ${fmt(y.appr)} value` : ''));
 }
-function secTotal(m, k) { if (k === 'budgets') return budgetStats(m).spent; const c = calc(m); return k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:accountsNet(m); }
+function secTotal(m, k) { if (k === 'budgets') return budgetStats(m).spent; const c = calc(m); return k==='income'?c.net:k==='expenses'?c.exp:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:accountsNet(m); }
 /* Budgets: a name and a limit; spending is whatever the Expenses line with the same name adds up to. */
 const norm = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 function expenseFor(m, label) { const n = norm(label); return (m.expenses || []).find(l => norm(l.label) === n) || null; }
@@ -1368,7 +1366,7 @@ function editorBody(key, sec) {
 }
 /* End-of-month outlook. Start from what last month left over; assume every income, expense and
    wealth-building line reaches at least its usual amount (average of the last three months in which it
-   had a value); count abnormal expenses only as entered. Plain arithmetic, fully explainable. */
+   had a value). Plain arithmetic, fully explainable. */
 function typical(key, col, label) {
   const keys = sortedKeys(), i = keys.indexOf(key), vals = [];
   for (let j = i - 1; j >= 0 && vals.length < 3; j--) { const l = (S.months[keys[j]][col] || []).find(x => norm(x.label) === norm(label)); if (l) { const a = lineAmt(l); if (a) vals.push(a); } }
@@ -1378,11 +1376,11 @@ function outlook(key) {
   const m = S.months[key], keys = sortedKeys(), i = keys.indexOf(key), prev = i > 0 ? S.months[keys[i - 1]] : null;
   const carried = (m.income || []).find(l => /left over|carry|carried/i.test(l.label) && lineAmt(l));
   const leftover = carried ? 0 : (prev ? calc(prev).retained : 0); // if the month already lists last month's money as income, it is counted there
-  const rows = col => (m[col] || []).filter(l => l.label.trim() && !(col === 'wealth' && l.pre)).map(l => { const a = lineAmt(l), t = typical(key, col, l.label); return { label: l.label, actual: a, typical: t, expected: col === 'abnormal' ? a : r2(Math.max(a, t)) }; });
-  const g = { income: rows('income'), expenses: rows('expenses'), abnormal: rows('abnormal'), wealth: rows('wealth') };
+  const rows = col => (m[col] || []).filter(l => l.label.trim() && !(col === 'wealth' && l.pre)).map(l => { const a = lineAmt(l), t = typical(key, col, l.label); return { label: l.label, actual: a, typical: t, expected: r2(Math.max(a, t)) }; });
+  const g = { income: rows('income'), expenses: rows('expenses'), wealth: rows('wealth') };
   const sum = arr => r2(arr.reduce((s, r) => s + r.expected, 0));
-  const inc = sum(g.income), exp = sum(g.expenses), abn = sum(g.abnormal), wl = sum(g.wealth);
-  return { leftover, carried: !!carried, prevKey: prev ? prev.key : null, g, inc, exp, abn, wl, projected: r2(leftover + inc - exp - abn - wl), sofar: r2(leftover + calc(m).retained) };
+  const inc = sum(g.income), exp = sum(g.expenses), wl = sum(g.wealth);
+  return { leftover, carried: !!carried, prevKey: prev ? prev.key : null, g, inc, exp, wl, projected: r2(leftover + inc - exp - wl), sofar: r2(leftover + calc(m).retained) };
 }
 function openYear(year) {
   const keys = sortedKeys().filter(k => k.startsWith(year)).reverse(); if (!keys.length) return;
@@ -1925,12 +1923,11 @@ function openOutlook(key) {
         <span class="k">${o.carried ? 'Left over from last month (already listed under income)' : o.prevKey ? `Left over from ${esc(monthLabel(o.prevKey))}` : 'Left over from last month'}</span><span class="v">${fmt(o.leftover)}</span>
         <span class="k">Expected income</span><span class="v">+ ${fmt(o.inc)}</span>
         <span class="k">Expected expenses</span><span class="v">− ${fmt(o.exp)}</span>
-        ${o.abn ? `<span class="k">Abnormal expenses so far</span><span class="v">− ${fmt(o.abn)}</span>` : ''}
         <span class="k">Expected wealth building</span><span class="v">− ${fmt(o.wl)}</span>
         <span class="k tot">Projected at month end</span><span class="v tot ${signCls(o.projected)}">${fmt(o.projected)}</span>
         <span class="k faint">If nothing else is entered</span><span class="v faint">${fmt(o.sofar)}</span>
       </div>
-      <p class="chart-note">Lines still below their usual amount (the average of the last three months they had a value) are assumed to reach it; anything already above stays as entered. Abnormal expenses are never predicted.</p>
+      <p class="chart-note">Lines still below their usual amount (the average of the last three months they had a value) are assumed to reach it; anything already above stays as entered.</p>
       <div class="tscroll"><table class="vtable outlook-t"><thead><tr><th>Line</th><th>So far</th><th>Expected</th></tr></thead><tbody>${group('Income', o.g.income) + group('Expenses', o.g.expenses) + group('Wealth building', o.g.wealth)}</tbody></table></div>
     </div>`);
   dlg.style.maxWidth = '600px';
@@ -1950,13 +1947,13 @@ const appTitle = () => (S.title || '').trim() || 'Thomas Budget';
 function renderBrand() { const b = $('#brand'); if (b) b.textContent = appTitle(); document.title = appTitle(); }
 const churchTitle = () => (S.churchTitle || '').trim() || 'LDS church expenses';
 const isCarry = l => /left over|carry|carried/i.test(l.label || '');
-function fig(net, exp, abn, wealth) { net = r2(net); exp = r2(exp); abn = r2(abn); wealth = r2(wealth); return { net, exp, abn, wealth, out: r2(exp + abn + wealth), kept: r2(net - exp - abn - wealth) }; }
+function fig(net, exp, wealth) { net = r2(net); exp = r2(exp); wealth = r2(wealth); return { net, exp, wealth, out: r2(exp + wealth), kept: r2(net - exp - wealth) }; }
 function yearFigures(m) {
   const c = calc(m), carry = r2((m.income || []).filter(isCarry).reduce((s, l) => s + lineAmt(l), 0));
-  return fig(c.net - carry, c.exp, c.abn, c.wealthBank);
+  return fig(c.net - carry, c.exp, c.wealthBank);
 }
-function currentFigures(key) { const o = outlook(key); return fig(o.g.income.filter(r => !isCarry(r)).reduce((s, r) => s + r.expected, 0), o.exp, o.abn, o.wl); }
-const avgFig = pool => { const n = pool.length || 1, s = k => pool.reduce((t, f) => t + f[k], 0) / n; return fig(s('net'), s('exp'), s('abn'), s('wealth')); };
+function currentFigures(key) { const o = outlook(key); return fig(o.g.income.filter(r => !isCarry(r)).reduce((s, r) => s + r.expected, 0), o.exp, o.wl); }
+const avgFig = pool => { const n = pool.length || 1, s = k => pool.reduce((t, f) => t + f[k], 0) / n; return fig(s('net'), s('exp'), s('wealth')); };
 function yearOutlook(year = String(new Date().getFullYear())) {
   const prevYear = String(+year - 1), curKey = todayKey(), mk = (y, mth) => `${y}-${String(mth).padStart(2, '0')}`;
   const prevF = mth => S.months[mk(prevYear, mth)] ? yearFigures(S.months[mk(prevYear, mth)]) : null;
@@ -1972,18 +1969,18 @@ function yearOutlook(year = String(new Date().getFullYear())) {
   const rIn = lin > 0 ? clamp(tin / lin) : 1, rOut = lout > 0 ? clamp(tout / lout) : 1, matched = lin > 0 || lout > 0;
   const pool = months.filter(x => x.kind === 'actual').map(x => x.f); if (!pool.length) { const c = months.find(x => x.kind === 'current'); if (c) pool.push(c.f); }
   const lastMonths = Array.from({ length: 12 }, (_, i) => prevF(i + 1)).filter(Boolean);
-  const fallback = pool.length ? { f: avgFig(pool), basis: `${year} average` } : lastMonths.length ? { f: avgFig(lastMonths), basis: `${prevYear} average` } : { f: fig(0, 0, 0, 0), basis: 'no data yet' };
+  const fallback = pool.length ? { f: avgFig(pool), basis: `${year} average` } : lastMonths.length ? { f: avgFig(lastMonths), basis: `${prevYear} average` } : { f: fig(0, 0, 0), basis: 'no data yet' };
   for (const x of months) if (x.kind === 'predicted') { const p = prevF(+x.key.slice(5));
-    if (p) { x.f = fig(p.net * rIn, p.exp * rOut, p.abn * rOut, p.wealth * rOut); x.basis = `from ${shortMonth(x.key)} ${prevYear}`; } else { x.f = fallback.f; x.basis = fallback.basis; }
+    if (p) { x.f = fig(p.net * rIn, p.exp * rOut, p.wealth * rOut); x.basis = `from ${shortMonth(x.key)} ${prevYear}`; } else { x.f = fallback.f; x.basis = fallback.basis; }
     if (x.key < curKey) x.basis = 'no record · ' + x.basis; }
   const sum = (arr, k) => r2(arr.reduce((s, x) => s + (x ? x[k] : 0), 0));
   const figs = months.map(x => x.f), sofar = months.map(x => x.sofar).filter(Boolean);
   let run = 0; const cumKept = figs.map(f => run = r2(run + f.kept));
   let lrun = 0; const lastCum = lastMonths.length ? Array.from({ length: 12 }, (_, i) => { const p = prevF(i + 1); return lrun = r2(lrun + (p ? p.kept : 0)); }) : null;
-  const last = lastMonths.length ? { net: sum(lastMonths, 'net'), exp: sum(lastMonths, 'exp'), abn: sum(lastMonths, 'abn'), wealth: sum(lastMonths, 'wealth'), kept: sum(lastMonths, 'kept'), n: lastMonths.length } : null;
+  const last = lastMonths.length ? { net: sum(lastMonths, 'net'), exp: sum(lastMonths, 'exp'), wealth: sum(lastMonths, 'wealth'), kept: sum(lastMonths, 'kept'), n: lastMonths.length } : null;
   const firstPred = months.findIndex(x => x.kind !== 'actual');
-  return { year, prevYear, months, net: sum(figs, 'net'), exp: sum(figs, 'exp'), abn: sum(figs, 'abn'), wealth: sum(figs, 'wealth'), kept: sum(figs, 'kept'),
-    sofar: { net: sum(sofar, 'net'), exp: sum(sofar, 'exp'), abn: sum(sofar, 'abn'), wealth: sum(sofar, 'wealth'), kept: sum(sofar, 'kept') },
+  return { year, prevYear, months, net: sum(figs, 'net'), exp: sum(figs, 'exp'), wealth: sum(figs, 'wealth'), kept: sum(figs, 'kept'),
+    sofar: { net: sum(sofar, 'net'), exp: sum(sofar, 'exp'), wealth: sum(sofar, 'wealth'), kept: sum(sofar, 'kept') },
     entered: months.filter(x => x.kind !== 'predicted').length, rIn, rOut, matched, last, cumKept, lastCum, dashFrom: firstPred < 0 ? 12 : firstPred };
 }
 function openYearOutlook() {
@@ -1997,7 +1994,7 @@ function openYearOutlook() {
         <span class="k">Net income so far</span><span class="v">${fmt(yo.sofar.net)}</span>
         <span class="k">Kept so far</span><span class="v ${signCls(yo.sofar.kept)}">${fmt(yo.sofar.kept)}</span>
         <span class="k" style="margin-top:8px">Projected net income for ${yo.year}</span><span class="v" style="margin-top:8px">+ ${fmt(yo.net)}</span>
-        <span class="k">Projected expenses${yo.abn ? ' (incl. abnormal)' : ''}</span><span class="v">− ${fmt(r2(yo.exp + yo.abn))}</span>
+        <span class="k">Projected expenses</span><span class="v">− ${fmt(yo.exp)}</span>
         <span class="k">Projected wealth building</span><span class="v">− ${fmt(yo.wealth)}</span>
         <span class="k tot">Projected kept by year end</span><span class="v tot ${signCls(yo.kept)}">${fmt(yo.kept)}</span>
         ${(() => { const hy = hsaYear(yo.year); return hy.total ? `<span class="k" style="margin-top:8px">${esc(hsaTitle())} you can reimburse (${hy.n}${hy.carried ? ', incl. ' + fmt(hy.carried) + ' carried over' : ''})</span><span class="v" style="margin-top:8px">+ ${fmt(hy.total)}</span>
@@ -2007,8 +2004,8 @@ function openYearOutlook() {
       <p class="chart-note">${yo.matched ? `Against the same months of ${yo.prevYear}, income is running ${pct(yo.rIn)} and spending ${pct(yo.rOut)}; the months still to come start from last year's figures scaled by that.` : yo.last ? `No month of ${yo.year} has a matching month in ${yo.prevYear} yet, so remaining months use last year's figures as they were.` : `There is no ${yo.prevYear} data, so the months still to come use this year's monthly average.`} The current month uses its end-of-month outlook. Money left over from the previous month is not counted as income.</p>
       <div class="chart-area">${lineChartHTML(series, labels, { height: 260 })}</div>
       <div class="tscroll"><table class="vtable year-t"><thead><tr><th>Month</th><th>Net income</th><th>Expenses</th><th>Wealth</th><th>Kept</th><th style="text-align:left">Basis</th></tr></thead><tbody>
-        ${yo.months.map(x => `<tr class="${x.kind === 'actual' ? '' : 'pred'}"><td>${shortMonth(x.key)}</td><td>${fmt(x.f.net)}</td><td>${fmt(r2(x.f.exp + x.f.abn))}</td><td>${fmt(x.f.wealth)}</td><td class="${signCls(x.f.kept)}">${fmt(x.f.kept)}</td><td class="basis">${esc(x.basis)}</td></tr>`).join('')}
-        <tr style="font-weight:600"><td>${yo.year}</td><td>${fmt(yo.net)}</td><td>${fmt(r2(yo.exp + yo.abn))}</td><td>${fmt(yo.wealth)}</td><td class="${signCls(yo.kept)}">${fmt(yo.kept)}</td><td class="basis">${yo.entered} entered · ${12 - yo.entered} predicted</td></tr>
+        ${yo.months.map(x => `<tr class="${x.kind === 'actual' ? '' : 'pred'}"><td>${shortMonth(x.key)}</td><td>${fmt(x.f.net)}</td><td>${fmt(x.f.exp)}</td><td>${fmt(x.f.wealth)}</td><td class="${signCls(x.f.kept)}">${fmt(x.f.kept)}</td><td class="basis">${esc(x.basis)}</td></tr>`).join('')}
+        <tr style="font-weight:600"><td>${yo.year}</td><td>${fmt(yo.net)}</td><td>${fmt(yo.exp)}</td><td>${fmt(yo.wealth)}</td><td class="${signCls(yo.kept)}">${fmt(yo.kept)}</td><td class="basis">${yo.entered} entered · ${12 - yo.entered} predicted</td></tr>
       </tbody></table></div>
     </div>
     <div class="dlg-foot"><span class="muted" style="font-size:12px">Updates as soon as anything in a month changes.</span></div>`);
@@ -2269,7 +2266,7 @@ function viewKey() { const m = /^#\/m\/(\d{4}-\d{2})/.exec(location.hash||''); r
 function findLine(key, col, id) { return (S.months[key][col]||[]).find(l => l.id === id); }
 function updateTotals(key) {
   const m = S.months[key], c = calc(m);
-  $$('[data-total]').forEach(el => { const k = el.dataset.total; el.textContent = fmt(k==='income'?c.net:k==='expenses'?c.exp:k==='abnormal'?c.abn:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:k==='accounts'?accountsNet(m):0); if (k==='budgets') el.textContent = fmtBudgets(m); });
+  $$('[data-total]').forEach(el => { const k = el.dataset.total; el.textContent = fmt(k==='income'?c.net:k==='expenses'?c.exp:k==='wealth'?c.wealth:k==='cards'?c.cc:k==='savings'?c.cash:k==='accounts'?accountsNet(m):0); if (k==='budgets') el.textContent = fmtBudgets(m); });
   { const n = $('.lrow[data-sec=budgets] .n'); if (n) { const bs = budgetStats(m), sc = standardExpenses(key).size; n.textContent = bs.count ? `${bs.count} budget${bs.count===1?'':'s'}${bs.over?` · ${bs.over} over`:''}${sc?` · ${sc} standard`:''}` : sc ? `${sc} standard expense${sc===1?'':'s'}` : 'set spending limits'; } }
   $$('[data-bud-meter]').forEach(el => { const b = (m.budgets||[]).find(x => x.id === el.dataset.budMeter); if (b) el.outerHTML = meterHTML(b, m); });
   $$('[data-perf]').forEach(el => { const v = c[el.dataset.perf]; el.textContent = fmt(v); el.className = 'v num ' + signCls(v); });
@@ -2647,7 +2644,7 @@ function dialogAction(t, e) {
 /* ---------- charts ---------- */
 const CHART_TABS = [
   {id:'where', label:'Where it went'}, {id:'expenses', label:'Expenses'}, {id:'income', label:'Income'},
-  {id:'wealth', label:'Wealth Building'}, {id:'abnormal', label:'Abnormal'}, {id:'trend', label:'Trend'}, {id:'savings', label:'Savings & wealth'}, {id:'equity', label:'Home equity'}, {id:'debt', label:'Debt'},
+  {id:'wealth', label:'Wealth Building'}, {id:'trend', label:'Trend'}, {id:'savings', label:'Savings & wealth'}, {id:'equity', label:'Home equity'}, {id:'debt', label:'Debt'},
 ];
 function openCharts(chart, key, keepTable) {
   if (!key || !S.months[key]) key = currentKey(); if (!key) return;
@@ -2661,12 +2658,12 @@ function openCharts(chart, key, keepTable) {
   if (chart === 'where') {
     title = 'Where the money went'; sub = `${monthLabel(key)} · ${fmt(c.net)} came in`;
     body = donutHTML(m, {size:300});
-    note = c.retained < 0 ? `Spending plus wealth building exceeded income by ${fmt(-c.retained)} this month, so there is no retained slice. The ring shows how the money that went out splits up.` : `Income Retained is what is left of the ${fmt(c.net)} that came in after expenses, abnormal expenses and wealth building paid from the bank. Wealth building (${fmt(c.wealthBank)} from the bank this month) is money you kept, just not in your pocket — it has its own slice.${c.wealth !== c.wealthBank ? ` Another ${fmt(r2(c.wealth - c.wealthBank))} was put away without touching this money — straight from a paycheck, or already inside another payment — so it isn't in the ring.` : ''}`;
+    note = c.retained < 0 ? `Spending plus wealth building exceeded income by ${fmt(-c.retained)} this month, so there is no retained slice. The ring shows how the money that went out splits up.` : `Income Retained is what is left of the ${fmt(c.net)} that came in after expenses and wealth building paid from the bank. Wealth building (${fmt(c.wealthBank)} from the bank this month) is money you kept, just not in your pocket — it has its own slice.${c.wealth !== c.wealthBank ? ` Another ${fmt(r2(c.wealth - c.wealthBank))} was put away without touching this money — straight from a paycheck, or already inside another payment — so it isn't in the ring.` : ''}`;
     const rows = donutSegments(m).map(s => [s.label, s.value, c.net ? Math.round(s.value/c.net*1000)/10 + '%' : '']);
     table = tableHTML(['Category','Amount','Share of income'], rows, ['Net Income', c.net, '100%']);
   } else if (barCol) {
     const rows = (m[chart]||[]).map(l => ({label:l.label||'(no label)', value:lineAmt(l)})).filter(r=>r.value!==0).sort((a,b)=>Math.abs(b.value)-Math.abs(a.value));
-    const total = c[chart==='income'?'net':chart==='expenses'?'exp':chart==='abnormal'?'abn':'wealth'];
+    const total = c[chart==='income'?'net':chart==='expenses'?'exp':'wealth'];
     title = barCol.title; sub = `${monthLabel(key)} · ${rows.length} lines · ${fmt(total)}`;
     body = rows.length ? hbarsHTML(rows, barCol.color, total) : `<div class="empty">Nothing recorded under ${barCol.title} this month.</div>`;
     const top = rows[0]; if (top && total) note = `“${esc(top.label)}” is the largest line at ${fmt(top.value)}, ${Math.round(Math.abs(top.value)/Math.abs(total)*100)}% of the total.`;
@@ -2682,7 +2679,7 @@ function openCharts(chart, key, keepTable) {
     ];
     body = keys.length > 1 ? lineChartHTML(series, keys.map(shortMonth)) : `<div class="empty">Add a second month in ${key.slice(0,4)} to see a trend.</div>`;
     const kept = cs.filter(c=>c.retained>=0).length, ytd = r2(cs.reduce((s,c)=>s+c.wealth,0)), sum = f => r2(cs.reduce((s,c)=>s+f(c),0));
-    note = `${kept} of ${keys.length} months ended with money retained. Abnormal expenses and wealth building paid from the bank are included in that figure, so a big one-off month dips below zero even when regular expenses were covered. Savings and wealth building have their own graph.`;
+    note = `${kept} of ${keys.length} months ended with money retained. Wealth building paid from the bank is included in that figure, so a month with a big transfer can dip below zero even when expenses were covered. Savings and wealth building have their own graph.`;
     table = tableHTML(['Month', ...series.map(s=>s.name)], keys.map((k,i)=>[monthLabel(k), ...series.map(s=>s.values[i])]), [`${key.slice(0,4)} total`, sum(c=>c.net), sum(c=>c.exp), sum(c=>c.retained)]);
   } else if (chart === 'savings') {
     const keys = yearKeys(key), cs = keys.map(k => calc(S.months[k]));
@@ -2735,13 +2732,12 @@ function tableHTML(head, rows, total) {
   return `<table class="vtable num"><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((v,i)=>`<td>${typeof v==='number'?fmt(v):esc(v)}</td>`).join('')}</tr>`).join('')}${total?`<tr style="font-weight:600">${total.map(v=>`<td>${typeof v==='number'?fmt(v):esc(v)}</td>`).join('')}</tr>`:''}</tbody></table>`;
 }
 
-/* donut: Expenses → Wealth → Abnormal → Retained (validated adjacent hue order) */
+/* donut: Expenses → Wealth → Retained (validated adjacent hue order) */
 function donutSegments(m) {
   const c = calc(m);
   const segs = [
     {label:'Expenses', value:c.exp, color:'var(--s-exp)'},
     {label:'Wealth Building', value:c.wealthBank, color:'var(--s-wealth)'},
-    {label:'Abnormal Expenses', value:c.abn, color:'var(--s-abn)'},
     {label:'Income Retained', value:Math.max(0,c.retained), color:'var(--s-ret)'},
   ];
   return segs;
@@ -2765,7 +2761,7 @@ function donutHTML(m, {size=260, compact=false}={}) {
   });
   if (segs.length === 1) paths = `<circle class="donut-seg" cx="${cx}" cy="${cy}" r="${(r0+r1)/2}" fill="none" stroke="${segs[0].color}" stroke-width="${r1-r0}" data-tip="${esc(segs[0].label)}|${esc(fmt(segs[0].value))} · 100%"></circle>`; // a lone slice is a full ring; an arc can't draw that
   if (!segs.length) paths = `<circle cx="${cx}" cy="${cy}" r="${(r0+r1)/2}" fill="none" stroke="var(--surface-3)" stroke-width="${r1-r0}"/>`;
-  const centerBig = c.retained < 0 ? fmt(c.exp+c.abn+c.wealthBank, {cents:false}) : fmt(c.net, {cents:false});
+  const centerBig = c.retained < 0 ? fmt(c.exp+c.wealthBank, {cents:false}) : fmt(c.net, {cents:false});
   const centerLab = c.retained < 0 ? 'went out' : 'came in';
   const svg = `<svg class="donut" viewBox="0 0 ${size} ${size}" role="img" aria-label="Where the money went">${paths}
     <text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="${compact?15:24}" font-weight="600" class="num">${centerBig}</text>
@@ -2844,7 +2840,7 @@ function openNewMonth(fromKey) {
     <div class="dlg-body"><form class="form" id="nm" onsubmit="return false">
       <div class="rowf"><label>Month<select id="nm-m">${MONTH_NAMES.map((n,i)=>`<option value="${i+1}" ${i+1===sm?'selected':''}>${n}</option>`).join('')}</select></label>
       <label>Year<input id="nm-y" type="number" min="2020" max="2100" value="${sy}"></label></div>
-      ${src ? `<label class="chk"><input type="checkbox" id="nm-prefill" checked><span>Start with last month’s <b>expense</b> and <b>wealth building</b> amounts<small>Most of these repeat (mortgage, car, insurance, 401k). Income and abnormal expenses always start at zero. Balances carry over as they are.</small></span></label>
+      ${src ? `<label class="chk"><input type="checkbox" id="nm-prefill" checked><span>Start with last month’s <b>expense</b> and <b>wealth building</b> amounts<small>Most of these repeat (mortgage, car, insurance, 401k). Income always starts at zero. Balances carry over as they are.</small></span></label>
       <label class="chk"><input type="checkbox" id="nm-carry" checked><span>Pre-fill “Money left over from last month”<small>Uses ${esc(monthLabel(src))}’s Income Retained (${fmt(calc(S.months[src]).retained)}) if it is positive.</small></span></label>` : ''}
       <input type="hidden" id="nm-src" value="${esc(src||'')}">
     </form></div>
@@ -3075,8 +3071,8 @@ function merchantKey(desc) {
 }
 function suggestCat(m, t) {
   const key = merchantKey(t.desc);
-  if (key && S.catMap && S.catMap[key]) return S.catMap[key];
-  for (const col of ['expenses', 'income', 'wealth', 'abnormal']) // a line whose name already appears in the description
+  if (key && S.catMap && S.catMap[key] && COLS.some(c => S.catMap[key].startsWith(c.key + ':'))) return S.catMap[key]; // a filing learned into a retired column is ignored
+  for (const col of ['expenses', 'income', 'wealth']) // a line whose name already appears in the description
     for (const l of m[col] || []) { const lab = norm(l.label); if (lab.length > 3 && norm(t.desc).includes(lab)) return col + ':' + l.label; }
   for (const [re, cat] of CAT_HINTS) if (re.test(t.desc)) { const [col, label] = cat.split(/:(.*)/);
     const has = (m[col] || []).find(l => norm(l.label) === norm(label)); return col + ':' + (has ? has.label : label); }
@@ -3459,10 +3455,10 @@ function openShare() {
 
 /* ---------- Ask Budget: plain-English questions answered from the months ---------- */
 function budgetDigest() {
-  const keys = sortedKeys(), out = ['Budget: ' + appTitle() + '. Today: ' + today() + '. All amounts are US dollars. "kept" means net income minus expenses, abnormal and the wealth building paid from the bank account (wealth lines tagged from-paycheck are put away straight out of a paycheck or another payment, so they do not reduce kept). Lines under income, expenses, wealth and abnormal are flows during that month (wealth = money moved into savings or investments that month, not a balance). card balance, savings and asset lines are balances as of that month.'];
+  const keys = sortedKeys(), out = ['Budget: ' + appTitle() + '. Today: ' + today() + '. All amounts are US dollars. "kept" means net income minus expenses and the wealth building paid from the bank account (wealth lines tagged from-paycheck are put away straight out of a paycheck or another payment, so they do not reduce kept). Lines under income, expenses and wealth are flows during that month (wealth = money moved into savings or investments that month, not a balance). card balance, savings and asset lines are balances as of that month.'];
   for (const k of keys.slice(-24)) { const m = S.months[k], c = calc(m);
-    out.push(`\n== ${monthLabel(k)} (${k}) — net income ${c.net}, expenses ${c.exp}, abnormal ${c.abn}, wealth building ${c.wealth}, kept ${c.retained}, credit-card balance ${c.cc}, savings in cash ${c.cash}`);
-    for (const col of ['income', 'expenses', 'wealth', 'abnormal'])
+    out.push(`\n== ${monthLabel(k)} (${k}) — net income ${c.net}, expenses ${c.exp}, wealth building ${c.wealth}, kept ${c.retained}, credit-card balance ${c.cc}, savings in cash ${c.cash}`);
+    for (const col of ['income', 'expenses', 'wealth'])
       for (const l of m[col] || []) if (l.label.trim() && lineAmt(l)) out.push(`${col} ${l.label}: ${lineAmt(l)}${col === 'wealth' && l.pre ? (l.pre === 2 ? ' (principal already paid inside another payment)' : ' (from-paycheck)') : ''}`);
     for (const b of m.budgets || []) if (b.label) out.push(`budget cap ${b.label}: ${b.amount}`);
     for (const x of m.cards || []) if (x.label && +x.amount) out.push(`card balance ${x.label}: ${x.amount}`);
@@ -3470,7 +3466,7 @@ function budgetDigest() {
     for (const x of m.accounts || []) if (x.label && +x.amount) out.push(`asset ${x.label}${x.kind ? ' (' + x.kind + ')' : ''}: ${x.amount}`);
   }
   for (const k of keys.slice(-3)) { const m = S.months[k], its = [];
-    for (const col of ['income', 'expenses', 'wealth', 'abnormal'])
+    for (const col of ['income', 'expenses', 'wealth'])
       for (const l of m[col] || []) for (const it of l.items || []) if (+it.amount) its.push(`${monthLabel(k)} ${l.label} — ${it.label}: ${it.amount}${it.note ? ' (' + it.note + ')' : ''}`);
     if (its.length) out.push(`\n== Individual entries, ${monthLabel(k)}:`, ...its);
   }
@@ -3525,7 +3521,7 @@ async function aiSuggest() {
     const token = await FB.auth.currentUser.getIdToken();
     const cats = new Set(); // his own category names, from every month the statement touches
     for (const k of new Set([im.key, ...im.rows.map(t => t.key)])) { const m = S.months[k]; if (!m) continue;
-      for (const col of ['expenses', 'income', 'wealth', 'abnormal']) for (const l of m[col] || []) if (l.label.trim()) cats.add(col + ':' + l.label); }
+      for (const col of ['expenses', 'income', 'wealth']) for (const l of m[col] || []) if (l.label.trim()) cats.add(col + ':' + l.label); }
     let applied = 0;
     for (let at = 0; at < want.length; at += 80) { // the worker takes 80 at a time
       const res = await fetch('/api/ai', { method: 'POST',
@@ -3536,7 +3532,7 @@ async function aiSuggest() {
         const t = im.rows[p.i]; if (!t || !aiWants(t) || typeof p.cat !== 'string') continue;
         const cut = p.cat.indexOf(':'); if (cut < 1) continue;
         const label = p.cat.slice(cut + 1).replace(/[^\w&\/'’. -]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
-        const cat = label && ['expenses', 'income', 'wealth', 'abnormal'].includes(p.cat.slice(0, cut)) ? p.cat.slice(0, cut) + ':' + label : '';
+        const cat = label && ['expenses', 'income', 'wealth'].includes(p.cat.slice(0, cut)) ? p.cat.slice(0, cut) + ':' + label : '';
         if (!cat || cat === t.cat) continue;
         t.cat = cat; t.ai = true; applied++;
       }
@@ -3568,7 +3564,7 @@ function catOptions(m, chosen) {
   const have = new Set();
   const group = (col, title) => { const ls = (m[col] || []).filter(l => l.label.trim()); ls.forEach(l => have.add(col + ':' + l.label));
     return ls.length ? `<optgroup label="${title}">${ls.map(l => `<option value="${esc(col + ':' + l.label)}"${chosen === col + ':' + l.label ? ' selected' : ''}>${esc(l.label)}</option>`).join('')}</optgroup>` : ''; };
-  const body = `${group('expenses', 'Expenses')}${group('income', 'Net income')}${group('wealth', 'Wealth building')}${group('abnormal', 'Abnormal')}`;
+  const body = `${group('expenses', 'Expenses')}${group('income', 'Net income')}${group('wealth', 'Wealth building')}`;
   const fresh = chosen && !have.has(chosen) ? `<optgroup label="New line"><option value="${esc(chosen)}" selected>${esc(chosen.slice(chosen.indexOf(':') + 1))} — new</option></optgroup>` : '';
   return `<option value=""${chosen ? '' : ' selected'}>Skip</option>${fresh}${body}<option value="__new__">+ New category…</option>`;
 }
