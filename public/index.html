@@ -559,6 +559,28 @@ card-bonus-tracker::part(title){display:none}
 <div id="tip" hidden></div>
 <div id="toast"></div>
 
+<script>
+/* Kept apart from the main script so it still runs if that one fails to start (for example a broken
+   version stuck in this phone's offline copy): drop the offline copy and reload, at most once per 2 minutes. */
+(function () {
+  function heal() {
+    if (window.__tbBooted) return;
+    var app = document.getElementById('app'), KEY = 'tb-heal-at', now = Date.now(), last = 0;
+    try { last = +sessionStorage.getItem(KEY) || 0; } catch (e) {}
+    if (now - last < 120000) {
+      if (app) app.innerHTML = '<div class="loading">The budget could not start. Close the app and open it again in a minute.</div>';
+      return;
+    }
+    try { sessionStorage.setItem(KEY, String(now)); } catch (e) {}
+    if (app) app.innerHTML = '<div class="loading">Getting the latest version...</div>';
+    var jobs = [];
+    try { if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })); } catch (e) {}
+    try { if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); })); } catch (e) {}
+    Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
+  }
+  window.addEventListener('load', function () { setTimeout(heal, 4000); });
+})();
+</script>
 <script type="module">
 /* =========================================================
    Thomas Budget — a shared monthly budget for two people.
@@ -2350,7 +2372,7 @@ async function onAction(e) {
   if (e.target.closest('a,input,select,textarea') && !t.matches('button')) return;
   const act = t.dataset.act, key = viewKey() || t.dataset.key || dialogCtx.key;
   const m = key && S.months[key];
-  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','rt-draw-toggle','cl-sect-toggle','car-loan','food-attach','food-scan-new','ch-add','ch-del','ch-rename','ch-attach','ch-photo','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','share-privacy-toggle','share-minor-toggle','cards','card-tab','pt-add','pt-del','pt-kind','hsa','hsa-add','hsa-open','hsa-photo','hsa-del','hsa-rename','hsa-paid','hsa-paid-all','goals','goals-rename','goal-drop','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin','prep','prep-add-member','prep-del-member','prep-add-bag','prep-del-bag','prep-collapse','prep-open-food','prep-add-food','prep-del-food','prep-open-water','prep-add-water','prep-del-water','prep-new-bag','prep-open-bag','prep-add-bag-food','prep-del-bag-food'].includes(act)) return;
+  if (!m && !['open','new-month','chart','sign-in','sign-out','backup','restore','balances','church','nav-back','rt-draw-toggle','cl-sect-toggle','car-loan','food-cam','food-lib','food-view-photo','food-scan-cam','food-scan-lib','ch-add','ch-del','ch-rename','ch-attach','ch-photo','rename-app','undo','year','trends','trend-add','theme','import','imp-pdf','imp-csv','imp-add','imp-ai','ask','ask-send','share','share-join','share-new','share-send','share-copy','share-remove','share-rename','share-privacy-toggle','share-minor-toggle','cards','card-tab','pt-add','pt-del','pt-kind','hsa','hsa-add','hsa-open','hsa-photo','hsa-del','hsa-rename','hsa-paid','hsa-paid-all','goals','goals-rename','goal-drop','retire','bal-kind','feedback','fb-send','fb-done','fb-del','fb-admin','prep','prep-add-member','prep-del-member','prep-add-bag','prep-del-bag','prep-collapse','prep-open-food','prep-add-food','prep-del-food','prep-open-water','prep-add-water','prep-del-water','prep-new-bag','prep-open-bag','prep-add-bag-food','prep-del-bag-food'].includes(act)) return;
   if (t.closest('#dlg') && !dialogCtx.sec && !['chart', 'trends', 'balances', 'edit', 'nav-back', 'trend-add'].includes(act)) return; // only the editor dialog carries edit actions
   switch (act) {
     case 'open': { const k = t.dataset.key; if (dlg.open) closeOverlay(() => { location.hash = '#/m/' + k; }); else location.hash = '#/m/' + k; break; }
@@ -3196,8 +3218,9 @@ async function pickFoodScanNew(foodtype, capture) {
   if (capture) { inp.setAttribute('capture', capture); inp.capture = capture; }
   inp.style.cssText = 'position:fixed;top:-9999px;opacity:0;pointer-events:none';
   document.body.appendChild(inp);
+  inp.addEventListener('cancel', () => inp.remove());
   inp.onchange = async () => {
-    try { document.body.removeChild(inp); } catch (e) {}
+    inp.remove();
     const f = inp.files && inp.files[0]; if (!f) return;
     toast('Reading the label…', 60000);
     try {
@@ -3228,8 +3251,9 @@ async function pickFoodPhoto(id, foodtype, capture) {
   if (capture) { inp.setAttribute('capture', capture); inp.capture = capture; }
   inp.style.cssText = 'position:fixed;top:-9999px;opacity:0;pointer-events:none';
   document.body.appendChild(inp);
+  inp.addEventListener('cancel', () => inp.remove());
   inp.onchange = async () => {
-    try { document.body.removeChild(inp); } catch (e) {}
+    inp.remove();
     const f = inp.files && inp.files[0]; if (!f) return;
     toast('Reading the label…', 60000);
     try {
@@ -3619,6 +3643,7 @@ paintTheme();
 moveGesture(app); moveGesture(dlg);
 render();
 Store.init();
+window.__tbBooted = true;
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('/sw.js').then(reg => {
     const upd = $('#upd');
