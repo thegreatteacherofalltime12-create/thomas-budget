@@ -1889,13 +1889,14 @@ function writeFoodForm(body, f) {
   for (const k of FOOD_FIELDS) { const el = body.querySelector('#food-' + k); if (el) el.value = f[k] ?? ''; }
   const c = body.querySelector('[data-f="food-copy"]'); if (c) c.value = f.copy || '';
 }
-function foodCopyOptions() { // each distinct item from both lists, newest first, so twenty identical cans show once
+const foodSize = it => it.serving && it.serving !== '—' ? String(it.serving) : '';
+function foodCopyOptions() { // one entry per food and size from both lists; the newest copy is the one filled in
   const seen = new Set();
   return [['pantryItems', 'Pantry Inventory'], ['storageItems', 'Deep Storage']].map(([fk, title]) => {
     const opts = [...(activePrepState[fk] || [])].reverse().filter(it => {
-      const sig = [it.name, it.calsPer, it.serving, it.qty, it.exp || ''].join('|');
+      const sig = String(it.name || '').trim().toLowerCase() + '|' + foodSize(it).trim().toLowerCase();
       if (seen.has(sig)) return false; seen.add(sig); return true;
-    }).map(it => `<option value="${esc(fk + ':' + it.id)}">${esc(it.name)} - ${esc(it.calsPer)} cal, x${esc(it.qty)}${it.exp ? ', exp ' + esc(it.exp) : ''}</option>`).join('');
+    }).map(it => `<option value="${esc(fk + ':' + it.id)}">${esc(String(it.name || '').trim())}${foodSize(it) ? ' - ' + esc(foodSize(it).trim()) : ''}</option>`).join('');
     return opts ? `<optgroup label="${title}">${opts}</optgroup>` : '';
   }).join('');
 }
