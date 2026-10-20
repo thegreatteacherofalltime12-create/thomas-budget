@@ -1878,18 +1878,24 @@ function openFoodItems(type) {
   renderFoodItemsView();
 }
 const newFoodId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-const FOOD_FIELDS = ['name', 'cals', 'serving', 'qty', 'exp'];
+const FOOD_FIELDS = ['name', 'size', 'cals', 'serving', 'qty', 'exp'];
+const foodMeta = it => [it.size ? esc(it.size) : '', it.calsPer > 0 ? esc(it.calsPer) + ' cal' : '', it.serving && it.serving !== '—' ? esc(it.serving) : '', it.calsPer > 0 || it.qty > 1 ? '×' + esc(it.qty) : '', it.exp ? 'exp ' + esc(it.exp) : ''].filter(Boolean).join(' · ');
 function readFoodForm(body) { // what is typed in the add form, so a redraw does not wipe it
   if (!body.querySelector('#food-name')) return null;
   const f = {}; for (const k of FOOD_FIELDS) f[k] = body.querySelector('#food-' + k).value;
   const c = body.querySelector('[data-f="food-copy"]'); f.copy = c ? c.value : '';
+  f.copyLabel = c && c.selectedIndex > 0 ? c.options[c.selectedIndex].textContent : '';
   return f;
 }
 function writeFoodForm(body, f) {
   for (const k of FOOD_FIELDS) { const el = body.querySelector('#food-' + k); if (el) el.value = f[k] ?? ''; }
-  const c = body.querySelector('[data-f="food-copy"]'); if (c) c.value = f.copy || '';
+  const c = body.querySelector('[data-f="food-copy"]'); if (!c) return;
+  c.value = f.copy || '';
+  if (f.copy && c.value !== f.copy) { // the copy just added is now the newest, so the entry points at it
+    const o = [...c.options].find(x => x.textContent === f.copyLabel); c.value = o ? o.value : '';
+  }
 }
-const foodSize = it => it.serving && it.serving !== '—' ? String(it.serving) : '';
+const foodSize = it => it.size ? String(it.size) : it.serving && it.serving !== '—' ? String(it.serving) : '';
 function foodCopyOptions() { // one entry per food and size from both lists; the newest copy is the one filled in
   const seen = new Set();
   return [['pantryItems', 'Pantry Inventory'], ['storageItems', 'Deep Storage']].map(([fk, title]) => {
@@ -1906,7 +1912,7 @@ function fillFoodFormFrom(v) {
   const it = at > 0 && (activePrepState[fk] || []).find(x => x.id === id);
   if (!it) { dialogCtx.foodCopy = false; dialogCtx.foodFormReset = true; renderFoodItemsView(); return; }
   dialogCtx.foodCopy = true; renderFoodItemsView();
-  writeFoodForm(body, { name: it.name, cals: it.calsPer, serving: it.serving === '—' ? '' : it.serving, qty: it.qty, exp: it.exp || '', copy: v });
+  writeFoodForm(body, { name: it.name, size: it.size || '', cals: it.calsPer > 0 ? it.calsPer : '', serving: it.serving === '—' ? '' : it.serving, qty: it.calsPer > 0 || it.qty > 1 ? it.qty : '', exp: it.exp || '', copy: v });
   toast('Filled in from ' + it.name + ' - change anything, then tap + Add Item', 4000);
 }
 function renderFoodItemsView() {
@@ -1923,7 +1929,7 @@ function renderFoodItemsView() {
   if (gaveId) Store.markPrep();
   const keep = dialogCtx.foodFormReset ? null : readFoodForm(body); dialogCtx.foodFormReset = false;
   const copyOpts = foodCopyOptions();
-  const rows = items.map((it, i) => `<div class="prep-food-row ${expCls(it.exp)}"><span class="prep-food-txt"><span class="prep-food-name">${esc(it.name)}</span><span class="prep-food-meta">${it.calsPer} cal · ${esc(it.serving||'—')} · ×${it.qty}${it.exp ? ' · exp ' + esc(it.exp) : ''}</span></span><span class="prep-food-total">${((it.calsPer||0)*(it.qty||0)).toLocaleString()} cal</span><button data-act="prep-del-food" data-foodtype="${type}" data-idx="${i}" class="prep-btn-small">×</button><span class="prep-food-ph"><button class="prep-btn-small" data-act="food-cam" data-foodtype="${type}" data-foodid="${esc(it.id)}" title="Take photo" aria-label="Take photo">${ICON.cam}</button><button class="prep-btn-small" data-act="food-lib" data-foodtype="${type}" data-foodid="${esc(it.id)}" title="Choose from library" aria-label="Choose photo from library">${ICON.upload}</button>${it.img ? `<button class="prep-btn-small on" data-act="food-view-photo" data-foodtype="${type}" data-foodid="${esc(it.id)}" title="View photo" aria-label="View photo">${ICON.eye}</button>` : ''}</span></div>`).join('');
+  const rows = items.map((it, i) => `<div class="prep-food-row ${expCls(it.exp)}"><span class="prep-food-txt"><span class="prep-food-name">${esc(it.name)}</span><span class="prep-food-meta">${foodMeta(it)}</span></span><span class="prep-food-total">${it.calsPer > 0 ? ((it.calsPer||0)*(it.qty||0)).toLocaleString() + ' cal' : ''}</span><button data-act="prep-del-food" data-foodtype="${type}" data-idx="${i}" class="prep-btn-small">×</button><span class="prep-food-ph"><button class="prep-btn-small" data-act="food-cam" data-foodtype="${type}" data-foodid="${esc(it.id)}" title="Take photo" aria-label="Take photo">${ICON.cam}</button><button class="prep-btn-small" data-act="food-lib" data-foodtype="${type}" data-foodid="${esc(it.id)}" title="Choose from library" aria-label="Choose photo from library">${ICON.upload}</button>${it.img ? `<button class="prep-btn-small on" data-act="food-view-photo" data-foodtype="${type}" data-foodid="${esc(it.id)}" title="View photo" aria-label="View photo">${ICON.eye}</button>` : ''}</span></div>`).join('');
   const scrollTop = body.scrollTop;
   body.innerHTML = `
     ${rows || '<div class="faint" style="padding:10px 0;text-align:center;font-size:13px">No items yet — add one below</div>'}
@@ -1932,9 +1938,10 @@ function renderFoodItemsView() {
       ${copyOpts ? `<select data-f="food-copy" class="prep-input food-copy" aria-label="Copy a previous item"><option value="">Copy a previous item...</option>${copyOpts}</select>` : ''}
       ${dialogCtx.foodCopy ? `<div class="food-copy-note"><span>Each + Add Item adds another copy.</span><button class="prep-btn-small" data-act="food-form-clear">Clear form</button></div>` : ''}
       <div class="prep-row"><label class="prep-lbl">Item name</label><input type="text" id="food-name" class="prep-input" placeholder="Canned beans" style="width:160px"></div>
-      <div class="prep-row"><label class="prep-lbl">Cal per serving</label><input type="number" id="food-cals" class="prep-input" placeholder="300"></div>
-      <div class="prep-row"><label class="prep-lbl">Serving size</label><input type="text" id="food-serving" class="prep-input" placeholder="1 cup" style="width:100px"></div>
-      <div class="prep-row"><label class="prep-lbl">Quantity (# servings)</label><input type="number" id="food-qty" class="prep-input" placeholder="12"></div>
+      <div class="prep-row"><label class="prep-lbl">Can / jar size</label><input type="text" id="food-size" class="prep-input" placeholder="15 oz" style="width:100px"></div>
+      <div class="prep-row"><label class="prep-lbl">Cal per serving</label><input type="number" id="food-cals" class="prep-input" placeholder="optional"></div>
+      <div class="prep-row"><label class="prep-lbl">Serving size</label><input type="text" id="food-serving" class="prep-input" placeholder="optional" style="width:100px"></div>
+      <div class="prep-row"><label class="prep-lbl">Quantity (# servings)</label><input type="number" id="food-qty" class="prep-input" placeholder="optional"></div>
       <div class="prep-row"><label class="prep-lbl">Expiration date</label><input type="date" id="food-exp" class="prep-input" style="width:130px;text-align:left"></div>
       <button data-act="prep-add-food" data-foodtype="${type}" class="prep-btn-small" style="width:100%;box-sizing:border-box;margin-top:4px">+ Add Item</button>
       <div style="display:flex;gap:6px;margin-top:6px;width:100%;box-sizing:border-box">
@@ -2436,7 +2443,7 @@ async function onAction(e) {
     case 'prep-del-bag': { activePrepState.goBags.splice(Number(t.dataset.idx), 1); renderPrepView(); Store.markPrep(); break; }
     case 'prep-collapse': { const k = (t.dataset.section || t.closest('[data-section]') && t.closest('[data-section]').dataset.section); if (!k) break; prepCollapsed[k] = !prepCollapsed[k]; try { localStorage.setItem('tb-prep-collapsed', JSON.stringify(prepCollapsed)); } catch(e) {} renderPrepView(); break; }
     case 'prep-open-food': { openFoodItems(t.dataset.foodtype); break; }
-    case 'prep-add-food': { const fn=dlg.querySelector('#food-name').value.trim(), fc=Number(dlg.querySelector('#food-cals').value), fsv=dlg.querySelector('#food-serving').value.trim(), fq=Number(dlg.querySelector('#food-qty').value)||1, fexp=(dlg.querySelector('#food-exp')||{}).value||'', ft=t.dataset.foodtype; if (fn && fc>0) { const fk=ft==='pantry'?'pantryItems':'storageItems'; const item={id:newFoodId(),name:fn,calsPer:fc,serving:fsv||'—',qty:fq}; if (fexp) item.exp=fexp; (activePrepState[fk]=activePrepState[fk]||[]).push(item); if (dialogCtx.foodCopy) toast('Added another ' + fn + ' - tap + Add Item again for one more', 2500); else dialogCtx.foodFormReset = true; renderFoodItemsView(); Store.markPrep(); } break; }
+    case 'prep-add-food': { const fn=dlg.querySelector('#food-name').value.trim(), fsz=((dlg.querySelector('#food-size')||{}).value||'').trim(), fc=Number(dlg.querySelector('#food-cals').value)||0, fsv=dlg.querySelector('#food-serving').value.trim(), fq=Number(dlg.querySelector('#food-qty').value)||1, fexp=(dlg.querySelector('#food-exp')||{}).value||'', ft=t.dataset.foodtype; if (!fn) { toast('Type the item name first', 2500); break; } { const fk=ft==='pantry'?'pantryItems':'storageItems'; const item={id:newFoodId(),name:fn,calsPer:fc>0?fc:0,serving:fsv||'—',qty:fq}; if (fsz) item.size=fsz; if (fexp) item.exp=fexp; (activePrepState[fk]=activePrepState[fk]||[]).push(item); if (dialogCtx.foodCopy) toast('Added another ' + fn + ' - tap + Add Item again for one more', 2500); else dialogCtx.foodFormReset = true; renderFoodItemsView(); Store.markPrep(); } break; }
     case 'prep-del-food': { const ft=t.dataset.foodtype, fk=ft==='pantry'?'pantryItems':'storageItems', _fi=Number(t.dataset.idx), _fit=(activePrepState[fk]||[])[_fi]; if (_fit && _fit.img) Store.dropFoodPhoto(_fit.id); (activePrepState[fk]=activePrepState[fk]||[]).splice(_fi,1); renderFoodItemsView(); Store.markPrep(); break; }
     case 'food-cam': { const fid=t.dataset.foodid, ftype=t.dataset.foodtype; if (fid && ftype) pickFoodPhoto(fid, ftype, 'environment'); break; }
     case 'food-lib': { const fid=t.dataset.foodid, ftype=t.dataset.foodtype; if (fid && ftype) pickFoodPhoto(fid, ftype); break; }
@@ -3290,8 +3297,8 @@ function pickFoodScanNew(foodtype, capture) {
     const form = dlg && dlg.querySelector('#food-items-body');
     if (!form || dialogCtx.sec !== 'prep-food' || dialogCtx.foodType !== foodtype) { toast('The list was closed before the label was read', 4000); return; }
     const set = (sel, v) => { const el = form.querySelector(sel); if (el && v) el.value = v; };
-    set('#food-name', a.name); set('#food-exp', a.exp); set('#food-cals', a.cals); set('#food-serving', a.serving); set('#food-qty', a.servings);
-    toast((a.name || a.exp || a.cals) ? 'Label read - check it, then tap + Add Item' : 'Could not read the label - fill it in by hand', 4000);
+    set('#food-name', a.name); set('#food-size', a.size); set('#food-exp', a.exp); set('#food-cals', a.cals); set('#food-serving', a.serving); set('#food-qty', a.servings);
+    toast((a.name || a.size || a.exp || a.cals) ? 'Label read - check it, then tap + Add Item' : 'Could not read the label - fill it in by hand', 4000);
   });
 }
 function pickFoodPhoto(id, foodtype, capture) {
@@ -3320,7 +3327,7 @@ async function openFoodPhoto(id, foodtype) {
   const it = (activePrepState[fk] || []).find(x => x.id === id); if (!it) return;
   dialogCtx = { sec: 'prep-food-photo', foodType: foodtype };
   const title = foodtype === 'pantry' ? 'Pantry Inventory' : 'Deep Storage';
-  openOverlay(`<div class="dlg-head"><button class="btn sm ghost back" data-act="nav-back">${ICON.left} ${title}</button><div class="ttl"><h2>${esc(it.name)}</h2><span class="muted" style="font-size:13px">${esc(it.calsPer)} cal &middot; &times;${esc(it.qty)}${it.exp ? ' &middot; exp ' + esc(it.exp) : ''}</span></div></div><div class="dlg-body"><div class="hsa-photo" data-food-photo-view="${esc(id)}"><span class="muted">Loading the photo...</span></div></div>`);
+  openOverlay(`<div class="dlg-head"><button class="btn sm ghost back" data-act="nav-back">${ICON.left} ${title}</button><div class="ttl"><h2>${esc(it.name)}</h2><span class="muted" style="font-size:13px">${foodMeta(it)}</span></div></div><div class="dlg-body"><div class="hsa-photo" data-food-photo-view="${esc(id)}"><span class="muted">Loading the photo...</span></div></div>`);
   dlg.style.maxWidth = '640px';
   let img = ''; try { img = await Store.loadFoodPhoto(id); } catch (e) { console.warn(e); }
   const box = dlg && dlg.querySelector('[data-food-photo-view]');
