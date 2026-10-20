@@ -1683,8 +1683,12 @@ function openPrep() {
   if (Store._prepDirty) { renderPrepView(); return; } // a save is still pending: this copy is newer than the server's
   const { F } = FB, rev = Store._prepRev || 0;
   F.getDoc(Store.ref('ledgers', 'prep'))
-    .then(doc => { if ((Store._prepRev || 0) === rev) activePrepState = doc.exists() ? doc.data() : getDefaultPrepState(); renderPrepView(); })
+    .then(doc => { if ((Store._prepRev || 0) === rev) { activePrepState = doc.exists() ? doc.data() : getDefaultPrepState(); if (movePantryToStorage(activePrepState)) Store.markPrep(); } renderPrepView(); })
     .catch(err => { console.error('EP fetch error', err); if ((Store._prepRev || 0) === rev && !Object.keys(activePrepState || {}).length) activePrepState = getDefaultPrepState(); renderPrepView(); });
+}
+function movePantryToStorage(s) { // Pantry was folded into Deep Storage on 2026-10-20; photos stay linked because ids are kept
+  const p = s.pantryItems || []; if (!p.length) return false;
+  s.storageItems = [...(s.storageItems || []), ...p]; s.pantryItems = []; return true;
 }
 function getDefaultPrepState() {
   return { members:[], pantryItems:[], storageItems:[], waterItems:[], purifierItems:[], pantryGoal:7, storageGoal:30, waterGoal:14, financeGoal:3, solarWh:0, solarAgeYears:0, batteryWh:0, consumptionWh:0, goBags:[] };
@@ -1707,9 +1711,7 @@ function prepBody() {
   const purifierDailyGal = (s.purifierItems||[]).reduce((sum, it) => sum + (it.galPerDay||0), 0);
   const waterDays = dailyWaterNeed > 0 ? (staticWaterGal / dailyWaterNeed).toFixed(1) : 0;
   const isWaterSecure = purifierDailyGal >= dailyWaterNeed && dailyWaterNeed > 0;
-  const pantryCals = (s.pantryItems||[]).reduce((sum, it) => sum + (it.calsPer||0)*(it.qty||0), 0);
   const deepStorageCals = (s.storageItems||[]).reduce((sum, it) => sum + (it.calsPer||0)*(it.qty||0), 0);
-  const pantryDays = dailyCalsNeed > 0 ? (pantryCals / dailyCalsNeed).toFixed(1) : 0;
   const storageDays = dailyCalsNeed > 0 ? (deepStorageCals / dailyCalsNeed).toFixed(1) : 0;
   const balKey2 = [...sortedKeys()].reverse().find(k => (S.months[k].savings||[]).length);
   const liquidCash = balKey2 ? (S.months[balKey2].savings||[]).reduce((sum, r) => sum + (r.amount||0), 0) : 0;
@@ -1740,12 +1742,9 @@ function prepBody() {
       <div class="prep-row"><label class="prep-lbl">Goal (Days)</label><input type="number" id="p-w-goal" class="prep-input" value="${s.waterGoal}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-stat">Status<span class="${isWaterSecure ? 'prep-green' : ''}">${isWaterSecure ? 'SECURE (Renewable)' : waterDays + ' Days Static'}</span></div>`,`<div class="prep-stat">Status<span class="${isWaterSecure ? 'prep-green' : ''}">${isWaterSecure ? 'SECURE (Renewable)' : waterDays + ' Days Static'}</span></div>`)}
     ${card('food','Food Reserves (Calories)',`
-      <div class="prep-row"><span class="prep-lbl">Pantry Inventory</span><span class="prep-food-summary">${(s.pantryItems||[]).length} items · ${pantryCals.toLocaleString()} cal</span><button data-act="prep-open-food" data-foodtype="pantry" class="prep-btn-small">Edit →</button></div>
       <div class="prep-row"><span class="prep-lbl">Deep Storage</span><span class="prep-food-summary">${(s.storageItems||[]).length} items · ${deepStorageCals.toLocaleString()} cal</span><button data-act="prep-open-food" data-foodtype="storage" class="prep-btn-small">Edit →</button></div>
-      <div class="prep-row"><label class="prep-lbl">Pantry Goal (Days)</label><input type="number" id="p-pantry-goal" class="prep-input" value="${s.pantryGoal||7}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Storage Goal (Days)</label><input type="number" id="p-storage-goal" class="prep-input" value="${s.storageGoal||30}" onchange="window.syncPrepInputs()"></div>
-      <div class="prep-stat">Pantry Runway<span>${pantryDays} / ${s.pantryGoal||7} Days</span></div>
-      <div class="prep-stat">Storage Runway<span>${storageDays} / ${s.storageGoal||30} Days</span></div>`,`<div class="prep-stat">Pantry Runway<span>${pantryDays} / ${s.pantryGoal||7} Days</span></div><div class="prep-stat">Storage Runway<span>${storageDays} / ${s.storageGoal||30} Days</span></div>`)}
+      <div class="prep-stat">Storage Runway<span>${storageDays} / ${s.storageGoal||30} Days</span></div>`,`<div class="prep-stat">Storage Runway<span>${storageDays} / ${s.storageGoal||30} Days</span></div>`)}
     ${card('energy','Energy Grid',`
       <div class="prep-row"><label class="prep-lbl">Hourly Draw (Wh)</label><input type="number" id="p-draw" class="prep-input" value="${s.consumptionWh}" onchange="window.syncPrepInputs()"></div>
       <div class="prep-row"><label class="prep-lbl">Solar Output (Wh)</label><input type="number" id="p-solar" class="prep-input" value="${s.solarWh}" onchange="window.syncPrepInputs()"></div>
@@ -1765,7 +1764,6 @@ function prepBody() {
 window.syncPrepInputs = function() {
   const g = id => { const el = dlg && dlg.querySelector('#' + id); return el ? (Number(el.value) || 0) : (activePrepState[id] || 0); };
   activePrepState.waterGoal = g('p-w-goal');
-  activePrepState.pantryGoal = Number(dlg && dlg.querySelector('#p-pantry-goal') ? dlg.querySelector('#p-pantry-goal').value : 0) || activePrepState.pantryGoal || 7;
   activePrepState.storageGoal = Number(dlg && dlg.querySelector('#p-storage-goal') ? dlg.querySelector('#p-storage-goal').value : 0) || activePrepState.storageGoal || 30;
   activePrepState.consumptionWh = g('p-draw');
   activePrepState.solarWh = g('p-solar');
