@@ -2,7 +2,10 @@
   // Thomas Budget — a Cloudflare Worker: the static app from ./public, plus one API
   // route (/api/ai in worker.js, which asks Workers AI to categorize statement
   // transactions for the importer).  Deploy with:  npx wrangler deploy
-  "name": "shiny-mouse-ee83",
+  // Its own Cloudflare account ("Thomas Budget"), pinned so a deploy can never land anywhere else.
+  // Live at https://budget.thomasbudget.workers.dev (the old shiny-mouse-ee83 address forwards here).
+  "name": "budget",
+  "account_id": "d5e31fc72077f2c6f2d6b3e9cfede2d1",
   "main": "worker.js",
   "compatibility_date": "2026-06-01",
   "assets": {

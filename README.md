@@ -5,7 +5,7 @@ keeping by hand. Installable on a phone, syncs live between everyone in a househ
 offline, and keeps the spreadsheet's own vocabulary and math. Built for the two of us, and
 shareable: anyone we invite gets a private budget of their own, or joins ours.
 
-**Live:** https://shiny-mouse-ee83.prior-mixed-theme.workers.dev (sign-in required — the
+**Live:** https://budget.thomasbudget.workers.dev (sign-in required — the
 data is ours; the code is here for anyone.)
 
 ## What it does
