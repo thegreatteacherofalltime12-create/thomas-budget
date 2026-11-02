@@ -737,7 +737,7 @@ const Store = {
       try { await this.initFirebase(); return; }
       catch (e) { console.error(e); S.ready = true; setSync('bad', 'Offline'); app.innerHTML = '<div class="empty card" style="margin-top:40px"><h2>Can’t reach the budget right now</h2><p>Check your connection and reload.</p><button class="btn primary" onclick="location.reload()">Reload</button></div>'; return; }
     }
-    S.mode = 'local'; this.loadLocal(); setSync('local', 'Saved on this device'); renderBrand(); render(); ensureCurrentMonth();
+    S.mode = 'local'; this.loadLocal(); setSync('local', 'Saved on this device'); renderBrand(); render(); ensureCurrentMonth(); restoreBalItems();
   },
   async initFirebase() {
     S.mode = 'firebase'; setSync('busy', 'Connecting…');
@@ -877,16 +877,20 @@ const Store = {
   subscribe() {
     this.unsubscribe();
     const { F, db } = FB;
-    this._unsubs.push(F.onSnapshot(this.col('months'), snap => {
+    this._monthsSeen = false;
+    this._unsubs.push(F.onSnapshot(this.col('months'), { includeMetadataChanges: true }, snap => {
+      const wasEmpty = S.dbEmpty; S.dbEmpty = snap.empty && !snap.metadata.fromCache;
+      if (!this._monthsSeen || snap.docChanges().length) { // an event that only confirms the cached copy carries no new data
+      this._monthsSeen = true;
       const next = {};
       snap.docs.forEach(d => { const data = d.data(); if (data && data.key) next[data.key] = (dirty[data.key] && S.months[data.key]) ? S.months[data.key] : clone(data); });
       // keep months that are dirty locally but not yet in the store
       Object.keys(dirty).forEach(k => { if (dirty[k] && S.months[k] && !next[k]) next[k] = S.months[k]; });
       S.months = next; S.ready = true;
-      S.dbEmpty = snap.empty && !snap.metadata.fromCache;
-      if (!Object.values(dirty).some(Boolean)) setSync('ok', snap.metadata.fromCache ? 'Offline · saved on device' : 'Shared · synced');
       requestRender();
-      if (!snap.metadata.fromCache) ensureCurrentMonth();
+      } else if (S.dbEmpty !== wasEmpty) requestRender();
+      if (!Object.values(dirty).some(Boolean)) setSync('ok', snap.metadata.fromCache ? 'Offline · saved on device' : 'Shared · synced');
+      if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) { ensureCurrentMonth(); restoreBalItems(); }
     }, err => this.onError(err)));
     this._unsubs.push(F.onSnapshot(this.ref('settings', 'app'), snap => { S.title = snap.exists() ? String(snap.data().title || '') : ''; S.retire = snap.exists() && snap.data().retire ? snap.data().retire : null; S.trendsOrder = snap.exists() && Array.isArray(snap.data().trendsOrder) ? snap.data().trendsOrder : null; S.trendsHidden = snap.exists() && Array.isArray(snap.data().trendsHidden) ? snap.data().trendsHidden : null; S.trendsAdded = snap.exists() && Array.isArray(snap.data().trendsAdded) ? snap.data().trendsAdded : null; S.catMap = snap.exists() && snap.data().catMap ? snap.data().catMap : null; S.carLoan = snap.exists() && snap.data().carLoan ? snap.data().carLoan : null; if (dialogCtx.sec === 'retire' && !isEditing()) updateRetire(); renderBrand(); if (dialogCtx.sec === 'feedback' && !isEditing()) refreshEditor();
       S.privacy = snap.exists() && snap.data().privacy ? snap.data().privacy : {};
@@ -1083,7 +1087,7 @@ function requestRender() { // coalesced: the snapshots that arrive together get 
   if (renderTimer) return;
   renderTimer = setTimeout(() => { renderTimer = null; if (isEditing()) { S.pendingRender = true; return; } render(); }, 30);
 }
-const onFocusOut = () => { setTimeout(() => { if (S.pendingRender && !isEditing()) { S.pendingRender = false; render(); } }, 60); };
+const onFocusOut = () => { setTimeout(() => { if (S.pendingRestore && !isEditing()) { S.pendingRestore = false; restoreBalItems(); } if (S.pendingRender && !isEditing()) { S.pendingRender = false; render(); } }, 60); };
 app.addEventListener('focusout', onFocusOut); $('#dlg').addEventListener('focusout', onFocusOut);
 window.addEventListener('hashchange', render);
 
@@ -2574,7 +2578,7 @@ async function onAction(e) {
     case 'ch-del': { const row = t.closest('[data-ch]'); const r = (S.church || []).find(x => x.id === row.dataset.ch); if (!r) break; if ((r.amount || r.label) && !(await ask(`Remove “${r.label || 'this expense'}” (${fmt(r.amount)})?`, 'Remove'))) break; S.church = S.church.filter(x => x.id !== r.id); if (r.img) Store.dropChPhoto(r.id); Store.markChurch(); refreshEditor(); break; }
     case 'ch-attach': { const row = t.closest('[data-ch]'); if (!row) break; pickChPhoto(row.dataset.ch); break; }
     case 'ch-photo': { const row = t.closest('[data-ch]'); if (!row) break; openChPhoto(row.dataset.ch); break; }
-    case 'copy-bal': { const src = S.months[t.dataset.from]; if (!src) break; for (const b of BALS) m[b.key] = (src[b.key]||[]).map(r => ({ id: uid(), label: r.label, amount: r.amount, ...(r.kind?{kind:r.kind}:{}) })); rewireEquity(m); Store.markDirty(key); render(); break; }
+    case 'copy-bal': { const src = S.months[t.dataset.from]; if (!src) break; for (const b of BALS) m[b.key] = (src[b.key]||[]).map(r => ({ id: uid(), label: r.label, amount: r.amount, ...(r.kind?{kind:r.kind}:{}), ...(Array.isArray(r.items) && r.items.length ? {items: r.items.map(i => ({...i, id: uid()}))} : {}) })); rewireEquity(m); Store.markDirty(key); render(); break; }
     case 'new-month': openNewMonth(t.dataset.from || currentKey()); break;
     case 'sign-in': await Store.signIn(); break;
     case 'sign-out': await Store.signOut(); break;
@@ -2902,7 +2906,8 @@ function buildMonth(key, srcKey, prefill, carry) {
     if (src) doc[col.key] = (src[col.key]||[]).map(l => { const id = uid(); lineIds[l.id] = id; return {id, label:l.label, amount: (prefill && (col.key==='expenses'||col.key==='wealth')) ? lineAmt(l) : 0, items:[], ...(l.pre ? {pre: l.pre} : {})}; });
     else doc[col.key] = mk(DEFAULT_LINES[col.key]);
   }
-  if (src) for (const b of BALS) doc[b.key] = (src[b.key]||[]).map(r => ({id:uid(), label:r.label, amount:r.amount, ...(r.kind?{kind:r.kind}:{}), ...(r.src && lineIds[r.src] ? {src: lineIds[r.src]} : {})}));
+  if (src) for (const b of BALS) doc[b.key] = (src[b.key]||[]).map(r => ({id:uid(), label:r.label, amount:r.amount, ...(r.kind?{kind:r.kind}:{}), ...(r.src && lineIds[r.src] ? {src: lineIds[r.src]} : {}), ...(Array.isArray(r.items) && r.items.length ? {items: r.items.map(i => ({...i, id: uid()}))} : {})}));
+  if (src) doc.balItemsChecked = true;
   doc.budgets = src ? (src.budgets||[]).map(b => ({ id: uid(), label: b.label, limit: b.limit })) : [];
   if (src) for (const r of owedRows(doc)) { const was = (src.accounts||[]).find(x => x.label === r.label); const p = was ? rowPaid(was) : 0; if (p) payPrincipal(r, doc, p); } // the same principal again, already taken off
   syncEquityIn(doc); // and anything tied to a Home equity line follows the line
@@ -2931,6 +2936,34 @@ function ensureCurrentMonth() {
   Store.saveMonthNow(key); toast(`${monthLabel(key)} is ready — started from ${monthLabel(src)}`, 4000); render();
 }
 setInterval(ensureCurrentMonth, 60 * 60 * 1000);
+/* Months made before balance rows kept their items lost them (each account came over as one total). Once, put last month's
+   items back on the current month: only on rows still showing the untouched default (no items, or the single blank one that
+   opening the list adds) whose total is unchanged, so nothing typed since is overwritten. */
+function restoreBalItems() {
+  if (!S.ready || S.denied || (S.mode === 'firebase' && !S.user)) return;
+  if (isEditing()) { S.pendingRestore = true; return; }
+  const keys = sortedKeys(), key = S.months[todayKey()] ? todayKey() : keys[keys.length - 1];
+  const prevKey = keys.filter(k => k < key).pop(), m = S.months[key], prev = prevKey && S.months[prevKey];
+  if (!m || !prev || m.balItemsChecked) return;
+  let fixed = 0, changed = 0;
+  for (const b of ['cards', 'savings']) for (const r of m[b] || []) {
+    const p = (prev[b] || []).find(x => norm(x.label) === norm(r.label));
+    const real = p && Array.isArray(p.items) && (p.items.length > 1 || (p.items.length === 1 && String(p.items[0].label || '').trim()));
+    if (!real) continue;
+    const items = Array.isArray(r.items) ? r.items : [];
+    const untouched = !items.length || (items.length === 1 && !String(items[0].label || '').trim() && r2(items[0].amount) === r2(r.amount));
+    if (!untouched) continue;
+    if (r2(r.amount) !== r2(sumFlat(p.items))) { changed++; continue; }
+    r.items = p.items.map(i => ({ ...i, id: uid() })); r.amount = sumFlat(r.items); fixed++;
+  }
+  if (!fixed && !changed) return;
+  m.balItemsChecked = true;
+  if (S.mode === 'firebase' && !dirty[key]) { const { F } = FB; Store.write(() => F.updateDoc(Store.ref('months', key), { cards: m.cards || [], savings: m.savings || [], balItemsChecked: true }), monthLabel(key)); }
+  else Store.markDirty(key);
+  render();
+  if (fixed) toast('Put back ' + monthLabel(prevKey) + "'s items on " + fixed + ' account' + (fixed === 1 ? '' : 's') + (changed ? ' (' + changed + ' changed since, left as they are)' : ''), 6000);
+  else toast(monthLabel(prevKey) + "'s items were not put back: " + changed + ' account' + (changed === 1 ? '' : 's') + ' changed since. They are still in ' + monthLabel(prevKey) + '.', 7000);
+}
 function confirmDelete(key) {
   openOverlay(`<div class="dlg-head"><div class="ttl"><h2>Delete ${esc(monthLabel(key))}?</h2></div><button class="icon x" data-dact="close">${ICON.x}</button></div>
     <div class="dlg-body"><p style="margin:0;max-width:60ch">This removes the month and its imported transactions for everyone who uses this budget. There is no undo.</p></div>
