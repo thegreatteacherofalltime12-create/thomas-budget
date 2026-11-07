@@ -516,7 +516,9 @@ card-bonus-tracker::part(title){display:none}
 .goal-name-inp{font-weight:600;flex:1;min-width:0;border:1px solid transparent;border-radius:6px;padding:3px 6px;background:transparent;color:var(--ink);font-size:inherit;font-family:inherit}
 .goal-t{display:flex;align-items:center;gap:6px;flex:none}.goal-t .muted{font-size:12px}.goal-t input{min-width:0;text-align:right;font:inherit;font-weight:500;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
 .goal-bar{height:12px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin:8px 0 5px}.goal-bar span{display:block;height:100%;border-radius:99px;background:var(--s-wealth);transition:width .25s}.goal-bar span.done{background:var(--good)}
-.goal-sub{font-size:12.5px;color:var(--ink-3)}.link-btn{border:0;background:none;color:var(--accent);padding:0;font:inherit;text-decoration:underline;cursor:pointer}
+.goal-sub{font-size:12.5px;color:var(--ink-3)}
+.goal-src{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12.5px}.goal-src .muted{flex:none}.goal-src .sel{flex:1;min-width:0;width:0;padding:5px 8px;min-height:0;font-size:13px}.goal-src .link-btn{flex:none;font-size:12.5px}
+.goal-add{width:100%;margin:0 0 6px}.link-btn{border:0;background:none;color:var(--accent);padding:0;font:inherit;text-decoration:underline;cursor:pointer}
 .sec-btns{display:flex;gap:4px;flex-wrap:nowrap}.sec-btns .btn{flex:1;min-width:0;padding:6px 5px;font-size:12px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sec-btns [data-act=prep]{flex:0 0 auto;font-size:12px;padding:6px 8px}.sec-btns [data-act=new-month]{flex:0 0 auto}
 .prep-container{display:flex;flex-direction:column;gap:12px;padding:12px;padding-bottom:40px;background:var(--page,var(--surface))}
 .prep-card{background:var(--surface);border:1px solid var(--accent-line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px}
@@ -1089,6 +1091,7 @@ function requestRender() { // coalesced: the snapshots that arrive together get 
 }
 const onFocusOut = () => { setTimeout(() => { if (S.pendingRestore && !isEditing()) { S.pendingRestore = false; restoreBalItems(); } if (S.pendingRender && !isEditing()) { S.pendingRender = false; render(); } }, 60); };
 app.addEventListener('focusout', onFocusOut); $('#dlg').addEventListener('focusout', onFocusOut);
+$('#dlg').addEventListener('focusout', e => { const t = e.target; if (t.matches && t.matches('select.goal-add, select.goal-pick') && t.dataset.kb === '1') setTimeout(() => goalPick(t), 0); }); // a choice made with the arrow keys counts once the list is left
 window.addEventListener('hashchange', render);
 
 function currentKey() { const keys = sortedKeys(); if (!keys.length) return null; return S.months[todayKey()] ? todayKey() : keys[keys.length-1]; }
@@ -2278,7 +2281,8 @@ function openEditor(key, sec) {
 function refreshEditor() {
   if (!dialogCtx.sec || !dlg.open) return;
   const body = $('.dlg-body.editor', dlg); if (!body) return;
-  const st = body.scrollTop; setTimeout(() => { if (dialogCtx.sec === 'accounts') updateAppr(dialogCtx.key); }, 0); body.innerHTML = dialogCtx.sec === 'goals' ? goalsBody() : dialogCtx.sec === 'hsa' ? hsaBody() : dialogCtx.sec === 'cardtabs' ? cardTabsBody() : dialogCtx.sec === 'points' ? pointsBody() : dialogCtx.sec === 'share' ? shareBody() : dialogCtx.sec === 'ask' ? askBody() : dialogCtx.sec === 'import' ? importBody() : dialogCtx.sec === 'feedback' ? feedbackBody() : dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
+  const st = body.scrollTop; setTimeout(() => { if (dialogCtx.sec === 'accounts') updateAppr(dialogCtx.key); }, 0); if (dialogCtx.sec === 'goals') { const hd = $('[data-goals-head]', dlg); if (hd) hd.textContent = goalsHead(); }
+  body.innerHTML = dialogCtx.sec === 'goals' ? goalsBody() : dialogCtx.sec === 'hsa' ? hsaBody() : dialogCtx.sec === 'cardtabs' ? cardTabsBody() : dialogCtx.sec === 'points' ? pointsBody() : dialogCtx.sec === 'share' ? shareBody() : dialogCtx.sec === 'ask' ? askBody() : dialogCtx.sec === 'import' ? importBody() : dialogCtx.sec === 'feedback' ? feedbackBody() : dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
 }
 function lineHTML(key, colKey, l) {
   const hasItems = l.items && l.items.length;
@@ -2376,6 +2380,7 @@ async function onChange(e) {
   if (el.dataset.f === 'food-copy') { fillFoodFormFrom(el.value); return; }
   if (el.dataset.f === 'goals-title') { const sp = document.createElement('span'); sp.dataset.goalsTitle = ''; sp.textContent = goalsTitle(); el.replaceWith(sp); requestRender(); return; }
   if (el.dataset.f === 'goal-target') { el.value = fmtIn(parseNum(el.value)); return; }
+  if (el.dataset.f === 'goal-add' || el.dataset.f === 'goal-src') { if (el.dataset.kb !== '1') goalPick(el); return; }
   if (el.dataset.f && el.dataset.f.startsWith('hsa-')) { // HSA receipts: their own fields, nothing to do with the months
     if (el.dataset.f === 'hsa-title') { const sp = document.createElement('span'); sp.dataset.hsaTitle = ''; sp.textContent = hsaTitle(); el.replaceWith(sp); requestRender(); }
     else if (el.classList.contains('amt')) el.value = fmtIn(parseNum(el.value));
@@ -2419,6 +2424,7 @@ function onKey(e) {
   if (e.key === 'Enter' && e.target.matches('.ch-title-inp')) { e.preventDefault(); e.target.blur(); }
   if (e.key === 'Enter' && e.target.id === 'ask-q') { e.preventDefault(); askSend(); }
   if (e.key === 'Enter' && e.target.matches('.share-name')) { e.preventDefault(); e.target.blur(); }
+  if (e.target.matches('select.goal-add, select.goal-pick')) { if (e.key === 'Enter' && e.target.dataset.kb === '1') { e.preventDefault(); goalPick(e.target); } else if (/^(Arrow|Page|Home|End)/.test(e.key)) e.target.dataset.kb = '1'; }
 }
 for (const el of [app, $('#dlg')]) { el.addEventListener('input', onInput); el.addEventListener('change', onChange); el.addEventListener('keydown', onKey); }
 
@@ -3168,7 +3174,30 @@ const fingerprint = t => `${t.date}|${Math.round(Math.abs(t.amount) * 100)}|${me
    (from the latest month that has it) against a goal typed here. Kept in ledgers/goals, keyed by line name. ---------- */
 const goalsTitle = () => (S.goals.title || '').trim() || 'Savings goals';
 const goalsMap = () => { if (S.mode !== 'firebase' && !S.goalsLoaded) { try { const d = JSON.parse(localStorage.getItem('tb-goals') || '{}'); S.goals = { title: String(d.title || ''), goals: d.goals || {} }; } catch (e) {} S.goalsLoaded = true; } return S.goals.goals || (S.goals.goals = {}); };
-function goalBalance(k) { for (const mk of [...sortedKeys()].reverse()) { const m = S.months[mk]; const r = (m.savings || []).find(x => norm(x.label) === k); if (r) return { amount: lineAmt(r), key: mk, label: r.label }; for (const row of (m.savings || [])) { const it = (row.items || []).find(x => norm(x.label) === k); if (it) return { amount: it.amount || 0, key: mk, label: it.label }; } } return null; }
+const goalMonths = () => { const keys = sortedKeys(), now = todayKey(); return [...keys.filter(k => k <= now).reverse(), ...keys.filter(k => k > now)]; };
+function goalBalance(k) { for (const mk of goalMonths()) { const m = S.months[mk]; const r = (m.savings || []).find(x => norm(x.label) === k); if (r) return { amount: lineAmt(r), key: mk, label: r.label }; for (const row of (m.savings || [])) { const it = (row.items || []).find(x => norm(x.label) === k); if (it) return { amount: it.amount || 0, key: mk, label: it.label }; } } return null; }
+function goalChoices() {
+  const mk = goalMonths()[0], m = mk && S.months[mk], out = [], seen = new Set();
+  const rows = ((m && m.savings) || []).filter(r => norm(r.label));
+  for (const r of rows) { const k = norm(r.label); out.push({ k, label: r.label.trim(), amount: lineAmt(r), dup: seen.has(k), items: [] }); seen.add(k); }
+  rows.forEach((r, n) => { out[n].items = (r.items || []).filter(i => norm(i.label)).map(i => { const k = norm(i.label), c = { k, label: i.label.trim(), amount: +i.amount || 0, dup: seen.has(k) }; seen.add(k); return c; }); });
+  return { month: mk, list: out };
+}
+function goalChoiceLabel(k) { const ch = goalChoices().list, c = ch.find(a => a.k === k && !a.dup) || ch.flatMap(a => a.items).find(i => i.k === k && !i.dup); return c ? c.label : null; }
+function goalOptions(selected, taken) { // one group per account: the whole account first, then its named items
+  return goalChoices().list.map(a => `<optgroup label="${esc(a.label)}">${[{ ...a, label: a.label + (a.items.length ? ' (whole account)' : '') }, ...a.items].map(c => { const sel = !c.dup && c.k === selected; return `<option value="${esc(c.k)}"${sel ? ' selected' : ''}${c.dup || (!sel && taken.has(c.k)) ? ' disabled' : ''}>${esc(c.label)} · ${fmt(c.amount)}${c.dup ? ' (same name as another line, rename it to track it)' : ''}</option>`; }).join('')}</optgroup>`).join('');
+}
+function goalPick(el) { // from the "add a goal" list, or a goal's Tracks list
+  delete el.dataset.kb; const k = el.value, gm = goalsMap(); if (!k) return;
+  if (el.dataset.f === 'goal-add') { if (!gm[k]) gm[k] = { label: goalChoiceLabel(k) || k, target: 0 }; }
+  else { // point a goal at another account, keeping its amount, its place in the list and any name typed for it
+    const old = el.closest('[data-gk]').dataset.gk, g = gm[old]; if (!g || k === old) return;
+    if (gm[k]) { toast('That one is already a goal'); el.value = old; return; }
+    const label = norm(g.label) === old ? (goalChoiceLabel(k) || k) : g.label;
+    S.goals.goals = Object.fromEntries(Object.entries(gm).map(([kk, v]) => kk === old ? [k, { ...v, label }] : [kk, v]));
+  }
+  Store.markGoals(); refreshEditor(); requestRender();
+}
 function goalsSummary() {
   const list = Object.entries(goalsMap()).map(([k, g]) => { const b = goalBalance(k); return { k, label: g.label || (b && b.label) || k, target: +g.target || 0, have: b ? b.amount : 0, month: b && b.key, missing: !b }; });
   const target = r2(list.reduce((s, x) => s + x.target, 0)), have = r2(list.reduce((s, x) => s + Math.min(x.have, x.target || x.have), 0));
@@ -3176,15 +3205,17 @@ function goalsSummary() {
 }
 const goalPct = g => g.target ? Math.min(100, Math.round(g.have / g.target * 100)) : 0;
 function goalLine(g) { return g.target ? `${fmt(g.have)} of ${fmt(g.target)} · ${goalPct(g)}%${g.have >= g.target ? ' · reached' : ' · ' + fmt(r2(g.target - g.have)) + ' to go'}` : `${fmt(g.have)} saved · set a goal amount`; }
-function goalsHead() { const s = goalsSummary(); return s.n ? `${s.n} goal${s.n === 1 ? '' : 's'} · ${fmt(s.have)} of ${fmt(s.target)} saved` : 'mark lines in Savings in Cash with the target icon'; }
+function goalsHead() { const s = goalsSummary(); return s.n ? `${s.n} goal${s.n === 1 ? '' : 's'} · ${fmt(s.have)} of ${fmt(s.target)} saved` : 'pick accounts from Savings in Cash'; }
 function goalsBody() {
-  const s = goalsSummary();
-  return `<div class="goal-list">${s.list.map(g => `<div class="goal" data-gk="${esc(g.k)}">
+  const s = goalsSummary(), ch = goalChoices(), taken = new Set(s.list.map(g => g.k)), known = new Set(ch.list.flatMap(a => [a.k, ...a.items.map(i => i.k)]));
+  const add = ch.list.length ? `<select class="sel goal-add" data-f="goal-add" aria-label="Add a savings goal"><option value="">+ Add a goal from Savings in Cash…</option>${goalOptions(null, taken)}</select>` : '';
+  return `${add}<div class="goal-list">${s.list.map(g => `<div class="goal" data-gk="${esc(g.k)}">
       <div class="goal-top"><input type="text" class="goal-name-inp" data-f="goal-name" value="${esc(g.label)}" placeholder="Goal name" autocomplete="off"><span class="amtw goal-t"><span class="muted">goal</span><input type="text" inputmode="decimal" class="amt" data-simple-calc="1" id="f-goal-${esc(g.k.replace(/[^a-z0-9]/g, '_'))}" data-f="goal-target" value="${fmtIn(g.target)}" placeholder="0" aria-label="Goal amount for ${esc(g.label)}" size="${Math.max(1,fmtIn(g.target).length)}">${undoBtn(`f-goal-${g.k.replace(/[^a-z0-9]/g, '_')}`)}</span></div>
       <div class="goal-bar"><span style="width:${goalPct(g)}%" class="${g.target && g.have >= g.target ? 'done' : ''}"></span></div>
-      <div class="goal-sub"><span data-goal-line>${esc(goalLine(g))}</span>${g.missing ? ' · <b class="neg">not in Savings in Cash anymore</b> <button class="link-btn" data-act="goal-drop" data-gk="' + esc(g.k) + '">remove</button>' : g.month ? ` · as of ${esc(monthLabel(g.month))}` : ''}</div>
-    </div>`).join('') || '<div class="faint" style="padding:12px 8px;font-size:12.5px">No savings goals yet. Open a month → Balances → Savings in Cash, and tap the target icon on a line — it shows up here as a bar.</div>'}</div>
-    <p class="chart-note">Each bar is that line’s balance in Savings in Cash (latest month that has it) against the goal you type here. Tap the target icon on the line again to stop tracking it.</p>`;
+      <div class="goal-sub"><span data-goal-line>${esc(goalLine(g))}</span>${g.missing ? ' · <b class="neg">not in Savings in Cash anymore</b>' : g.month ? ` · as of ${esc(monthLabel(g.month))}` : ''}</div>
+      <div class="goal-src"><span class="muted">Tracks</span>${ch.list.length ? `<select class="sel goal-pick" data-f="goal-src" aria-label="Which Savings in Cash account ${esc(g.label)} follows">${known.has(g.k) ? '' : `<option value="${esc(g.k)}" selected>${esc(g.label)} (not in ${esc(monthLabel(ch.month))})</option>`}${goalOptions(g.k, taken)}</select>` : `<span>${esc(g.label)}</span>`}<button class="link-btn" data-act="goal-drop" data-gk="${esc(g.k)}">Remove</button></div>
+    </div>`).join('') || '<div class="faint" style="padding:12px 8px;font-size:12.5px">No savings goals yet. Pick an account from the list above, or open a month → Balances → Savings in Cash and tap the target icon on a line.</div>'}</div>
+    <p class="chart-note">Each bar is that account's balance in Savings in Cash (this month, or the latest month before it) against the goal you type here. Use Tracks to choose which account or item a goal follows.</p>`;
 }
 function openGoals() {
   const from = cameFromTrends(); dialogCtx = { key: null, sec: 'goals', back: from ? 'trends' : null, via: from ? 'trends' : null };
