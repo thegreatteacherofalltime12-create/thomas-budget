@@ -1166,7 +1166,7 @@ function renderHome() {
   </section>
 
   <section class="section">
-    <div class="sec-head"><h2>Past spreadsheets</h2><span class="muted">${keys.length} on record</span><span class="sp"></span><span class="sec-btns"><button class="btn sm" data-act="new-month">${ICON.plus} New month</button><button class="btn sm" data-act="prep">EP</button><button class="btn sm" data-act="year">${new Date().getFullYear()}</button><button class="btn sm" data-act="retire">Retirement</button><button class="btn sm" data-act="balances">Balances</button></span></div>
+    <div class="sec-head"><h2>Past spreadsheets</h2><span class="muted">${keys.length} on record</span><span class="sp"></span><span class="sec-btns"><button class="btn sm" data-act="new-month">${ICON.plus} New month</button><button class="btn sm" data-act="prep">EP</button><button class="btn sm" data-act="year">${new Date().getFullYear()}</button></span></div>
     <div class="card pick"><label for="year-pick">Choose a year</label><select id="year-pick" class="sel" data-f="yearpick" aria-label="Choose a year"><option value="">Choose…</option>${[...new Set(keys.map(k => k.slice(0,4)))].sort().reverse().map(y => `<option value="${y}">${y} · ${keys.filter(k => k.startsWith(y)).length} month${keys.filter(k => k.startsWith(y)).length===1?'':'s'}</option>`).join('')}</select></div>
   </section>
 
@@ -1179,7 +1179,7 @@ function renderHome() {
         <span class="k">Credit card debt</span><span class="v">${tb.bc ? fmt(tb.bc.cc) : '—'}</span>
         <span class="k">Savings in cash</span><span class="v">${fmt(c.cash)}</span>
       </div>
-      <div class="hint" style="font-size:12px;color:var(--accent);font-weight:600">Tap for the charts, receipts, goals and balances</div>
+      <div class="hint" style="font-size:12px;color:var(--accent);font-weight:600">Tap for charts, retirement, balances and more</div>
     </button>
   </section>
 
@@ -1256,7 +1256,7 @@ const SECTIONS = [
    mortgage marked “principal” — the balance, the equity and the year's equity build always agree.
    Each row is marked worth / owed / other; only worth and owed make up the equity. */
 const TRENDS_DEFAULTS = ['trend', 'savings', 'retire', 'retained', 'outlook', 'hsa', 'goals', 'equity', 'debt', 'balances'];
-const TRENDS_KEEP = ['retire', 'outlook', 'balances', 'hsa', 'goals']; // no window of their own to be added back from
+const TRENDS_KEEP = ['retire', 'outlook', 'balances', 'balances-next', 'hsa', 'goals']; // no window of their own to be added back from
 const rowKind = r => ['value', 'owed', 'other'].includes(r.kind) ? r.kind : (OWED_LIKE.test(r.label || '') ? 'owed' : /home|house|property|condo|land|cabin/i.test(r.label || '') ? 'value' : 'other');
 const KIND_LABEL = { value: 'worth', owed: 'owed', other: 'other' };
 const homeEquityAmt = m => r2(((m && m.wealth) || []).filter(l => /equity/i.test(l.label || '')).reduce((s, l) => s + lineAmt(l), 0));
@@ -2203,27 +2203,37 @@ function moveGesture(rootEl) {
 
 function openTrends(key) {
   if (!S.months[key]) key = currentKey(); if (!key) return;
-  const t = trendsFacts(key), yo = yearOutlook(), cm = S.months[key], nCards = (cm.cards||[]).filter(x => x.amount).length, nBal = (cm.cards||[]).length + (cm.savings||[]).length + (cm.accounts||[]).length;
+  buildTrendsRows(key);
+  dialogCtx = { key, sec: 'trends' };
+  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · swipe right to move · swipe left to remove</span></div></div>
+    <div class="dlg-body editor">${trendsBody(key)}</div>`);
+  dlg.style.maxWidth = '560px'; wireArrange();
+}
+function buildTrendsRows(key) {
+  const t = trendsFacts(key), yo = yearOutlook(), cm = S.months[key];
   const rows = [
     { id: 'trend', act: 'chart', chart: 'trend', sw: 'wealth', title: 'Trends data', sub: `net income, expenses and what was retained · month by month in ${key.slice(0, 4)}`, v: `${yearKeys(key).length} mo` },
     { id: 'savings', act: 'chart', chart: 'savings', sw: 'income', title: 'Savings & wealth building', sub: `in cash · ${fmt(t.c.wealth)} to wealth building this month · ${fmt(t.ytdWealth)} in ${key.slice(0, 4)}`, v: fmt(t.c.cash) },
+    (() => { const pl = retirePlan(); return { id: 'retire', act: 'retire', sw: 'wealth', title: 'Retirement', sub: `${pl.p.years} year${pl.p.years === 1 ? '' : 's'} away · ${fmt(pl.todays)} a month in today’s money`, v: `${fmt(pl.monthly)}/mo` }; })(),
     { id: 'retained', act: 'chart', chart: 'trend', sw: 'ret', title: 'Income retained by month', sub: t.pc ? `${fmt(t.c.retained - t.pc.retained, {sign:true})} vs ${shortMonth(t.prevKey)}` : 'first month on record', v: fmt(t.c.retained), cls: signCls(t.c.retained) },
     (() => { const y = hsaYear(); return { id: 'hsa', act: 'hsa', sw: 'income', title: hsaTitle(), sub: y.n ? `${y.n} receipt${y.n === 1 ? '' : 's'} not yet reimbursed${y.carried ? ' · ' + fmt(y.carried) + ' carried over' : ''}` : 'snap HSA-eligible receipts · running total to reimburse', v: fmt(y.total) }; })(),
     (() => { const s = goalsSummary(); return { id: 'goals', act: 'goals', sw: 'wealth', title: goalsTitle(), sub: s.n ? `${s.n} goal${s.n === 1 ? '' : 's'} · ${s.pct}% of ${fmt(s.target)} saved` : 'mark lines in Savings in Cash as goals · a bar for each', v: s.n ? fmt(s.have) : '—' }; })(),
     ...(equityStats(cm).has ? [(() => { const e = equityStats(cm), y = equityYTD(key); return { id: 'equity', act: 'chart', chart: 'equity', sw: 'wealth', title: 'Home equity', sub: `${fmt(e.value)} worth − ${fmt(e.owed)} owed · ${fmt(y.total)} built in ${key.slice(0, 4)}`, v: fmt(e.equity) }; })()] : []),
     { id: 'debt', act: 'chart', chart: 'debt', sw: 'debt', title: 'Total credit card debt', sub: t.bc ? `${t.bpc ? fmt(t.bc.cc - t.bpc.cc, {sign:true}) + ' since ' + shortMonth(t.bPrev) + ' · ' : ''}as of ${monthLabel(t.withBal)}` : 'add card balances in a month to track this', v: t.bc ? fmt(t.bc.cc) : '—' },
+    balancesRow(key, 'balances'),
+    ...(sortedKeys().slice(-1)[0] > key ? [balancesRow(sortedKeys().slice(-1)[0], 'balances-next')] : []), // a month started early keeps its balances reachable
   ];
   for (const c of CHART_TABS) if (!rows.some(r => r.chart === c.id) && (S.trendsAdded || []).includes(c.id)) rows.push(extraRow(key, c)); // charts added from their own window
   if (Array.isArray(S.trendsOrder) && S.trendsOrder.includes('hsa') && !S.trendsOrder.includes('goals')) { const i = S.trendsOrder.indexOf('hsa') + 1; S.trendsOrder = [...S.trendsOrder.slice(0, i), 'goals', ...S.trendsOrder.slice(i)]; } // a new row lands under HSA receipts
   const ord = Array.isArray(S.trendsOrder) ? S.trendsOrder : []; // whatever order was arranged; anything new stays where it was added
   rows.sort((a, b) => { const i = ord.indexOf(a.id), j = ord.indexOf(b.id); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j); });
   trendsRows = rows;
-  dialogCtx = { key, sec: 'trends' };
-  openOverlay(`<div class="dlg-head">${pageBack()}<div class="ttl"><h2>Trends & balances</h2><span class="muted" style="font-size:13px">${esc(monthLabel(key))} · swipe right to move · swipe left to remove</span></div></div>
-    <div class="dlg-body editor">${trendsBody(key)}</div>`);
-  dlg.style.maxWidth = '560px'; wireArrange();
 }
 let trendsRows = [];
+function balancesRow(k, id) {
+  const m = S.months[k], filled = (m.cards||[]).filter(x => x.amount).length, any = (m.cards||[]).length + (m.savings||[]).length + (m.accounts||[]).length;
+  return { id, act: 'balances', key: k, sw: 'income', title: `Balances · ${monthLabel(k)}`, sub: any ? `${filled} card${filled === 1 ? '' : 's'} with a balance · ${(m.savings||[]).length} savings · ${(m.accounts||[]).length} on the house · tap to edit` : `nothing recorded yet for ${shortMonth(k)} · tap to add`, v: '' };
+}
 /* A chart the list does not carry yet can be added from inside it; swiping one away here takes it off. */
 function extraRow(key, c) {
   const m = S.months[key], cl = calc(m), col = COLS.find(x => x.key === c.id);
@@ -2244,8 +2254,8 @@ function trendsBody(key) {
   const hid = Array.isArray(S.trendsHidden) ? S.trendsHidden : [], ord = Array.isArray(S.trendsOrder) ? S.trendsOrder : [];
   trendsRows.sort((x, y) => { const i = ord.indexOf(x.id), j = ord.indexOf(y.id); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j); }); // keep whatever order was arranged
   const add = Array.isArray(S.trendsAdded) ? S.trendsAdded : [];
-  const shown = trendsRows.filter(r => TRENDS_DEFAULTS.includes(r.id) ? !hid.includes(r.id) : add.includes(r.id));
-  return `<div class="list trends-list" style="margin:0">${shown.map(r => `<div class="lwrap" data-arr="${r.id}"><span class="swipe-hint"></span><span class="swipe-flag">${ICON.grip} Move tab</span><span class="del-hint"></span><span class="del-flag">${ICON.x} Delete</span><button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-key="${key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button></div>`).join('') || '<div class="faint" style="padding:14px 10px;font-size:12.5px">Every tab is put away. Add one back below.</div>'}</div>`;
+  const shown = trendsRows.filter(r => r.id === 'retire' || r.act === 'balances' || (TRENDS_DEFAULTS.includes(r.id) ? !hid.includes(r.id) : add.includes(r.id))); // Retirement and Balances are the only way into those windows from home
+  return `<div class="list trends-list" style="margin:0">${shown.map(r => `<div class="lwrap" data-arr="${r.id}"><span class="swipe-hint"></span><span class="swipe-flag">${ICON.grip} Move tab</span><span class="del-hint"></span><span class="del-flag">${ICON.x} Delete</span><button class="lrow" data-act="${r.act}"${r.chart ? ` data-chart="${r.chart}"` : ''} data-key="${r.key || key}"><span class="sw ${r.sw}"></span><span class="t">${esc(r.title)}<span class="n">${esc(r.sub)}</span></span><span class="v num ${r.cls || ''}">${r.v}</span>${ICON.chev}</button></div>`).join('') || '<div class="faint" style="padding:14px 10px;font-size:12.5px">Every tab is put away. Add one back below.</div>'}</div>`;
 }
 function redrawTrends(key) { const body = $('.dlg-body.editor', dlg); if (!body) return; body.innerHTML = trendsBody(key); wireArrange(); }
 const fromTrends = () => dialogCtx.back === 'trends';
@@ -2281,6 +2291,10 @@ function openEditor(key, sec) {
 function refreshEditor() {
   if (!dialogCtx.sec || !dlg.open) return;
   const body = $('.dlg-body.editor', dlg); if (!body) return;
+  if (dialogCtx.sec === 'trends') { // fresh figures in the same list; never under a finger that is moving a row
+    if (!arranging && S.months[dialogCtx.key] && $('.trends-list', body)) { const top = body.scrollTop; buildTrendsRows(dialogCtx.key); redrawTrends(dialogCtx.key); body.scrollTop = top; }
+    return;
+  }
   const st = body.scrollTop; setTimeout(() => { if (dialogCtx.sec === 'accounts') updateAppr(dialogCtx.key); }, 0); if (dialogCtx.sec === 'goals') { const hd = $('[data-goals-head]', dlg); if (hd) hd.textContent = goalsHead(); }
   body.innerHTML = dialogCtx.sec === 'goals' ? goalsBody() : dialogCtx.sec === 'hsa' ? hsaBody() : dialogCtx.sec === 'cardtabs' ? cardTabsBody() : dialogCtx.sec === 'points' ? pointsBody() : dialogCtx.sec === 'share' ? shareBody() : dialogCtx.sec === 'ask' ? askBody() : dialogCtx.sec === 'import' ? importBody() : dialogCtx.sec === 'feedback' ? feedbackBody() : dialogCtx.sec === 'church' ? churchBody() : dialogCtx.sec === 'balances' ? balancesBody(dialogCtx.key) : editorBody(dialogCtx.key, dialogCtx.sec); body.scrollTop = st;
 }
